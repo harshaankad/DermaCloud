@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\")",
+      "Bash(npm install)",
+      "Bash(tree:*)",
+      "Bash(curl:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run test:s3:*)",
+      "Bash(npm run test:s3:upload:*)",
+      "Bash(npm run test:s3:cleanup:*)",
+      "Bash(npx tsx:*)",
+      "Bash(python scripts/convert-model-to-onnx.py:*)",
+      "Bash(pip install:*)",
+      "Bash(taskkill:*)",
+      "Bash(mongosh:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(cat:*)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
