@@ -3,8 +3,6 @@
  * Uses ONNX Runtime to run the trained Vision Transformer model
  */
 
-import * as ort from "onnxruntime-node";
-import sharp from "sharp";
 import path from "path";
 import fs from "fs/promises";
 
@@ -13,7 +11,7 @@ const LABELS_PATH = path.join(process.cwd(), "labels.json");
 const MODEL_PATH = path.join(process.cwd(), "skin_condition_model.onnx");
 
 let labels: string[] = [];
-let session: ort.InferenceSession | null = null;
+let session: any = null; // onnxruntime-node InferenceSession (loaded dynamically)
 
 /**
  * Initialize the AI model and load labels
@@ -30,7 +28,8 @@ export async function initializeModel(): Promise<void> {
     labels = JSON.parse(labelsData);
     console.log(`✅ Loaded ${labels.length} skin condition labels`);
 
-    // Load ONNX model
+    // Load ONNX model (dynamic import keeps onnxruntime-node out of the bundle)
+    const ort = await import("onnxruntime-node");
     session = await ort.InferenceSession.create(MODEL_PATH, {
       executionProviders: ["cpu"],
     });
@@ -49,6 +48,7 @@ export async function initializeModel(): Promise<void> {
 async function preprocessImage(imageBuffer: Buffer): Promise<Float32Array> {
   try {
     // Resize and convert to RGB
+    const sharp = (await import("sharp")).default;
     const { data, info } = await sharp(imageBuffer)
       .resize(224, 224, {
         fit: "cover",
@@ -132,7 +132,8 @@ export async function predictSkinCondition(
     // Preprocess image
     const tensorData = await preprocessImage(imageBuffer);
 
-    // Create input tensor
+    // Create input tensor (ort already loaded when session was created)
+    const ort = await import("onnxruntime-node");
     const inputTensor = new ort.Tensor("float32", tensorData, [1, 3, 224, 224]);
 
     // Run inference

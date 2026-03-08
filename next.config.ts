@@ -35,7 +35,15 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   // pdfkit + fontkit are pure Node.js modules — tell Turbopack/webpack not to bundle them
-  serverExternalPackages: ["pdfkit", "fontkit"],
+  serverExternalPackages: ["pdfkit", "fontkit", "onnxruntime-node", "sharp"],
+
+  // Exclude large ML packages from Vercel serverless function bundles
+  outputFileTracingExcludes: {
+    "*": [
+      "node_modules/onnxruntime-node/**",
+      "node_modules/onnxruntime-node/.node/**",
+    ],
+  },
 
   eslint: {
     ignoreDuringBuilds: true,
