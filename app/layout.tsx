@@ -11,7 +11,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://dermacloud.in"),
+  metadataBase: new URL((process.env.NEXT_PUBLIC_APP_URL || "https://dermacloud.in").replace(/\/+$/, "")),
   title: "DermaCloud - AI-Powered Dermatology Clinic Management",
   description: "Transform your dermatology practice with AI-powered skin diagnosis, comprehensive patient management, appointment scheduling, and pharmacy integration. Cloud-based HMS for modern dermatologists in India.",
   keywords: ["dermatology software", "AI skin diagnosis", "clinic management", "dermatology HMS", "patient management", "dermoscopy AI", "skin disease diagnosis", "dermatology practice management", "India"],
