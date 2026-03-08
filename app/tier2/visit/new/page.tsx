@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Logo from "@/components/Logo";
 
 interface Patient {
   _id: string;
@@ -105,9 +106,7 @@ export default function NewVisitPage() {
       <header className="bg-white/90 backdrop-blur-lg shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex justify-between items-center">
           <Link href="/tier2/dashboard">
-            <h1 className="text-2xl font-bold text-slate-800 cursor-pointer hover:text-blue-600 transition-colors">
-              DermaHMS
-            </h1>
+            <Logo />
           </Link>
           <Link href={`/tier2/patients/${patientId}`}>
             <button className="flex items-center space-x-2 text-slate-600 hover:text-blue-600 font-medium transition-colors">

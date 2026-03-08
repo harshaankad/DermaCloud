@@ -4,12 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { authMiddleware } from "@/lib/auth/middleware";
+import { verifyTier2Request } from "@/lib/auth/verify-request";
 import { connectDB } from "@/lib/db/connection";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 import Patient from "@/models/Patient";
 import Clinic from "@/models/Clinic";
 import { getSignedUrl } from "@/lib/aws/signed-url";
+import { isValidObjectId } from "@/lib/sanitize";
+import { auditLog } from "@/lib/audit";
 
 // Common skin condition causes database for generating patient explanations
 const conditionCauses: Record<string, { causes: string[]; tips: string[] }> = {
@@ -291,23 +293,12 @@ function generatePatientExplanation(
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user
-    const authResult = await authMiddleware(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
     }
-
-    const { user: authUser } = authResult;
-
-    // Verify user is Tier 2
-    if (authUser.tier !== "tier2") {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "This endpoint is only for Tier 2 users",
-        },
-        { status: 403 }
-      );
+    if (auth.role !== "doctor") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
     }
 
     // Parse request body
@@ -318,6 +309,7 @@ export async function POST(request: NextRequest) {
       aiAnalysis,
       dermoscopeImageUrls,
       clinicalImageUrls,
+      consultationFee,
     } = body;
 
     if (!patientId) {
@@ -326,6 +318,18 @@ export async function POST(request: NextRequest) {
           success: false,
           message: "Patient ID is required",
         },
+        { status: 400 }
+      );
+    }
+
+    // Enforce maximum 2 issues per consultation
+    if (
+      formData?._multiIssue === true &&
+      Array.isArray(formData?._issues) &&
+      formData._issues.length > 2
+    ) {
+      return NextResponse.json(
+        { success: false, message: "Maximum 2 issues are allowed per consultation" },
         { status: 400 }
       );
     }
@@ -382,28 +386,11 @@ export async function POST(request: NextRequest) {
     console.log("Dermoscope URLs received:", dermoscopeImageUrls);
     console.log("Clinical URLs received:", clinicalImageUrls);
 
-    // Generate patient-friendly AI explanation
-    const diagnosis = formData.provisional || formData.provisionalDiagnosis || "";
-    const topicals = formData.topicals || formData.topicalMedications || "";
-    const orals = formData.orals || formData.oralMedications || "";
-    const complaint = formData.complaint || formData.chiefComplaint || "";
-    const severity = formData.severity || "";
-
-    const aiExplanation = generatePatientExplanation(
-      diagnosis,
-      topicals,
-      orals,
-      complaint,
-      severity
-    );
-
-    console.log("Generated AI explanation for patient");
-
     try {
       const consultation = await ConsultationDermatology.create({
-        clinicId: authUser.clinicId,
+        clinicId: auth.clinicId,
         patientId: patient._id,
-        doctorId: authUser.userId,
+        doctorId: auth.userId,
         consultationDate: new Date(),
         patientInfo: {
           name: formData.patientName || patient.name,
@@ -456,14 +443,14 @@ export async function POST(request: NextRequest) {
               reason: formData.reason || formData.followUpReason,
             }
           : undefined,
-        patientSummary: {
-          aiGenerated: aiExplanation,
-        },
         customFields: formData,
+        consultationFee: consultationFee != null ? Number(consultationFee) : undefined,
         status: "completed",
       });
 
       console.log("Consultation created successfully with ID:", consultation._id);
+
+      auditLog({ clinicId: auth.clinicId, userId: auth.userId, userEmail: auth.email, role: "doctor", action: "CONSULTATION_CREATE", resourceType: "consultation", resourceId: consultation._id.toString(), details: { patientId: patient._id.toString(), type: "dermatology" } }).catch(() => {});
 
       return NextResponse.json({
         success: true,
@@ -498,37 +485,106 @@ export async function POST(request: NextRequest) {
 // GET endpoint to fetch consultation details
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await authMiddleware(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
-
-    const { user: authUser } = authResult;
-
-    if (authUser.tier !== "tier2") {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "This endpoint is only for Tier 2 users",
-        },
-        { status: 403 }
-      );
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
     }
 
     const { searchParams } = new URL(request.url);
     const consultationId = searchParams.get("consultationId");
+    const patientId = searchParams.get("patientId");
+
+    await connectDB();
+
+    // If patientId is provided, return previous visits for comparison
+    if (patientId) {
+      try {
+        const consultations = await ConsultationDermatology.find({
+          patientId,
+          clinicId: auth.clinicId,
+          status: "completed",
+        })
+          .sort({ consultationDate: -1 })
+          .select("_id consultationDate images customFields")
+          .lean();
+
+        // Helper to sign a single raw URL
+        const signUrl = (rawUrl: string): string => {
+          try {
+            const parsed = new URL(rawUrl);
+            const key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
+            return key ? getSignedUrl(key, 3600) : rawUrl;
+          } catch {
+            return rawUrl;
+          }
+        };
+
+        // Generate signed URLs for all images (top-level + multi-issue)
+        const consultationsWithSignedUrls = consultations.map((c: any) => {
+          const consultation = { ...c };
+
+          // Sign top-level images (Issue 1)
+          if (consultation.images && consultation.images.length > 0) {
+            consultation.images = consultation.images.map((image: any) => {
+              let s3Key = "";
+              if (image.url) {
+                try {
+                  const url = new URL(image.url);
+                  s3Key = url.pathname.startsWith("/") ? url.pathname.slice(1) : url.pathname;
+                } catch {
+                  s3Key = image.url;
+                }
+              }
+              if (s3Key) {
+                return { ...image, url: getSignedUrl(s3Key, 3600) };
+              }
+              return image;
+            });
+          }
+
+          // Sign image URLs inside multi-issue customFields._issues
+          if (
+            consultation.customFields?._multiIssue &&
+            Array.isArray(consultation.customFields._issues)
+          ) {
+            consultation.customFields = {
+              ...consultation.customFields,
+              _issues: consultation.customFields._issues.map((issue: any) => ({
+                ...issue,
+                dermoscopeImageUrls: (issue.dermoscopeImageUrls || []).map(signUrl),
+                clinicalImageUrls:   (issue.clinicalImageUrls   || []).map(signUrl),
+              })),
+            };
+          }
+
+          return consultation;
+        });
+
+        return NextResponse.json({
+          success: true,
+          data: consultationsWithSignedUrls,
+        });
+      } catch (err: any) {
+        console.error("Error fetching previous visits:", err);
+        return NextResponse.json({
+          success: true,
+          data: [],
+        });
+      }
+    }
 
     if (!consultationId) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Consultation ID is required",
-        },
+        { success: false, message: "Consultation ID is required" },
         { status: 400 }
       );
     }
-
-    await connectDB();
+    if (!isValidObjectId(consultationId)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid consultation ID" },
+        { status: 400 }
+      );
+    }
 
     console.log("Fetching consultation with ID:", consultationId);
 
@@ -597,6 +653,28 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("Images with signed URLs:", consultationObj.images?.length || 0);
+
+    // Sign image URLs inside multi-issue customFields._issues
+    const signS3Url = (rawUrl: string): string => {
+      try {
+        const parsed = new URL(rawUrl);
+        const key = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
+        return key ? getSignedUrl(key, 3600) : rawUrl;
+      } catch {
+        return rawUrl;
+      }
+    };
+
+    if (
+      consultationObj.customFields?._multiIssue &&
+      Array.isArray(consultationObj.customFields._issues)
+    ) {
+      consultationObj.customFields._issues = consultationObj.customFields._issues.map((issue: any) => ({
+        ...issue,
+        dermoscopeImageUrls: (issue.dermoscopeImageUrls || []).map(signS3Url),
+        clinicalImageUrls:   (issue.clinicalImageUrls   || []).map(signS3Url),
+      }));
+    }
 
     return NextResponse.json({
       success: true,

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Logo from "@/components/Logo";
 
 interface AIResult {
   predictions: Array<{
@@ -97,9 +98,9 @@ export default function ScanHistoryPage() {
 
   if (loading && scans.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-teal-600 mx-auto mb-4"></div>
           <p className="text-slate-600 font-medium">Loading scan history...</p>
         </div>
       </div>
@@ -107,56 +108,88 @@ export default function ScanHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
-      {/* Animated background - softer colors */}
-      <div className="absolute top-20 left-10 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob"></div>
-      <div className="absolute bottom-20 right-10 w-96 h-96 bg-slate-200 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-2000"></div>
-
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50">
       {/* Header */}
-      <header className="bg-white/90 backdrop-blur-lg shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex justify-between items-center">
-          <Link href="/tier1/dashboard">
-            <h1 className="text-2xl font-bold text-slate-800 cursor-pointer hover:text-blue-600 transition-colors">
-              DermaHMS
-            </h1>
-          </Link>
-          <Link href="/tier1/dashboard">
-            <button className="flex items-center space-x-2 text-slate-600 hover:text-blue-600 font-medium transition-colors">
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div>
+                <Link href="/tier1/dashboard">
+                  <Logo size="sm" />
+                </Link>
+                <p className="text-sm text-gray-500">Student Plan</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                localStorage.removeItem("token");
+                localStorage.removeItem("user");
+                router.push("/login");
+              }}
+              className="flex items-center space-x-2 text-gray-600 hover:text-red-600 font-medium transition-colors"
+            >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-              <span>Back to Dashboard</span>
+              <span>Logout</span>
             </button>
-          </Link>
+          </div>
         </div>
       </header>
 
+      {/* Navigation */}
+      <nav className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8">
+            <Link
+              href="/tier1/dashboard"
+              className="px-4 py-3 text-gray-600 hover:text-teal-600 font-medium transition-colors"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/tier1/upload"
+              className="px-4 py-3 text-gray-600 hover:text-teal-600 font-medium transition-colors"
+            >
+              Upload Scan
+            </Link>
+            <Link
+              href="/tier1/scans"
+              className="px-4 py-3 text-teal-600 border-b-2 border-teal-600 font-medium"
+            >
+              Scan History
+            </Link>
+          </div>
+        </div>
+      </nav>
+
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
-        <div className="text-center mb-10">
-          <h2 className="text-4xl font-bold text-slate-900 mb-3">Scan History</h2>
-          <p className="text-slate-600 text-lg">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-6">
+          <h2 className="text-3xl font-bold text-slate-900">Scan History</h2>
+          <p className="text-slate-600 mt-1">
             {pagination ? `${pagination.totalCount} total scans` : "View all your previous scans"}
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
         {scans.length === 0 && !loading && !error && (
-          <div className="text-center py-20 bg-white rounded-2xl shadow-md border border-gray-200">
-            <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
-              <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="text-center py-16 bg-white rounded-xl shadow-lg border-l-4 border-teal-500">
+            <div className="w-16 h-16 bg-teal-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
             <h3 className="text-2xl font-bold text-slate-900 mb-2">No scans yet</h3>
-            <p className="text-slate-600 mb-8 max-w-md mx-auto">Upload your first scan to get started with AI-powered skin analysis</p>
+            <p className="text-slate-600 mb-6 max-w-md mx-auto">Upload your first scan to get started with AI-powered skin analysis</p>
             <Link href="/tier1/upload">
-              <button className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl">
+              <button className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-semibold rounded-lg hover:from-teal-600 hover:to-cyan-700 transition-colors shadow-md">
                 Upload New Scan
               </button>
             </Link>
@@ -169,7 +202,7 @@ export default function ScanHistoryPage() {
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
               {scans.map((scan) => (
                 <Link key={scan.id} href={`/tier1/scans/${scan.id}`}>
-                  <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-200 overflow-hidden hover:border-blue-300">
+                  <div className="group bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border-l-4 border-teal-500 overflow-hidden hover:border-l-cyan-500">
                     {/* Image */}
                     <div className="aspect-square bg-slate-100 relative overflow-hidden">
                       <img
@@ -178,13 +211,13 @@ export default function ScanHistoryPage() {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                       {scan.images.length > 1 && (
-                        <div className="absolute top-3 right-3 bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg shadow-md">
+                        <div className="absolute top-3 right-3 bg-teal-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg shadow-md">
                           +{scan.images.length - 1}
                         </div>
                       )}
                       <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-xs font-semibold shadow-md ${
                         scan.status === "completed"
-                          ? "bg-emerald-500 text-white"
+                          ? "bg-green-500 text-white"
                           : scan.status === "pending"
                           ? "bg-amber-500 text-white"
                           : "bg-rose-500 text-white"
@@ -207,7 +240,7 @@ export default function ScanHistoryPage() {
                         <span
                           className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${
                             scan.finalResult.topPrediction.confidence === "high"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              ? "bg-green-50 text-green-700 border border-green-200"
                               : scan.finalResult.topPrediction.confidence === "medium"
                               ? "bg-amber-50 text-amber-700 border border-amber-200"
                               : "bg-rose-50 text-rose-700 border border-rose-200"
@@ -230,7 +263,7 @@ export default function ScanHistoryPage() {
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                           <div
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            className="bg-teal-600 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${scan.finalResult.topPrediction.probability * 100}%` }}
                           ></div>
                         </div>
@@ -243,7 +276,7 @@ export default function ScanHistoryPage() {
 
             {/* Pagination */}
             {pagination && pagination.totalPages > 1 && (
-              <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200">
+              <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-cyan-500">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   {/* Page info */}
                   <div className="text-sm text-slate-600">
@@ -257,14 +290,14 @@ export default function ScanHistoryPage() {
                     <button
                       onClick={() => handlePageChange(1)}
                       disabled={!pagination.hasPrev}
-                      className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-slate-700 hover:bg-teal-50 hover:border-teal-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                     >
                       First
                     </button>
                     <button
                       onClick={() => handlePageChange(currentPage - 1)}
                       disabled={!pagination.hasPrev}
-                      className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-slate-700 hover:bg-teal-50 hover:border-teal-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                     >
                       ← Prev
                     </button>
@@ -289,8 +322,8 @@ export default function ScanHistoryPage() {
                             onClick={() => handlePageChange(pageNum)}
                             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                               currentPage === pageNum
-                                ? "bg-blue-600 text-white shadow-md"
-                                : "border border-gray-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400"
+                                ? "bg-teal-600 text-white shadow-md"
+                                : "border border-gray-300 text-slate-700 hover:bg-teal-50 hover:border-teal-400"
                             }`}
                           >
                             {pageNum}
@@ -302,14 +335,14 @@ export default function ScanHistoryPage() {
                     <button
                       onClick={() => handlePageChange(currentPage + 1)}
                       disabled={!pagination.hasNext}
-                      className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-slate-700 hover:bg-teal-50 hover:border-teal-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                     >
                       Next →
                     </button>
                     <button
                       onClick={() => handlePageChange(pagination.totalPages)}
                       disabled={!pagination.hasNext}
-                      className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-slate-700 hover:bg-teal-50 hover:border-teal-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                     >
                       Last
                     </button>
@@ -321,14 +354,14 @@ export default function ScanHistoryPage() {
         )}
 
         {/* Quick Actions */}
-        <div className="mt-10 flex gap-4 justify-center">
+        <div className="mt-8 flex gap-4 justify-center">
           <Link href="/tier1/upload">
-            <button className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg">
+            <button className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-semibold rounded-lg hover:from-teal-600 hover:to-cyan-700 transition-colors shadow-md">
               Upload New Scan
             </button>
           </Link>
           <Link href="/tier1/dashboard">
-            <button className="px-8 py-3 bg-white text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors shadow-md hover:shadow-lg border border-gray-300">
+            <button className="px-6 py-3 bg-white text-slate-700 font-semibold rounded-lg hover:bg-teal-50 transition-colors shadow-md border border-gray-300">
               Back to Dashboard
             </button>
           </Link>

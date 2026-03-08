@@ -31,6 +31,7 @@ export interface IConsultationDermatology extends Document {
   clinicId: mongoose.Types.ObjectId;
   patientId: mongoose.Types.ObjectId;
   doctorId: mongoose.Types.ObjectId;
+  appointmentId?: mongoose.Types.ObjectId; // Links to frontdesk appointment
   consultationDate: Date;
 
   // Patient Information
@@ -86,6 +87,10 @@ export interface IConsultationDermatology extends Document {
   patientSummary?: {
     aiGenerated?: string;
     doctorEdited?: string;
+    translations?: {
+      hindi?: string;
+      kannada?: string;
+    };
   };
 
   // Consent & Signature
@@ -105,6 +110,9 @@ export interface IConsultationDermatology extends Document {
 
   // Custom Fields (Doctor-added fields)
   customFields?: Record<string, any>;
+
+  // Billing
+  consultationFee?: number;
 
   // Metadata
   status: "draft" | "completed";
@@ -168,6 +176,10 @@ const ConsultationDermatologySchema = new Schema<IConsultationDermatology>(
       ref: "User",
       required: true,
     },
+    appointmentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Appointment",
+    },
     consultationDate: {
       type: Date,
       default: Date.now,
@@ -229,6 +241,10 @@ const ConsultationDermatologySchema = new Schema<IConsultationDermatology>(
     patientSummary: {
       aiGenerated: String,
       doctorEdited: String,
+      translations: {
+        hindi: String,
+        kannada: String,
+      },
     },
 
     // Consent
@@ -250,6 +266,12 @@ const ConsultationDermatologySchema = new Schema<IConsultationDermatology>(
     customFields: {
       type: Schema.Types.Mixed,
       default: {},
+    },
+
+    // Billing
+    consultationFee: {
+      type: Number,
+      min: 0,
     },
 
     // Status

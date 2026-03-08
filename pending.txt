@@ -1,0 +1,10 @@
+Need to do demo video
+Need to update hero section of home page
+Need to update footer of home page
+Need to do security part of things
+Need to work on frontdesk pharmacy page for both auto filling from report and also manual one
+Need to work on analysis page also
+Come back and work on dashboard of doctor page
+Work on AI summary of patient
+Work on forgot password in login page
+Patient AI report summary is a mess.

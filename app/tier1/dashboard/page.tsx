@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Logo from "@/components/Logo";
 
 interface UsageStats {
   dailyUsed: number;
@@ -91,9 +92,9 @@ export default function Tier1Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 via-white to-cyan-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-teal-600 mx-auto mb-4"></div>
           <p className="text-gray-600 font-medium">Loading dashboard...</p>
         </div>
       </div>
@@ -101,78 +102,86 @@ export default function Tier1Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Animated background blobs */}
-      <div className="absolute top-20 left-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-      <div className="absolute top-40 right-10 w-72 h-72 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-8">
-            <Link href="/tier1/dashboard">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent cursor-pointer">
-                DermaHMS
-              </h1>
-            </Link>
-            <nav className="hidden md:flex space-x-6">
-              <Link
-                href="/tier1/dashboard"
-                className="text-gray-700 hover:text-blue-600 font-semibold transition-colors"
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div>
+                <Link href="/tier1/dashboard">
+                  <Logo size="sm" />
+                </Link>
+                <p className="text-sm text-gray-500">Student Plan</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600 hidden sm:block">
+                {user?.name}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-2 text-gray-600 hover:text-red-600 font-medium transition-colors"
               >
-                Dashboard
-              </Link>
-              <Link
-                href="/tier1/upload"
-                className="text-gray-700 hover:text-blue-600 font-semibold transition-colors"
-              >
-                Upload Scan
-              </Link>
-              <Link
-                href="/tier1/scans"
-                className="text-gray-700 hover:text-blue-600 font-semibold transition-colors"
-              >
-                Scan History
-              </Link>
-            </nav>
-          </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600 hidden sm:block">
-              {user?.name}
-            </span>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg"
-            >
-              Logout
-            </button>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span>Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
+      {/* Navigation */}
+      <nav className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8">
+            <Link
+              href="/tier1/dashboard"
+              className="px-4 py-3 text-teal-600 border-b-2 border-teal-600 font-medium"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/tier1/upload"
+              className="px-4 py-3 text-gray-600 hover:text-teal-600 font-medium transition-colors"
+            >
+              Upload Scan
+            </Link>
+            <Link
+              href="/tier1/scans"
+              className="px-4 py-3 text-gray-600 hover:text-teal-600 font-medium transition-colors"
+            >
+              Scan History
+            </Link>
+          </div>
+        </div>
+      </nav>
+
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
-        <div className="mb-8 animate-fade-in-down">
-          <h2 className="text-4xl font-bold text-gray-900 mb-2">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
             Welcome back, {user?.name}!
           </h2>
-          <p className="text-gray-600 text-lg">
-            Tier 1 - Student Plan • AI-Powered Skin Condition Analysis
+          <p className="text-gray-600">
+            Tier 1 - Student Plan | AI-Powered Skin Condition Analysis
           </p>
         </div>
 
         {/* Usage Stats Cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           {/* Daily Usage */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 hover:shadow-2xl transition-all">
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-teal-500">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-700">
                 Today's Scans
               </h3>
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
                 <svg
-                  className="w-6 h-6 text-white"
+                  className="w-6 h-6 text-teal-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -188,7 +197,7 @@ export default function Tier1Dashboard() {
             </div>
             <div className="space-y-2">
               <div className="flex items-end space-x-2">
-                <span className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <span className="text-4xl font-bold text-teal-600">
                   {usageStats?.dailyUsed || 0}
                 </span>
                 <span className="text-gray-500 text-lg mb-1">
@@ -197,7 +206,7 @@ export default function Tier1Dashboard() {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all"
+                  className="bg-teal-500 h-2 rounded-full transition-all"
                   style={{
                     width: `${
                       ((usageStats?.dailyUsed || 0) /
@@ -214,14 +223,14 @@ export default function Tier1Dashboard() {
           </div>
 
           {/* Monthly Usage */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 hover:shadow-2xl transition-all">
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-cyan-500">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-700">
                 This Month
               </h3>
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center">
                 <svg
-                  className="w-6 h-6 text-white"
+                  className="w-6 h-6 text-cyan-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -237,7 +246,7 @@ export default function Tier1Dashboard() {
             </div>
             <div className="space-y-2">
               <div className="flex items-end space-x-2">
-                <span className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                <span className="text-4xl font-bold text-cyan-600">
                   {usageStats?.monthlyUsed || 0}
                 </span>
                 <span className="text-gray-500 text-lg mb-1">
@@ -246,7 +255,7 @@ export default function Tier1Dashboard() {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all"
+                  className="bg-cyan-500 h-2 rounded-full transition-all"
                   style={{
                     width: `${
                       ((usageStats?.monthlyUsed || 0) /
@@ -263,14 +272,14 @@ export default function Tier1Dashboard() {
           </div>
 
           {/* Total Scans */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 hover:shadow-2xl transition-all">
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-emerald-500">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-700">
                 Total Scans
               </h3>
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
                 <svg
-                  className="w-6 h-6 text-white"
+                  className="w-6 h-6 text-emerald-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -285,7 +294,7 @@ export default function Tier1Dashboard() {
               </div>
             </div>
             <div className="space-y-2">
-              <div className="text-5xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent">
+              <div className="text-4xl font-bold text-emerald-600">
                 {usageStats?.totalScans || 0}
               </div>
               <p className="text-sm text-gray-600">All-time scans analyzed</p>
@@ -296,13 +305,13 @@ export default function Tier1Dashboard() {
         {/* Quick Actions */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           <Link href="/tier1/upload">
-            <div className="group bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-xl p-8 cursor-pointer hover:shadow-2xl transition-all transform hover:scale-105">
+            <div className="group bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl shadow-lg p-8 cursor-pointer hover:shadow-xl transition-all">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-2xl font-bold text-white mb-2">
                     Upload New Scan
                   </h3>
-                  <p className="text-blue-100">
+                  <p className="text-teal-100">
                     Analyze skin conditions with AI
                   </p>
                 </div>
@@ -326,7 +335,7 @@ export default function Tier1Dashboard() {
           </Link>
 
           <Link href="/tier1/scans">
-            <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8 cursor-pointer hover:shadow-2xl transition-all transform hover:scale-105 border border-white/20">
+            <div className="group bg-white rounded-xl shadow-lg p-8 cursor-pointer hover:shadow-xl transition-all border-l-4 border-teal-500">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">
@@ -336,9 +345,9 @@ export default function Tier1Dashboard() {
                     Access all previous scans
                   </p>
                 </div>
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:shadow-lg transition-all">
+                <div className="w-16 h-16 bg-teal-100 rounded-xl flex items-center justify-center group-hover:bg-teal-200 transition-all">
                   <svg
-                    className="w-8 h-8 text-white"
+                    className="w-8 h-8 text-teal-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -358,22 +367,22 @@ export default function Tier1Dashboard() {
 
         {/* Recent Scans */}
         {recentScans && recentScans.length > 0 && (
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
+          <div className="bg-white rounded-xl shadow-lg p-8 border-l-4 border-cyan-500">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">
               Recent Scans
             </h3>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {recentScans.slice(0, 6).map((scan) => (
                 <Link key={scan.id} href={`/tier1/scans/${scan.id}`}>
-                  <div className="group bg-white rounded-xl p-4 shadow-md hover:shadow-xl transition-all cursor-pointer border border-gray-100">
+                  <div className="group bg-white rounded-xl p-4 shadow-md hover:shadow-lg transition-all cursor-pointer border border-gray-100 hover:border-teal-200">
                     <div className="aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden relative">
                       <img
                         src={scan.images[0]?.imageUrl}
                         alt={scan.patientInfo.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       {scan.images.length > 1 && (
-                        <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
+                        <div className="absolute top-2 right-2 bg-teal-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
                           +{scan.images.length - 1}
                         </div>
                       )}

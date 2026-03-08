@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/connection";
 import User from "@/models/User";
-import bcrypt from "bcryptjs";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { sanitize } from "@/lib/sanitize";
 import { generateOTP, storeOTP } from "@/lib/auth/otp";
 import { sendOTPEmail } from "@/lib/email/sender";
 import { z } from "zod";
@@ -9,7 +10,13 @@ import { z } from "zod";
 // Validation schema
 const signupSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
   name: z.string().min(2, "Name must be at least 2 characters"),
   tier: z.enum(["tier1", "tier2"], { required_error: "Tier is required" }),
   phone: z.string().optional(),
@@ -18,7 +25,17 @@ const signupSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Rate limit: 5 signups per hour per IP
+    const ip = getClientIp(request);
+    const rl = rateLimit(`signup:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+    if (!rl.success) {
+      return NextResponse.json(
+        { success: false, message: "Too many signup attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
+
+    const body = sanitize(await request.json());
 
     // Validate request body
     const validationResult = signupSchema.safeParse(body);
@@ -33,7 +50,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, name, tier, phone, clinicName } = validationResult.data;
+    const { email, tier, clinicName } = validationResult.data;
 
     // Connect to database
     await connectDB();
@@ -61,20 +78,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user (but not verified yet)
-    const user = await User.create({
-      email,
-      password: hashedPassword,
-      name,
-      tier,
-      phone,
-      isVerified: false,
-    });
-
-    // Generate and store OTP
+    // Generate and store OTP (no user created yet)
     const otp = generateOTP();
     await storeOTP(email, otp);
 
@@ -83,8 +87,6 @@ export async function POST(request: NextRequest) {
       await sendOTPEmail(email, otp);
     } catch (emailError) {
       console.error("Failed to send OTP email:", emailError);
-      // Rollback user creation if email fails
-      await User.deleteOne({ _id: user._id });
       return NextResponse.json(
         {
           success: false,
@@ -97,13 +99,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: "Signup successful! Please check your email for OTP verification.",
+        message: "OTP sent! Please check your email for verification.",
         data: {
-          userId: user._id,
-          email: user.email,
+          email,
         },
       },
-      { status: 201 }
+      { status: 200 }
     );
   } catch (error) {
     console.error("Signup error:", error);

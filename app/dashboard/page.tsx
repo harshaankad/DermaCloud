@@ -21,14 +21,9 @@ export default function DashboardPage() {
     const parsedUser = JSON.parse(userData);
     setUser(parsedUser);
 
-    // Redirect based on tier
-    if (parsedUser.tier === "tier1") {
-      router.push("/tier1/dashboard");
-      return;
-    } else if (parsedUser.tier === "tier2") {
-      router.push("/tier2/dashboard");
-      return;
-    }
+    // Redirect to tier2 dashboard (tier1 has been removed)
+    router.push("/tier2/dashboard");
+    return;
 
     setLoading(false);
   }, [router]);
@@ -41,19 +36,19 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 via-white to-cyan-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50">
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            DermaHMS
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
+            DermaCloud
           </h1>
           <button
             onClick={handleLogout}
@@ -71,7 +66,7 @@ export default function DashboardPage() {
             Welcome back, {user?.name}! 👋
           </h2>
           <p className="text-gray-600 text-lg">
-            You're logged in with <strong>{user?.tier === "tier1" ? "Tier 1 - Student" : "Tier 2 - Clinic"}</strong> plan
+            You're logged in with <strong>DermaCloud Clinic</strong> plan
           </p>
         </div>
 

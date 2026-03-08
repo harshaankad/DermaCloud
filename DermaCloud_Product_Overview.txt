@@ -1,0 +1,333 @@
+================================================================================
+                         DermaCloud — Product Overview
+                   AI-Powered Dermatology Clinic Management System
+================================================================================
+
+                         Confidential | Sales Reference Document
+                                  Version 1.0 | 2026
+
+================================================================================
+                              WHAT IS DERMACLOUD?
+================================================================================
+
+DermaCloud is a cloud-based Hospital Management System (HMS) built specifically
+for dermatology and cosmetology clinics. It combines AI-powered skin analysis,
+complete patient management, pharmacy, billing, and clinic operations — all in
+one platform designed for the modern Indian dermatologist.
+
+No more juggling between multiple software tools. DermaCloud gives your entire
+clinic — doctor, front desk, and pharmacy — one unified system.
+
+================================================================================
+                              WHO IS IT FOR?
+================================================================================
+
+  • Dermatologists running private clinics or small hospitals
+  • Cosmetology & aesthetic medicine practices
+  • Multi-specialty skin and hair clinics
+  • Clinics with front desk staff and pharmacy counters
+
+================================================================================
+                           CORE FEATURES AT A GLANCE
+================================================================================
+
+1. AI-POWERED SKIN DIAGNOSIS
+   ─────────────────────────
+   • Upload dermoscope or clinical images directly from the consultation form
+   • Our AI model (ViT — Vision Transformer) instantly analyzes the image and
+     predicts the skin condition with confidence scores
+   • Supports conditions: acne, eczema, psoriasis, vitiligo, fungal infections,
+     melanoma, dermatitis, urticaria, and more
+   • AI suggestions are shown to the doctor — the final diagnosis is always
+     the doctor's decision (AI assists, never replaces)
+
+2. PATIENT EXPLANATION GENERATOR (AI)
+   ────────────────────────────────────
+   • After every consultation, generate a personalized patient explanation
+     in plain English using Claude AI (Anthropic)
+   • Explains: what the condition is, why it happened, what each medicine does,
+     and home care tips — in simple language the patient can understand
+   • For multi-issue visits (e.g. acne + pigmentation), each condition gets its
+     own dedicated explanation section
+   • Supports Hindi and Kannada translations for regional patients
+
+3. WHATSAPP REPORT DELIVERY
+   ─────────────────────────
+   • Send the PDF consultation report directly to the patient's WhatsApp
+     with one click — no copy-pasting phone numbers
+   • Uses Meta's official WhatsApp Business API for reliable delivery
+   • Appointment confirmation messages are also sent via WhatsApp automatically
+
+4. CONSULTATION MANAGEMENT
+   ─────────────────────────
+   • Separate consultation forms for Dermatology and Cosmetology
+   • Multi-issue visit support: document up to 2 separate skin conditions
+     in a single visit, each with their own images, AI analysis, diagnosis,
+     and treatment plan
+   • Fully customizable consultation forms — add, remove, or reorder fields
+     to match your clinic's workflow
+   • Consultation templates: save frequently used diagnoses and treatment
+     plans as templates for faster documentation
+   • Template search with real-time filtering inside dropdowns
+
+5. CONSULTATION HISTORY & COMPARISON
+   ────────────────────────────────────
+   • Full consultation history for every patient across all visits
+   • Cosmetology comparison view: compare before/after photos across visits
+     side by side in a full-screen lightbox
+   • For multi-issue visits, photos from each issue are clearly labeled
+     and grouped separately in the comparison view
+   • AI-generated patient summary cards for quick patient context
+
+6. PDF REPORT GENERATION
+   ───────────────────────
+   • Generate professional, branded PDF reports for every consultation
+   • Dermatology and Cosmetology reports with clinic letterhead
+   • Includes: patient details, diagnosis, treatment plan, AI results,
+     and doctor's notes
+   • Share PDF via WhatsApp or download directly
+
+7. PATIENT MANAGEMENT
+   ───────────────────
+   • Complete patient profiles: demographics, medical history, allergies,
+     contact details
+   • Unique Patient ID for every patient
+   • Search patients instantly by name, phone, or patient ID
+   • View complete consultation history for any patient in one place
+
+8. APPOINTMENT SCHEDULING (FRONT DESK)
+   ──────────────────────────────────────
+   • Front desk staff can book, manage, and track appointments
+   • Token number system for walk-in patients
+   • Appointment statuses: Scheduled → Checked In → In Progress → Completed
+   • Today's appointment overview on the dashboard
+
+9. PHARMACY & INVENTORY
+   ──────────────────────
+   • Built-in pharmacy management for clinics with an in-house dispensary
+   • Inventory tracking with low-stock and out-of-stock alerts
+   • Sales billing with cash / card / UPI payment modes
+   • Revenue tracking: daily, weekly, and monthly sales reports
+
+10. ANALYTICS DASHBOARD
+    ────────────────────
+    • Real-time stats: total consultations, patients seen today, this month
+    • Consultation trend charts: 7-day, 30-day, 90-day, 180-day views
+    • Specialty split: dermatology vs. cosmetology breakdown
+    • Top skin conditions treated (by frequency)
+    • Patient demographics: age groups and gender distribution
+    • Return patient rate and unique patient counts
+    • Pharmacy revenue: total collected, pending dues, top-selling items
+    • AI usage tracker: reports generated, translations, patient summaries
+
+11. SUBSCRIPTION & BILLING
+    ───────────────────────
+    • Flexible subscription plans (Tier 1 and Tier 2)
+    • Integrated Razorpay payment gateway for secure online payments
+    • Google OAuth support for quick signup and login
+
+================================================================================
+                         FRONT DESK STAFF MODULE
+================================================================================
+
+  Give your receptionist their own secure login — completely separate from the
+  doctor's login. They can only access what you allow.
+
+  • Manage appointments and patient check-ins
+  • View patient records (if permitted)
+  • Handle pharmacy sales and billing (if permitted)
+  • Cannot access consultations, templates, form settings, or analytics
+    (those are doctor-only — by design)
+  • Deactivate/reactivate staff accounts at any time
+
+================================================================================
+                         SECURITY & DATA PROTECTION
+================================================================================
+
+  DermaCloud is built with security as a foundation, not an afterthought.
+
+  ROLE-BASED ACCESS CONTROL
+  • Doctors and front desk staff have completely separate access levels
+  • Sensitive operations (creating consultations, AI analysis, clinic settings,
+    templates, analytics) are restricted to the doctor's login only
+  • Every API request is verified against the live database — stale or tampered
+    tokens are rejected automatically
+
+  AUTHENTICATION
+  • Secure JWT-based authentication with 24-hour access tokens
+  • Refresh tokens (30-day) for seamless re-authentication without repeated
+    manual logins
+  • Email OTP verification during signup — no unverified accounts
+  • Separate token systems for doctors and front desk staff
+
+  RATE LIMITING (BRUTE FORCE PROTECTION)
+  • Login attempts are rate-limited: max 10 attempts per 15 minutes per user
+  • OTP verification: max 10 attempts per 15 minutes
+  • Signup: max 5 requests per hour
+  • Password reset: max 5 requests per hour
+  • Exceeding limits triggers a temporary lockout — protects against
+    automated attack tools
+
+  INPUT SANITIZATION
+  • All user input is sanitized before being processed or stored
+  • NoSQL injection attacks are blocked at the API layer
+  • MongoDB query operators injected by attackers are automatically stripped
+  • All database IDs are validated before any query is executed
+
+  ACCOUNT LOCKOUT PROTECTION
+  • After 5 consecutive failed login attempts, the account is automatically
+    locked for 30 minutes — prevents password-guessing attacks
+  • Applies to both doctor and front desk staff logins independently
+  • The account holder receives an instant email security alert with the
+    exact IP address that triggered the lockout and the unlock time
+  • Accounts automatically unlock after 30 minutes — no manual intervention
+    needed from support
+
+  SECURITY HEADERS (BROWSER-LEVEL PROTECTION)
+  • All pages and API responses include industry-standard HTTP security headers:
+    – X-Frame-Options: DENY (prevents clickjacking attacks)
+    – X-Content-Type-Options: nosniff (prevents MIME-type sniffing)
+    – X-XSS-Protection: block (browser-level cross-site scripting guard)
+    – Referrer-Policy: strict-origin (controls referrer information leakage)
+    – Permissions-Policy: blocks camera, mic, geolocation by default
+    – Strict-Transport-Security (HSTS): forces HTTPS for all connections
+    – Content-Security-Policy: restricts where scripts, images, and
+      fonts can be loaded from
+
+  AUDIT LOGS (SECURITY TRAIL)
+  • Every important action in your clinic is automatically recorded:
+    – Doctor and front desk login attempts (success and failure)
+    – Account lockout events with IP address
+    – Every new consultation created
+    – Every patient record created
+    – Every template created or deleted
+  • Logs are stored securely in your clinic's own database
+  • Each log captures: who did it, when, from which IP, and what changed
+  • Logs are automatically deleted after 90 days (DPDP compliance)
+  • No extra cost — included in your existing plan, stored in MongoDB Atlas
+
+  REFRESH TOKEN ROTATION
+  • Every time a user silently re-authenticates (without logging in again), the
+    old refresh token is immediately invalidated and replaced with a brand new one
+  • If an attacker ever steals a refresh token, it becomes dead the moment the
+    legitimate user next opens the app — automatic self-healing security
+  • Logging out also invalidates all existing refresh tokens for that account
+
+  LOGOUT TOKEN REVOCATION
+  • When a user logs out, their access token is immediately blacklisted
+    server-side — even if the token hasn't expired yet (24h window)
+  • Blacklist entries auto-delete once the original token would have expired
+    anyway (no permanent storage overhead)
+  • Prevents session hijacking: a stolen token cannot be reused after logout
+
+  PASSWORD STRENGTH ENFORCEMENT
+  • Passwords are required to meet strict rules at signup and password change:
+    minimum 8 characters, at least one uppercase letter, one lowercase letter,
+    one number, and one special character
+  • Enforced server-side — cannot be bypassed by modifying the app
+
+  CORS LOCKDOWN
+  • All API endpoints only accept requests from the official DermaCloud domain
+  • Requests from unknown or unauthorized websites are automatically rejected
+    with a 403 error — prevents third-party sites from silently calling
+    your clinic's API using a logged-in session
+
+  SENSITIVE DATA NEVER LEAKS INTO LOGS
+  • Passwords, tokens, OTPs, and other sensitive fields are automatically
+    stripped (replaced with [REDACTED]) before any data is written to logs
+    or audit records
+  • Prevents accidental exposure through log files or monitoring tools
+
+  SECURE IMAGE STORAGE
+  • Patient images (dermoscope, clinical photos) are stored on AWS S3
+  • All image URLs are signed and expire after 1 hour — no permanent
+    public links to sensitive medical images
+
+  DATA OWNERSHIP
+  • Each clinic's data is completely isolated — one clinic cannot access
+    another clinic's patients, consultations, or records
+  • All clinic ID checks happen server-side, not on the frontend
+
+================================================================================
+                         COMPLIANCE NOTES
+================================================================================
+
+  DermaCloud is designed in alignment with:
+
+  • India's Digital Personal Data Protection (DPDP) Act, 2023
+  • IT Act, 2000 and SPDI Rules, 2011
+  • Sensitive Personal Data (health records) handling best practices
+
+  Data stays within your control. We do not sell or share patient data.
+  Patient reports are delivered directly to the patient's WhatsApp —
+  not stored in third-party systems.
+
+================================================================================
+                         TECHNOLOGY STACK
+================================================================================
+
+  • Frontend:    Next.js 15 (React 19), Tailwind CSS
+  • Backend:     Next.js API Routes (serverless)
+  • Database:    MongoDB Atlas (cloud-hosted, replicated)
+  • AI Engine:   Claude Sonnet (Anthropic) for patient explanations
+  • AI Vision:   Custom ViT model for skin condition classification
+  • Storage:     AWS S3 for medical images
+  • WhatsApp:    Meta WhatsApp Cloud API (official Business API)
+  • Payments:    Razorpay
+  • Email:       Nodemailer (OTP and notifications)
+  • Auth:        JWT + bcrypt + OTP
+
+================================================================================
+                              PRICING TIERS
+================================================================================
+
+  TIER 1 — Student / Resident Plan
+  • Access to AI skin analysis (image upload and diagnosis)
+  • Limited monthly scans
+  • Ideal for residents, students, and learning use
+
+  TIER 2 — Clinic Plan (Full Feature Set)
+  • Complete consultation management (dermatology + cosmetology)
+  • AI patient explanation generator
+  • WhatsApp report delivery
+  • Appointment scheduling
+  • Front desk staff module
+  • Pharmacy and inventory management
+  • Analytics dashboard
+  • Custom consultation forms and templates
+  • Unlimited patients and consultations
+  • PDF report generation
+
+  Contact us for current pricing and plan details.
+
+================================================================================
+                           WHY CHOOSE DERMACLOUD?
+================================================================================
+
+  ✓  Built exclusively for dermatology — not a generic HMS adapted for skin
+  ✓  AI-powered diagnosis assistance integrated into the consultation flow
+  ✓  WhatsApp-first patient communication (patients don't need an app)
+  ✓  Customizable forms — adapts to your existing workflow, not the other way
+  ✓  Separate front desk module with granular permission control
+  ✓  Multi-issue visit support — handles complex presentations in one session
+  ✓  Before/after photo comparison for cosmetology treatment tracking
+  ✓  Enterprise-grade security: lockout, audit logs, token rotation, CORS, revocation
+  ✓  Built on modern, secure cloud infrastructure
+  ✓  Made in India, for Indian clinics — regional language support included
+  ✓  No hardware required — works on any browser, any device
+
+================================================================================
+                              CONTACT & DEMO
+================================================================================
+
+  Website  :  https://dermacloud.in
+  Email    :  [contact email]
+  WhatsApp :  [contact number]
+
+  Request a live demo — we will walk you through the complete system
+  with your own clinic's sample data.
+
+================================================================================
+                   © 2026 DermaCloud. All rights reserved.
+                  Confidential — For Sales Use Only
+================================================================================

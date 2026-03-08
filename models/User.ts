@@ -8,6 +8,16 @@ export interface IUser extends Document {
   phone?: string;
   clinicId?: mongoose.Types.ObjectId;
   isVerified: boolean;
+  googleId?: string;
+  authProvider: "local" | "google";
+  subscriptionId?: mongoose.Types.ObjectId;
+  subscriptionStatus: "active" | "expired" | "none";
+  passwordResetToken?: string;
+  passwordResetExpiry?: Date;
+  aiPatientSummaries?: Record<string, number>; // keyed by "YYYY_MM"
+  loginAttempts: number;
+  lockedUntil?: Date;
+  refreshTokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,7 +34,9 @@ const UserSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
+      required: function (this: IUser) {
+        return this.authProvider !== "google";
+      },
       minlength: [6, "Password must be at least 6 characters"],
     },
     name: {
@@ -50,14 +62,37 @@ const UserSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
     },
+    googleId: {
+      type: String,
+      sparse: true,
+    },
+    authProvider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
+    },
+    subscriptionId: {
+      type: Schema.Types.ObjectId,
+      ref: "Subscription",
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ["active", "expired", "none"],
+      default: "none",
+    },
+    passwordResetToken: { type: String },
+    passwordResetExpiry: { type: Date },
+    aiPatientSummaries: { type: Schema.Types.Mixed, default: {} },
+    loginAttempts: { type: Number, default: 0 },
+    lockedUntil: { type: Date },
+    refreshTokenVersion: { type: Number, default: 0 },
   },
   {
     timestamps: true,
   }
 );
 
-// Index for faster queries
-UserSchema.index({ email: 1 });
+// Index for faster queries (email already indexed via unique:true in schema)
 UserSchema.index({ tier: 1 });
 
 const User: Model<IUser> =

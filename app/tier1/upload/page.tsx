@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Logo from "@/components/Logo";
 
 export default function UploadScanPage() {
   const router = useRouter();
@@ -230,9 +231,9 @@ export default function UploadScanPage() {
 
   if (success && uploadResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full">
-          <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20 text-center animate-fade-in-up">
+          <div className="bg-white rounded-2xl shadow-lg p-8 border-l-4 border-green-500 text-center">
             <div className="w-20 h-20 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
               <svg
                 className="w-10 h-10 text-white"
@@ -253,14 +254,14 @@ export default function UploadScanPage() {
               Analysis Complete!
             </h2>
 
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 mb-6">
+            <div className="bg-teal-50 rounded-xl p-6 mb-6 border border-teal-100">
               <p className="text-sm text-gray-600 mb-2">
                 {uploadResult.imageCount > 1 ? `Analyzed ${uploadResult.imageCount} images` : "Top Prediction"}
               </p>
               <p className="text-sm text-gray-600 mb-4">
                 {uploadResult.imageCount > 1 && "Averaged Result"}
               </p>
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+              <h3 className="text-2xl font-bold text-teal-700 mb-2">
                 {uploadResult.finalResult.topPrediction.condition}
               </h3>
               <p className="text-lg text-gray-700">
@@ -283,7 +284,7 @@ export default function UploadScanPage() {
               Redirecting to detailed results...
             </p>
 
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
           </div>
         </div>
       </div>
@@ -291,52 +292,83 @@ export default function UploadScanPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Animated background */}
-      <div className="absolute top-20 left-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-      <div className="absolute top-40 right-10 w-72 h-72 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <Link href="/tier1/dashboard">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent cursor-pointer">
-              DermaHMS
-            </h1>
-          </Link>
-          <Link href="/tier1/dashboard">
-            <button className="text-gray-600 hover:text-gray-900 font-semibold">
-              ← Back to Dashboard
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div>
+                <Link href="/tier1/dashboard">
+                  <Logo size="sm" />
+                </Link>
+                <p className="text-sm text-gray-500">Student Plan</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                localStorage.removeItem("token");
+                localStorage.removeItem("user");
+                router.push("/login");
+              }}
+              className="flex items-center space-x-2 text-gray-600 hover:text-red-600 font-medium transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span>Logout</span>
             </button>
-          </Link>
+          </div>
         </div>
       </header>
 
+      {/* Navigation */}
+      <nav className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8">
+            <Link
+              href="/tier1/dashboard"
+              className="px-4 py-3 text-gray-600 hover:text-teal-600 font-medium transition-colors"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/tier1/upload"
+              className="px-4 py-3 text-teal-600 border-b-2 border-teal-600 font-medium"
+            >
+              Upload Scan
+            </Link>
+            <Link
+              href="/tier1/scans"
+              className="px-4 py-3 text-gray-600 hover:text-teal-600 font-medium transition-colors"
+            >
+              Scan History
+            </Link>
+          </div>
+        </div>
+      </nav>
+
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
-        <div className="text-center mb-8 animate-fade-in-down">
-          <h2 className="text-4xl font-bold text-gray-900 mb-2">
-            Upload Skin Scan
-          </h2>
-          <p className="text-gray-600 text-lg">
-            AI-powered analysis in seconds
-          </p>
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-6">
+          <h2 className="text-3xl font-bold text-slate-900">Upload Skin Scan</h2>
+          <p className="text-slate-600 mt-1">AI-powered analysis in seconds</p>
         </div>
 
         <form onSubmit={handleUpload} className="space-y-6">
           {/* Upload Area */}
-          <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl p-8 border border-white/20 animate-fade-in-up">
+          <div className="bg-white rounded-xl shadow-lg p-8 border-l-4 border-teal-500">
             <div
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
               onClick={() => selectedFiles.length < 5 && fileInputRef.current?.click()}
-              className={`border-4 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all ${
+              className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${
                 dragActive
-                  ? "border-blue-500 bg-blue-50"
+                  ? "border-teal-500 bg-teal-50"
                   : selectedFiles.length < 5
-                  ? "border-gray-300 hover:border-blue-400 hover:bg-gray-50"
+                  ? "border-gray-300 hover:border-teal-400 hover:bg-teal-50"
                   : "border-gray-300 bg-gray-50 cursor-not-allowed"
               }`}
             >
@@ -350,7 +382,7 @@ export default function UploadScanPage() {
                 disabled={selectedFiles.length >= 5}
               />
 
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-20 h-20 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <svg
                   className="w-10 h-10 text-white"
                   fill="none"
@@ -424,7 +456,7 @@ export default function UploadScanPage() {
               <button
                 type="button"
                 onClick={clearSelection}
-                className="mt-4 w-full py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors"
+                className="mt-4 w-full py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
               >
                 Clear All
               </button>
@@ -433,7 +465,7 @@ export default function UploadScanPage() {
 
           {/* Patient Information */}
           {previews.length > 0 && (
-            <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl p-8 border border-white/20 animate-fade-in space-y-4">
+            <div className="bg-white rounded-xl shadow-lg p-8 border-l-4 border-cyan-500 space-y-4">
               <h3 className="text-xl font-bold text-gray-900 mb-4">
                 Patient Information (Optional)
               </h3>
@@ -448,7 +480,7 @@ export default function UploadScanPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, patientName: e.target.value })
                   }
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all outline-none text-slate-900"
                   placeholder="John Doe"
                 />
               </div>
@@ -464,7 +496,7 @@ export default function UploadScanPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, patientAge: e.target.value })
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all outline-none text-slate-900"
                     placeholder="25"
                     min="0"
                     max="150"
@@ -480,7 +512,7 @@ export default function UploadScanPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, patientGender: e.target.value })
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all outline-none text-slate-900"
                   >
                     <option value="">Select Gender</option>
                     <option value="male">Male</option>
@@ -499,7 +531,7 @@ export default function UploadScanPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, notes: e.target.value })
                   }
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all outline-none text-slate-900"
                   placeholder="Any additional information..."
                   rows={3}
                 />
@@ -509,7 +541,7 @@ export default function UploadScanPage() {
 
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 animate-fade-in">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <p className="text-red-700 text-center font-semibold">{error}</p>
             </div>
           )}
@@ -519,7 +551,7 @@ export default function UploadScanPage() {
             <button
               type="submit"
               disabled={loading || selectedFiles.length === 0}
-              className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold text-lg rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+              className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-semibold text-lg rounded-xl hover:from-teal-600 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <span className="flex items-center justify-center">

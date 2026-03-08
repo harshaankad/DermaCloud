@@ -1,14 +1,33 @@
 /**
  * AI Patient Visit Summary API
- * Generates an AI-powered summary of the patient's recent visits
- * Uses free Hugging Face Inference API with open-source models
+ * Streams a concise, doctor-friendly patient briefing using Claude
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { connectDB } from "@/lib/db/connection";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
+import ConsultationCosmetology from "@/models/ConsultationCosmetology";
 import Patient from "@/models/Patient";
+import User from "@/models/User";
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+function formatDate(date: Date | string): string {
+  return new Date(date).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 export async function GET(
   request: NextRequest,
@@ -16,9 +35,7 @@ export async function GET(
 ) {
   try {
     const authResult = await authMiddleware(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
+    if (authResult instanceof NextResponse) return authResult;
 
     const { user: authUser } = authResult;
 
@@ -33,8 +50,12 @@ export async function GET(
 
     await connectDB();
 
-    // Fetch patient details
-    const patient = await Patient.findById(patientId);
+    // Fetch doctor name + patient in parallel
+    const [patient, doctorUser] = await Promise.all([
+      Patient.findById(patientId).lean(),
+      User.findById(authUser.userId).lean(),
+    ]);
+
     if (!patient) {
       return NextResponse.json(
         { success: false, message: "Patient not found" },
@@ -42,197 +63,367 @@ export async function GET(
       );
     }
 
-    // Fetch last 5 consultations for this patient
-    const consultations = await ConsultationDermatology.find({
-      patientId: patientId,
-      clinicId: authUser.clinicId,
-    })
-      .sort({ consultationDate: -1 })
-      .limit(5)
-      .lean();
+    const doctorName = (doctorUser as any)?.name || "Doctor";
+    // Use first name only for the greeting
+    const doctorFirstName = doctorName.split(" ")[0];
 
-    if (consultations.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          summary: "No previous visits found for this patient. This appears to be a new patient or their first dermatology consultation at this clinic.",
-          visitCount: 0,
-          hasData: false,
-        },
-      });
-    }
+    // Fetch consultations (last 5 each)
+    const [dermatologyConsultations, cosmetologyConsultations] = await Promise.all([
+      ConsultationDermatology.find({ patientId, clinicId: authUser.clinicId })
+        .sort({ consultationDate: -1 })
+        .limit(5)
+        .lean(),
+      ConsultationCosmetology.find({ patientId, clinicId: authUser.clinicId })
+        .sort({ consultationDate: -1 })
+        .limit(5)
+        .lean(),
+    ]);
 
-    // Prepare consultation data for AI summary
-    const visitSummaries = consultations.map((consultation: any, index: number) => {
-      const date = new Date(consultation.consultationDate).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
+    const totalVisits = dermatologyConsultations.length + cosmetologyConsultations.length;
 
-      return `
-Visit ${index + 1} (${date}):
-- Chief Complaint: ${consultation.patientInfo?.complaint || "Not recorded"}
-- Duration: ${consultation.patientInfo?.duration || "Not specified"}
-- Lesion Site: ${consultation.clinicalExamination?.lesionSite || "Not recorded"}
-- Morphology: ${consultation.clinicalExamination?.morphology || "Not recorded"}
-- Severity: ${consultation.clinicalExamination?.severity || "Not assessed"}
-- Provisional Diagnosis: ${consultation.diagnosis?.provisional || "Not recorded"}
-- Differential Diagnosis: ${consultation.diagnosis?.differentials?.join(", ") || "None"}
-- Topical Treatment: ${consultation.treatmentPlan?.topicals || "None prescribed"}
-- Oral Treatment: ${consultation.treatmentPlan?.orals || "None prescribed"}
-- Lifestyle Advice: ${consultation.treatmentPlan?.lifestyleChanges || "None given"}
-- Dermoscopic Findings: ${consultation.dermoscopeFindings?.finalInterpretation || "Not recorded"}
-${consultation.followUp?.reason ? `- Follow-up Reason: ${consultation.followUp.reason}` : ""}
-`.trim();
+    // Merge and sort visits chronologically (newest first)
+    const allVisits = [
+      ...dermatologyConsultations.map((c: any) => ({ ...c, visitType: "dermatology" })),
+      ...cosmetologyConsultations.map((c: any) => ({ ...c, visitType: "cosmetology" })),
+    ].sort(
+      (a, b) =>
+        new Date(b.consultationDate).getTime() - new Date(a.consultationDate).getTime()
+    );
+
+    const lastVisitDate = allVisits[0]?.consultationDate || null;
+    const patientSince = allVisits.length > 0
+      ? formatDate(allVisits[allVisits.length - 1].consultationDate)
+      : null;
+
+    // Build per-visit summaries with full detail
+    const visitLines = allVisits.slice(0, 5).map((v: any) => {
+      const date = formatDate(v.consultationDate);
+      if (v.visitType === "dermatology") {
+        const followUpReason = v.followUp?.reason;
+        const followUpDate   = v.followUp?.date ? formatDate(v.followUp.date) : null;
+        const previousTx     = v.patientInfo?.previousTreatment;
+
+        // ── Multi-issue: loop through each condition ──────────────────────────
+        if (
+          v.customFields?._multiIssue === true &&
+          Array.isArray(v.customFields?._issues) &&
+          v.customFields._issues.length > 1
+        ) {
+          const lines: string[] = [
+            `${date} [Dermatology — ${v.customFields._issues.length} conditions]`,
+          ];
+          if (previousTx) lines.push(`  Previous treatment: ${previousTx}`);
+
+          v.customFields._issues.forEach((issue: any, idx: number) => {
+            const fd          = issue.formData || {};
+            const issueLabel  = issue.label || `Issue ${idx + 1}`;
+            const diagnosis   = fd.provisional || fd.provisionalDiagnosis || "";
+            const complaint   = fd.complaint   || fd.chiefComplaint || "";
+            const duration    = fd.duration    || "";
+            const severity    = fd.severity    || "";
+            const lesionSite  = fd.lesionSite  || "";
+            const morphology  = fd.morphology  || "";
+            const dermoscopy  = fd.finalInterpretation || fd.dermoscopicFindings || "";
+            const topicals    = fd.topicals    || fd.topicalMedications || "";
+            const orals       = fd.orals       || fd.oralMedications    || "";
+            const lifestyle   = fd.lifestyleChanges || fd.lifestyleAdvice || "";
+            const investigations = fd.investigations || "";
+            const differentials  = fd.differentials  || fd.differentialDiagnosis || "";
+
+            lines.push(`  ${issueLabel}${diagnosis ? `: ${diagnosis}` : ""}`);
+            if (complaint || duration || severity) {
+              const sub: string[] = [];
+              if (complaint) sub.push(complaint);
+              if (duration)  sub.push(`for ${duration}`);
+              if (severity)  sub.push(`(${severity})`);
+              lines.push(`    Complaint: ${sub.join(" ")}`);
+            }
+            if (lesionSite || morphology) {
+              const sub: string[] = [];
+              if (lesionSite) sub.push(`Site: ${lesionSite}`);
+              if (morphology) sub.push(`Morphology: ${morphology}`);
+              lines.push(`    Findings: ${sub.join(" · ")}`);
+            }
+            if (dermoscopy) lines.push(`    Dermoscopy: ${dermoscopy}`);
+            if (diagnosis || differentials) {
+              const sub: string[] = [];
+              if (diagnosis)    sub.push(diagnosis);
+              if (differentials) sub.push(`DDx: ${differentials}`);
+              lines.push(`    Diagnosis: ${sub.join(" · ")}`);
+            }
+            const meds: string[] = [];
+            if (topicals) meds.push(`Topicals: ${topicals}`);
+            if (orals)    meds.push(`Orals: ${orals}`);
+            if (meds.length) lines.push(`    Treatment: ${meds.join(" · ")}`);
+            if (lifestyle)     lines.push(`    Lifestyle: ${lifestyle}`);
+            if (investigations) lines.push(`    Investigations: ${investigations}`);
+          });
+
+          if (followUpReason || followUpDate) {
+            const fu: string[] = [];
+            if (followUpReason) fu.push(followUpReason);
+            if (followUpDate)   fu.push(`on ${followUpDate}`);
+            lines.push(`  Follow-up: ${fu.join(" ")}`);
+          }
+          return lines.join("\n");
+        }
+
+        // ── Single-issue (original behaviour) ────────────────────────────────
+        const complaint     = v.patientInfo?.complaint;
+        const duration      = v.patientInfo?.duration;
+        const lesionSite    = v.clinicalExamination?.lesionSite;
+        const morphology    = v.clinicalExamination?.morphology;
+        const severity      = v.clinicalExamination?.severity;
+        const diagnosis     = v.diagnosis?.provisional;
+        const differentials = v.diagnosis?.differentials?.filter(Boolean).join(", ");
+        const dermoscopy    = v.dermoscopeFindings?.finalInterpretation;
+        const topicals      = v.treatmentPlan?.topicals;
+        const orals         = v.treatmentPlan?.orals;
+        const lifestyle     = v.treatmentPlan?.lifestyleChanges;
+        const investigations = v.treatmentPlan?.investigations;
+
+        const lines: string[] = [`${date} [Dermatology]`];
+        if (complaint || duration || severity) {
+          const sub: string[] = [];
+          if (complaint) sub.push(complaint);
+          if (duration) sub.push(`for ${duration}`);
+          if (severity) sub.push(`(${severity})`);
+          lines.push(`  Complaint: ${sub.join(" ")}`);
+        }
+        if (lesionSite || morphology) {
+          const sub: string[] = [];
+          if (lesionSite) sub.push(`Site: ${lesionSite}`);
+          if (morphology) sub.push(`Morphology: ${morphology}`);
+          lines.push(`  Findings: ${sub.join(" · ")}`);
+        }
+        if (dermoscopy) lines.push(`  Dermoscopy: ${dermoscopy}`);
+        if (previousTx) lines.push(`  Previous treatment: ${previousTx}`);
+        if (diagnosis || differentials) {
+          const sub: string[] = [];
+          if (diagnosis) sub.push(diagnosis);
+          if (differentials) sub.push(`DDx: ${differentials}`);
+          lines.push(`  Diagnosis: ${sub.join(" · ")}`);
+        }
+        const meds: string[] = [];
+        if (topicals) meds.push(`Topicals: ${topicals}`);
+        if (orals) meds.push(`Orals: ${orals}`);
+        if (meds.length) lines.push(`  Treatment: ${meds.join(" · ")}`);
+        if (lifestyle) lines.push(`  Lifestyle: ${lifestyle}`);
+        if (investigations) lines.push(`  Investigations: ${investigations}`);
+        if (followUpReason || followUpDate) {
+          const fu: string[] = [];
+          if (followUpReason) fu.push(followUpReason);
+          if (followUpDate) fu.push(`on ${followUpDate}`);
+          lines.push(`  Follow-up: ${fu.join(" ")}`);
+        }
+
+        return lines.join("\n");
+      } else {
+        // ── Multi-issue cosmetology ───────────────────────────────────────────
+        if (
+          v.customFields?._multiIssue === true &&
+          Array.isArray(v.customFields?._issues) &&
+          v.customFields._issues.length > 1
+        ) {
+          const lines: string[] = [
+            `${date} [Cosmetology — ${v.customFields._issues.length} conditions]`,
+          ];
+
+          v.customFields._issues.forEach((issue: any, idx: number) => {
+            const fd = issue.formData || {};
+            const concern       = fd.primaryConcern || "";
+            const skinType      = fd.skinType || "";
+            const procedure     = fd.procedureName || fd.name || "";
+            const session       = fd.sessionNumber || "";
+            const goals         = fd.goals || "";
+            const outcome       = fd.immediateOutcome || "";
+            const findings      = fd.findings || "";
+            const diagnosis     = fd.diagnosis || "";
+            const homeProducts  = fd.homeProducts || "";
+            const expectedResults = fd.expectedResults || "";
+            const followUpDate  = fd.followUpDate ? formatDate(fd.followUpDate) : null;
+
+            const issueLabel = issue.label || `Issue ${idx + 1}`;
+            lines.push(`  ${issueLabel}${concern ? `: ${concern}` : ""}`);
+            if (concern || skinType) {
+              const sub: string[] = [];
+              if (concern) sub.push(concern);
+              if (skinType) sub.push(`skin type: ${skinType}`);
+              lines.push(`    Concern: ${sub.join(" · ")}`);
+            }
+            if (procedure || session || goals) {
+              const sub: string[] = [];
+              if (procedure) sub.push(procedure);
+              if (session) sub.push(`session ${session}`);
+              if (goals) sub.push(`Goals: ${goals}`);
+              lines.push(`    Procedure: ${sub.join(" · ")}`);
+            }
+            if (findings || diagnosis) {
+              const sub: string[] = [];
+              if (findings) sub.push(findings);
+              if (diagnosis) sub.push(`Dx: ${diagnosis}`);
+              lines.push(`    Assessment: ${sub.join(" · ")}`);
+            }
+            if (outcome)          lines.push(`    Outcome: ${outcome}`);
+            if (homeProducts)     lines.push(`    Home products: ${homeProducts}`);
+            if (expectedResults)  lines.push(`    Expected results: ${expectedResults}`);
+            if (followUpDate)     lines.push(`    Follow-up: ${followUpDate}`);
+          });
+
+          return lines.join("\n");
+        }
+
+        // ── Single-issue cosmetology ──────────────────────────────────────────
+        const concern = v.patientInfo?.primaryConcern;
+        const skinType = v.patientInfo?.skinType;
+        const skinCondition = v.patientInfo?.skinCondition;
+        const procedure = v.procedure?.name;
+        const session = v.procedure?.sessionNumber;
+        const goals = v.procedure?.goals;
+        const outcome = v.procedure?.immediateOutcome;
+        const findings = v.assessment?.findings;
+        const diagnosis = v.assessment?.diagnosis;
+        const aftercare = v.aftercare?.instructions;
+        const homeProducts = v.aftercare?.homeProducts;
+        const expectedResults = v.aftercare?.expectedResults;
+        const followUpDate = v.aftercare?.followUpDate ? formatDate(v.aftercare.followUpDate) : null;
+
+        const lines: string[] = [`${date} [Cosmetology]`];
+        if (concern || skinType || skinCondition) {
+          const sub: string[] = [];
+          if (concern) sub.push(concern);
+          if (skinType) sub.push(`skin type: ${skinType}`);
+          if (skinCondition) sub.push(`condition: ${skinCondition}`);
+          lines.push(`  Concern: ${sub.join(" · ")}`);
+        }
+        if (procedure || session || goals) {
+          const sub: string[] = [];
+          if (procedure) sub.push(procedure);
+          if (session) sub.push(`session ${session}`);
+          if (goals) sub.push(`Goals: ${goals}`);
+          lines.push(`  Procedure: ${sub.join(" · ")}`);
+        }
+        if (findings || diagnosis) {
+          const sub: string[] = [];
+          if (findings) sub.push(findings);
+          if (diagnosis) sub.push(`Dx: ${diagnosis}`);
+          lines.push(`  Assessment: ${sub.join(" · ")}`);
+        }
+        if (outcome) lines.push(`  Outcome: ${outcome}`);
+        if (aftercare) lines.push(`  Aftercare: ${aftercare}`);
+        if (homeProducts) lines.push(`  Home products: ${homeProducts}`);
+        if (expectedResults) lines.push(`  Expected results: ${expectedResults}`);
+        if (followUpDate) lines.push(`  Follow-up: ${followUpDate}`);
+
+        return lines.join("\n");
+      }
     });
 
-    const patientContext = `
-Patient: ${patient.name}
-Age: ${patient.age} years
-Gender: ${patient.gender}
-${patient.medicalHistory ? `Medical History: ${patient.medicalHistory}` : ""}
-${patient.allergies?.length > 0 ? `Known Allergies: ${patient.allergies.join(", ")}` : ""}
+    const patientData = patient as any;
 
-Recent Visits (${consultations.length} total):
-${visitSummaries.join("\n\n")}
-`;
+    // Build patient context for prompt
+    const allergyLine = patientData.allergies?.length > 0
+      ? `Known allergies: ${patientData.allergies.join(", ")}`
+      : null;
+    const medHistoryLine = patientData.medicalHistory
+      ? `Medical history: ${patientData.medicalHistory}`
+      : null;
 
-    // Generate summary using Hugging Face Inference API (free tier)
-    const prompt = `You are a medical assistant helping a dermatologist. Based on the patient visit data below, provide a concise clinical summary.
+    const prompt = `You are briefing a dermatologist/cosmetologist the moment their patient walks in. Write a warm, well-organised doctor briefing that covers the patient's full visit history in a way that is easy and enjoyable to read.
 
-${patientContext}
+Doctor: ${doctorFirstName}
+Greeting time: ${getGreeting()}
+Patient name: ${patientData.name}
+Patient age: ${patientData.age} years
+Patient gender: ${patientData.gender}
+${patientSince ? `Patient since: ${patientSince}` : "New patient — first visit"}
+${allergyLine ? allergyLine : "No known allergies"}
+${medHistoryLine ? medHistoryLine : "No significant medical history"}
 
-Provide a summary with these sections:
-1. **Patient Overview**: Brief description of patient and skin health pattern
-2. **Primary Conditions**: Conditions treated
-3. **Treatment History**: Treatments tried
-4. **Key Observations**: Patterns or recurring issues
-5. **Recommendations**: What doctor should consider
+Visit history (${totalVisits} total visits):
+${visitLines.length > 0 ? visitLines.join("\n\n") : "No previous visits — this is their first consultation."}
 
-Be professional and concise. Use bullet points.
+Write the briefing using EXACTLY this format — nothing more, nothing less:
 
-Summary:`;
+[Single opening line — warm and personal. Greet Dr. ${doctorFirstName} by name, mention the patient's name, and note how many visits they've had (or that it's their first visit). One sentence only, no heading.]
 
-    let summaryText = "";
+**Patient at a Glance**
+[3–5 bullets covering: age + gender, patient-since date, allergies if any, medical history if any. Skip empty fields entirely.]
 
-    try {
-      // Try Hugging Face Inference API with Mistral model (free)
-      const hfResponse = await fetch(
-        "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            // HF allows limited free inference without API key
-          },
-          body: JSON.stringify({
-            inputs: prompt,
-            parameters: {
-              max_new_tokens: 500,
-              temperature: 0.7,
-              return_full_text: false,
-            },
-          }),
-        }
+**Visit History**
+[For each visit, write the header line exactly as given (e.g. "15 Jan 2025 [Dermatology]") with no bullet. Then:
+- If it is a SINGLE-condition visit: on the very next line write one flowing paragraph covering complaint, duration, findings, diagnosis, medicines, and follow-up as natural readable sentences. No labels, no indentation, no bullet points.
+- If it is a MULTI-condition visit (header contains "conditions", e.g. "15 Jan 2025 [Dermatology — 2 conditions]" or "15 Jan 2025 [Cosmetology — 2 conditions]"): write each issue as a separate short paragraph prefixed with its label in bold, e.g. "**Issue 1 — Acne:**" or "**Issue 1 — Pigmentation:**" followed by a flowing sentence or two covering concern, procedure, outcome. Keep each paragraph concise. Separate the issue paragraphs with a blank line.
+Separate visits from each other with a blank line. If no visits: "No previous visits on record — this is their first consultation."]
+
+Strict rules:
+- Opening line has NO markdown heading — plain warm text
+- Section headers use exactly **bold double stars** like shown
+- Patient at a Glance bullets start with •
+- Single-condition visit: date header + one plain paragraph — no bullets, no labels, no indentation
+- Multi-condition visit: date header + one bold-labelled paragraph per issue — use **Issue N — Diagnosis:** prefix for each
+- Skip any field that has no real data — never write "Not recorded", "None", or "N/A"
+- Use exact medicine names, diagnosis names, and procedure names from the data
+- Dates in "DD Mon YYYY" format
+- No disclaimers, no AI notices, no closing remarks`;
+
+    if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === "your-anthropic-api-key-here") {
+      return NextResponse.json(
+        { success: false, message: "AI summary is not configured." },
+        { status: 503 }
       );
+    }
 
-      if (hfResponse.ok) {
-        const hfData = await hfResponse.json();
-        if (Array.isArray(hfData) && hfData[0]?.generated_text) {
-          summaryText = hfData[0].generated_text;
+    // Track this AI call per calendar month (fire-and-forget — don't await)
+    const _now = new Date();
+    const _ym  = `${_now.getFullYear()}_${String(_now.getMonth() + 1).padStart(2, "0")}`;
+    User.findByIdAndUpdate(authUser.userId, {
+      $inc: { [`aiPatientSummaries.${_ym}`]: 1 },
+    }).catch(() => {});
+
+    // Call Claude with up to 2 retries on 529 overload
+    let aiText = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 3000));
+      try {
+        const aiResponse = await anthropic.messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1200,
+          messages: [{ role: "user", content: prompt }],
+        });
+        aiText =
+          aiResponse.content[0]?.type === "text"
+            ? aiResponse.content[0].text
+            : "";
+        break; // success
+      } catch (e: any) {
+        if (attempt < 1 && (e?.status === 529 || e?.message?.includes("overloaded"))) {
+          continue; // retry once
         }
+        if (e?.status === 529 || e?.message?.includes("overloaded")) {
+          return NextResponse.json(
+            { success: false, message: "AI service is currently busy. Please try again in a moment." },
+            { status: 503 }
+          );
+        }
+        throw e;
       }
-    } catch (hfError) {
-      console.log("HuggingFace API not available, using local summary generation");
     }
 
-    // Fallback: Generate structured summary locally if API fails
-    if (!summaryText) {
-      summaryText = generateLocalSummary(patient, consultations);
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        summary: summaryText,
-        visitCount: consultations.length,
-        hasData: true,
-        lastVisit: consultations[0]?.consultationDate,
-        patientName: patient.name,
+    return new Response(aiText, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "X-Visit-Count": String(totalVisits),
+        "X-Last-Visit": lastVisitDate ? new Date(lastVisitDate).toISOString() : "",
+        "X-Patient-Name": patientData.name,
       },
     });
   } catch (error: any) {
     console.error("AI Summary error:", error);
     return NextResponse.json(
-      {
-        success: false,
-        message: "Failed to generate AI summary",
-        error: error.message,
-      },
+      { success: false, message: "Failed to generate AI summary", error: error.message },
       { status: 500 }
     );
   }
-}
-
-// Local summary generation function (no external API needed)
-function generateLocalSummary(patient: any, consultations: any[]): string {
-  const diagnoses = new Set<string>();
-  const treatments = {
-    topicals: new Set<string>(),
-    orals: new Set<string>(),
-  };
-  const complaints = new Set<string>();
-  const severities: string[] = [];
-
-  consultations.forEach((c: any) => {
-    if (c.diagnosis?.provisional) diagnoses.add(c.diagnosis.provisional);
-    if (c.diagnosis?.differentials) {
-      c.diagnosis.differentials.forEach((d: string) => diagnoses.add(d));
-    }
-    if (c.treatmentPlan?.topicals) treatments.topicals.add(c.treatmentPlan.topicals);
-    if (c.treatmentPlan?.orals) treatments.orals.add(c.treatmentPlan.orals);
-    if (c.patientInfo?.complaint) complaints.add(c.patientInfo.complaint);
-    if (c.clinicalExamination?.severity) severities.push(c.clinicalExamination.severity);
-  });
-
-  const latestVisit = consultations[0];
-  const oldestVisit = consultations[consultations.length - 1];
-
-  const dateRange = consultations.length > 1
-    ? `from ${new Date(oldestVisit.consultationDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} to ${new Date(latestVisit.consultationDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}`
-    : `on ${new Date(latestVisit.consultationDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`;
-
-  let summary = `**Patient Overview**
-- ${patient.name}, ${patient.age}-year-old ${patient.gender}
-- ${consultations.length} dermatology consultation(s) ${dateRange}
-${patient.medicalHistory ? `- Medical History: ${patient.medicalHistory}` : ""}
-${patient.allergies?.length > 0 ? `- Known Allergies: ${patient.allergies.join(", ")}` : ""}
-
-**Primary Conditions**
-${Array.from(diagnoses).length > 0
-  ? Array.from(diagnoses).map(d => `- ${d}`).join("\n")
-  : "- No specific diagnosis recorded"}
-
-**Chief Complaints**
-${Array.from(complaints).length > 0
-  ? Array.from(complaints).map(c => `- ${c}`).join("\n")
-  : "- No complaints recorded"}
-
-**Treatment History**
-${Array.from(treatments.topicals).length > 0
-  ? `Topical Medications:\n${Array.from(treatments.topicals).map(t => `- ${t}`).join("\n")}`
-  : "No topical treatments recorded"}
-
-${Array.from(treatments.orals).length > 0
-  ? `\nOral Medications:\n${Array.from(treatments.orals).map(o => `- ${o}`).join("\n")}`
-  : ""}
-
-**Key Observations**
-- Severity trend: ${severities.length > 0 ? severities.join(" → ") : "Not assessed"}
-- Latest complaint: ${latestVisit.patientInfo?.complaint || "Not recorded"}
-- Latest diagnosis: ${latestVisit.diagnosis?.provisional || "Not recorded"}
-${latestVisit.followUp?.reason ? `- Previous follow-up note: ${latestVisit.followUp.reason}` : ""}`;
-
-  return summary;
 }

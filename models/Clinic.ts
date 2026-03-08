@@ -21,6 +21,16 @@ export interface ISectionSettings {
   [sectionName: string]: IFieldSettings;
 }
 
+// Appointment Settings
+export interface IAppointmentSettings {
+  startHour: number; // 0-23
+  endHour: number; // 0-23
+  slotDuration: number; // minutes (e.g., 15, 20, 30)
+  lunchStartHour: number;
+  lunchEndHour: number;
+  lunchEnabled: boolean;
+}
+
 export interface IClinic extends Document {
   doctorId: mongoose.Types.ObjectId;
   clinicName: string;
@@ -29,6 +39,9 @@ export interface IClinic extends Document {
   email?: string;
   logo?: string;
   seal?: string;
+
+  // Appointment Settings
+  appointmentSettings: IAppointmentSettings;
 
   // Dermatology Field Settings
   dermatologyFieldSettings: ISectionSettings;
@@ -99,6 +112,16 @@ const ClinicSchema = new Schema<IClinic>(
     },
     seal: {
       type: String,
+    },
+
+    // Appointment Settings
+    appointmentSettings: {
+      startHour: { type: Number, min: 0, max: 23, default: 9 },
+      endHour: { type: Number, min: 0, max: 23, default: 22 },
+      slotDuration: { type: Number, min: 5, max: 60, default: 30 },
+      lunchStartHour: { type: Number, min: 0, max: 23, default: 13 },
+      lunchEndHour: { type: Number, min: 0, max: 23, default: 14 },
+      lunchEnabled: { type: Boolean, default: true },
     },
 
     // Dermatology Settings

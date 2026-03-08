@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -12,511 +12,721 @@ interface Patient {
   gender: string;
   phone: string;
   email?: string;
+  address?: string;
+  medicalHistory?: string;
+  allergies?: string[];
   createdAt: string;
 }
 
 export default function PatientsPage() {
   const router = useRouter();
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Patient[]>([]);
-  const [suggestions, setSuggestions] = useState<Patient[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
 
-  // Add patient form state
-  const [formData, setFormData] = useState({
-    name: "",
-    age: "",
-    gender: "male",
-    phone: "",
-    email: "",
-    address: "",
-    medicalHistory: "",
-    allergies: "",
-  });
-  const [submitLoading, setSubmitLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const isFetchingRef = useRef(false);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch suggestions as user types
-  useEffect(() => {
-    const fetchSuggestions = async () => {
-      if (!searchQuery.trim()) {
-        setSuggestions([]);
-        setShowSuggestions(false);
-        return;
-      }
-
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `/api/tier2/patients/search?q=${encodeURIComponent(searchQuery)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        const data = await response.json();
-        if (data.success) {
-          setSuggestions(data.data.patients);
-          setShowSuggestions(data.data.patients.length > 0);
-        }
-      } catch (err) {
-        console.error("Failed to fetch suggestions:", err);
-      }
-    };
-
-    const debounceTimer = setTimeout(() => {
-      fetchSuggestions();
-    }, 300); // Wait 300ms after user stops typing
-
-    return () => clearTimeout(debounceTimer);
-  }, [searchQuery]);
-
-  const handleSelectSuggestion = (patient: Patient) => {
-    setSearchQuery(patient.name);
-    setShowSuggestions(false);
-    router.push(`/tier2/patients/${patient._id}`);
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setSearchQuery(value), 300);
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setHasSearched(false);
-      return;
-    }
+  // Add patient modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ name: "", age: "", gender: "male", phone: "", email: "" });
+  const [addLoading, setAddLoading] = useState(false);
 
-    setLoading(true);
-    setError("");
-    setHasSearched(true);
-    setShowSuggestions(false);
+  // Edit drawer state
+  const [editPatient, setEditPatient] = useState<Patient | null>(null);
+  const [editForm, setEditForm] = useState({
+    allergies: "",
+    medicalHistory: "",
+    age: "",
+    address: "",
+    email: "",
+  });
+  const [editLoading, setEditLoading] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const fetchPatients = useCallback(async (pageNum: number) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    const isFirst = pageNum === 1;
+    if (isFirst) { setLoading(true); setPage(1); }
+    else setLoadingMore(true);
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(
-        `/api/tier2/patients/search?q=${encodeURIComponent(searchQuery)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      if (!token) { router.push("/login"); return; }
+
+      const params = new URLSearchParams();
+      params.set("page", pageNum.toString());
+      params.set("limit", "20");
+      if (searchQuery) params.set("search", searchQuery);
+
+      const response = await fetch(`/api/tier2/patients/list?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       const data = await response.json();
       if (data.success) {
-        setSearchResults(data.data.patients);
-        // If no results, show add form
-        if (data.data.patients.length === 0) {
-          setShowAddForm(true);
-          // Pre-fill name if search query looks like a name
-          if (isNaN(Number(searchQuery))) {
-            setFormData((prev) => ({ ...prev, name: searchQuery }));
-          } else {
-            setFormData((prev) => ({ ...prev, phone: searchQuery }));
-          }
+        const newItems = data.data.patients;
+        if (isFirst) {
+          setPatients(newItems);
         } else {
-          setShowAddForm(false);
+          setPatients((prev) => [...prev, ...newItems]);
+          setPage(pageNum);
         }
-      } else {
-        setError(data.message);
+        setHasMore(pageNum < data.data.pagination.pages);
+        setTotal(data.data.pagination.total);
       }
     } catch (err) {
-      setError("Failed to search patients");
+      console.error("Failed to fetch patients:", err);
     } finally {
-      setLoading(false);
+      if (isFirst) setLoading(false);
+      else setLoadingMore(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, [searchQuery, router]);
 
-  const handleAddPatient = async (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchPatients(1);
+  }, [fetchPatients]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMore && !isFetchingRef.current) {
+          fetchPatients(page + 1);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, page, fetchPatients]);
+
+  // Fetch full patient details when opening edit drawer
+  const openEditDrawer = async (patient: Patient, e: React.MouseEvent) => {
     e.preventDefault();
-    setSubmitLoading(true);
-    setError("");
-    setSuccess("");
+    e.stopPropagation();
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/tier2/patients", {
-        method: "POST",
+      const response = await fetch(`/api/tier2/patients/${patient._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        const p = data.data.patient;
+        setEditPatient(p);
+        setEditForm({
+          allergies: p.allergies?.join(", ") || "",
+          medicalHistory: p.medicalHistory || "",
+          age: p.age?.toString() || "",
+          address: p.address || "",
+          email: p.email || "",
+        });
+      } else {
+        showToast("error", "Failed to load patient details");
+      }
+    } catch {
+      showToast("error", "Failed to load patient details");
+    }
+  };
+
+  const handleUpdatePatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPatient) return;
+    setEditLoading(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/tier2/patients/${editPatient._id}`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          ...formData,
-          age: parseInt(formData.age),
-          allergies: formData.allergies
-            ? formData.allergies.split(",").map((a) => a.trim())
+          allergies: editForm.allergies
+            ? editForm.allergies.split(",").map((a) => a.trim()).filter(Boolean)
             : [],
+          medicalHistory: editForm.medicalHistory,
+          age: editForm.age ? parseInt(editForm.age) : undefined,
+          address: editForm.address,
+          email: editForm.email,
         }),
       });
 
       const data = await response.json();
       if (data.success) {
-        setSuccess("Patient added successfully!");
-        // Reset form
-        setFormData({
-          name: "",
-          age: "",
-          gender: "male",
-          phone: "",
-          email: "",
-          address: "",
-          medicalHistory: "",
-          allergies: "",
-        });
-        setShowAddForm(false);
-        setHasSearched(false);
-        setSearchQuery("");
-
-        // Redirect to patient profile after 1.5 seconds
-        setTimeout(() => {
-          router.push(`/tier2/patients/${data.data.patient._id}`);
-        }, 1500);
+        showToast("success", "Patient updated successfully!");
+        setEditPatient(null);
+        fetchPatients(1);
       } else {
-        setError(data.message);
+        showToast("error", data.message || "Failed to update patient");
       }
-    } catch (err) {
-      setError("Failed to add patient");
+    } catch {
+      showToast("error", "Failed to update patient");
     } finally {
-      setSubmitLoading(false);
+      setEditLoading(false);
+    }
+  };
+
+  const handleAddPatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/tier2/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ...addForm,
+          age: parseInt(addForm.age),
+          allergies: [],
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast("success", "Patient added successfully!");
+        setAddForm({ name: "", age: "", gender: "male", phone: "", email: "" });
+        setShowAddModal(false);
+        setSearchInput("");
+        setSearchQuery("");
+        setTimeout(() => router.push(`/tier2/patients/${data.data.patient._id}`), 800);
+      } else {
+        showToast("error", data.message);
+      }
+    } catch {
+      showToast("error", "Failed to add patient");
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const getGenderColor = (gender: string) => {
+    switch (gender) {
+      case "male": return "bg-blue-50 text-blue-600";
+      case "female": return "bg-pink-50 text-pink-600";
+      default: return "bg-gray-50 text-gray-600";
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
-      {/* Animated background */}
-      <div className="absolute top-20 left-10 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob"></div>
-      <div className="absolute bottom-20 right-10 w-96 h-96 bg-slate-200 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-2000"></div>
-
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50">
       {/* Header */}
-      <header className="bg-white/90 backdrop-blur-lg shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex justify-between items-center">
-          <Link href="/tier2/dashboard">
-            <h1 className="text-2xl font-bold text-slate-800 cursor-pointer hover:text-blue-600 transition-colors">
-              DermaHMS
-            </h1>
-          </Link>
-          <Link href="/tier2/dashboard">
-            <button className="flex items-center space-x-2 text-slate-600 hover:text-blue-600 font-medium transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/tier2/dashboard"
+                className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-teal-600 transition-colors"
+                title="Back to Dashboard"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </Link>
+              <div className="w-10 h-10 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-md shadow-teal-500/20">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Patients</h1>
+                <p className="text-base text-gray-500 hidden sm:block">{total} patients registered</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 font-medium text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              <span>Back to Dashboard</span>
+              <span className="hidden sm:inline text-base">Add Patient</span>
+              <span className="sm:hidden text-base">Add</span>
             </button>
-          </Link>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
-        <div className="text-center mb-8">
-          <h2 className="text-4xl font-bold text-slate-900 mb-2">Patient Management</h2>
-          <p className="text-slate-600 text-lg">Search for existing patients or add new ones</p>
+      {/* Navigation */}
+      <nav className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+            {[
+              { label: "Dashboard", href: "/tier2/dashboard" },
+              { label: "Patients", href: "/tier2/patients", active: true },
+              { label: "Consultations", href: "/tier2/consultations" },
+              { label: "Pharmacy", href: "/tier2/pharmacy" },
+              { label: "Templates", href: "/tier2/templates" },
+              { label: "Analytics", href: "/tier2/analytics" },
+              { label: "Frontdesk", href: "/tier2/settings/frontdesk" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-4 py-3 text-base font-medium whitespace-nowrap transition-colors relative ${
+                  item.active
+                    ? "text-teal-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-teal-600 after:rounded-full"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {/* Search Bar */}
+        <div className="mb-6">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search by name, phone, or patient ID..."
+              className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white text-gray-900 text-base shadow-sm"
+            />
+            {searchInput && (
+              <button
+                onClick={() => { setSearchInput(""); setSearchQuery(""); }}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200 mb-6">
-          <div className="flex gap-3">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                placeholder="Search by name, phone number, or patient ID..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-              />
+        {/* Patients List */}
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600"></div>
+            </div>
+          ) : patients.length === 0 ? (
+            <div className="text-center py-16">
+              <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <p className="text-gray-500 font-medium">No patients found</p>
+              {searchInput && <p className="text-sm text-gray-400 mt-1">Try a different search term</p>}
+            </div>
+          ) : (
+            <>
+              {/* Table header */}
+              <div className="hidden md:grid md:grid-cols-12 gap-4 px-5 py-3 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <div className="col-span-3">Patient</div>
+                <div className="col-span-2">ID</div>
+                <div className="col-span-1 text-center">Age</div>
+                <div className="col-span-1 text-center">Gender</div>
+                <div className="col-span-2">Phone</div>
+                <div className="col-span-2 text-right">Registered</div>
+                <div className="col-span-1 text-center">Action</div>
+              </div>
 
-              {/* Suggestions Dropdown */}
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50">
-                  <div className="p-2">
-                    <p className="text-xs font-semibold text-slate-500 px-3 py-2">
-                      Suggested Patients ({suggestions.length})
-                    </p>
-                    {suggestions.map((patient) => (
+              {/* Patient rows */}
+              <div className="divide-y divide-gray-100">
+                {patients.map((patient) => (
+                  <div key={patient._id} className="group px-5 py-4 hover:bg-gray-50/70 transition-colors flex items-center gap-4 md:grid md:grid-cols-12 md:gap-4">
+                    {/* Patient name + avatar — clickable to detail page */}
+                    <Link href={`/tier2/patients/${patient._id}`} className="flex items-center gap-3 flex-1 min-w-0 md:col-span-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center flex-shrink-0">
+                        <span className="text-white font-bold text-sm">
+                          {patient.name?.charAt(0)?.toUpperCase() || "?"}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 text-sm truncate group-hover:text-teal-700 transition-colors">{patient.name}</p>
+                        {patient.email && (
+                          <p className="text-xs text-gray-400 truncate">{patient.email}</p>
+                        )}
+                      </div>
+                    </Link>
+
+                    {/* Patient ID */}
+                    <div className="hidden md:block md:col-span-2">
+                      <span className="text-sm text-gray-500 font-mono bg-gray-50 px-2 py-0.5 rounded">{patient.patientId}</span>
+                    </div>
+
+                    {/* Age */}
+                    <div className="hidden md:block md:col-span-1 text-center">
+                      <span className="text-sm text-gray-700">{patient.age}</span>
+                    </div>
+
+                    {/* Gender */}
+                    <div className="hidden md:block md:col-span-1 text-center">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${getGenderColor(patient.gender)}`}>
+                        {patient.gender}
+                      </span>
+                    </div>
+
+                    {/* Phone */}
+                    <div className="hidden md:block md:col-span-2">
+                      <span className="text-sm text-gray-600">{patient.phone}</span>
+                    </div>
+
+                    {/* Registered */}
+                    <div className="hidden md:block md:col-span-2 text-right">
+                      <span className="text-sm text-gray-400">
+                        {new Date(patient.createdAt).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+
+                    {/* Edit button */}
+                    <div className="hidden md:flex md:col-span-1 justify-center">
                       <button
-                        key={patient._id}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          handleSelectSuggestion(patient);
-                        }}
-                        className="w-full text-left px-3 py-3 hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-between group"
+                        onClick={(e) => openEditDrawer(patient, e)}
+                        className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                        title="Update Medical Info"
                       >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-900">{patient.name}</p>
-                            <p className="text-sm text-slate-600">
-                              {patient.patientId} • {patient.age} yrs • {patient.phone}
-                            </p>
-                          </div>
-                        </div>
-                        <svg className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
+                      </button>
+                    </div>
+
+                    {/* Mobile: meta info + edit */}
+                    <div className="flex items-center gap-2 md:hidden">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${getGenderColor(patient.gender)}`}>
+                        {patient.gender}
+                      </span>
+                      <span className="text-xs text-gray-400">{patient.age}y</span>
+                      <button
+                        onClick={(e) => openEditDrawer(patient, e)}
+                        className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors ml-auto"
+                        title="Update Medical Info"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Mobile arrow to detail page */}
+                    <Link href={`/tier2/patients/${patient._id}`} className="flex-shrink-0 md:hidden">
+                      <svg className="w-5 h-5 text-gray-300 group-hover:text-teal-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+
+              {/* Infinite scroll sentinel */}
+              <div ref={sentinelRef} className="px-5 py-3 border-t bg-gray-50 flex items-center justify-center min-h-[48px]">
+                {loadingMore ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600" />
+                    Loading more...
+                  </div>
+                ) : hasMore ? null : patients.length > 0 ? (
+                  <p className="text-xs text-gray-400">{total} patients total</p>
+                ) : null}
+              </div>
+            </>
+          )}
+        </div>
+      </main>
+
+      {/* Add Patient Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-teal-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">Add New Patient</h3>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleAddPatient} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Full Name *</label>
+                <input type="text" value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} required
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50" placeholder="Patient's full name" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Age *</label>
+                  <input type="number" value={addForm.age} onChange={(e) => setAddForm({ ...addForm, age: e.target.value })} required min="0" max="150"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50" placeholder="Age" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Gender *</label>
+                  <div className="flex gap-2">
+                    {["male", "female", "other"].map((g) => (
+                      <button key={g} type="button" onClick={() => setAddForm({ ...addForm, gender: g })}
+                        className={`flex-1 py-3 rounded-xl text-sm font-semibold capitalize transition-all ${
+                          addForm.gender === g
+                            ? "bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md shadow-teal-500/25"
+                            : "bg-gray-50 text-gray-600 border border-gray-200 hover:border-teal-300 hover:bg-teal-50"
+                        }`}
+                      >
+                        {g}
                       </button>
                     ))}
                   </div>
                 </div>
-              )}
-            </div>
-            <button
-              onClick={handleSearch}
-              disabled={loading}
-              className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Searching...</span>
-                </div>
-              ) : (
-                "Search"
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Error/Success Messages */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl">
-            {success}
-          </div>
-        )}
-
-        {/* Search Results */}
-        {hasSearched && !showAddForm && searchResults.length > 0 && (
-          <div className="bg-white rounded-xl shadow-md border border-gray-200 mb-6">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-slate-900">
-                Found {searchResults.length} patient{searchResults.length !== 1 ? "s" : ""}
-              </h3>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {searchResults.map((patient) => (
-                <Link key={patient._id} href={`/tier2/patients/${patient._id}`}>
-                  <div className="p-6 hover:bg-slate-50 transition-colors cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-slate-900 text-lg">{patient.name}</h4>
-                          <p className="text-sm text-slate-600">
-                            {patient.age} years • {patient.gender} • {patient.phone}
-                          </p>
-                          <p className="text-xs text-slate-500 mt-1">
-                            Patient ID: {patient.patientId}
-                          </p>
-                        </div>
-                      </div>
-                      <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* No Results - Show Add Form */}
-        {hasSearched && showAddForm && (
-          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-8">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
               </div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-2">No Patient Found</h3>
-              <p className="text-slate-600">Would you like to add this patient to the system?</p>
-            </div>
-
-            <form onSubmit={handleAddPatient} className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Name */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Full Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter full name"
-                  />
-                </div>
-
-                {/* Age */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Age <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.age}
-                    onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                    required
-                    min="0"
-                    max="150"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter age"
-                  />
-                </div>
-
-                {/* Gender */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Gender <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.gender}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                {/* Phone */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Phone Number <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    required
-                    pattern="[0-9]{10}"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="10-digit phone number"
-                  />
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Email (Optional)
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="email@example.com"
-                  />
-                </div>
-              </div>
-
-              {/* Address */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Address (Optional)
-                </label>
-                <textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  rows={2}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter address"
-                ></textarea>
+                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Phone *</label>
+                <input type="tel" value={addForm.phone} onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })} required pattern="[0-9]{10}"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50" placeholder="10-digit number" />
               </div>
-
-              {/* Medical History */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Medical History (Optional)
-                </label>
-                <textarea
-                  value={formData.medicalHistory}
-                  onChange={(e) => setFormData({ ...formData, medicalHistory: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Previous conditions, surgeries, etc."
-                ></textarea>
+                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Email</label>
+                <input type="email" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50" placeholder="email@example.com (optional)" />
               </div>
-
-              {/* Allergies */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Allergies (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={formData.allergies}
-                  onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Comma-separated (e.g., Penicillin, Peanuts)"
-                />
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="flex gap-4">
-                <button
-                  type="submit"
-                  disabled={submitLoading}
-                  className="flex-1 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submitLoading ? "Adding Patient..." : "Add Patient"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddForm(false);
-                    setHasSearched(false);
-                    setSearchQuery("");
-                  }}
-                  className="px-6 py-3 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300 transition-colors"
-                >
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base">
                   Cancel
+                </button>
+                <button type="submit" disabled={addLoading}
+                  className="flex-[2] py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 transition-all font-semibold text-base disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-teal-500/20 disabled:shadow-none">
+                  {addLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Adding...
+                    </span>
+                  ) : "Add Patient"}
                 </button>
               </div>
             </form>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Initial State - No Search Yet */}
-        {!hasSearched && (
-          <div className="text-center py-20 bg-white rounded-xl shadow-md border border-gray-200">
-            <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
-              <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+      {/* Edit Medical Info Drawer */}
+      {editPatient && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditPatient(null)} />
+          <div className="relative bg-white w-full max-w-md h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right">
+            {/* Drawer Header */}
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-teal-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Update Medical Info</h3>
+                  <p className="text-sm text-gray-500">{editPatient.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setEditPatient(null)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 mb-2">Search for a Patient</h3>
-            <p className="text-slate-600 max-w-md mx-auto">
-              Enter a patient's name, phone number, or ID to search. If not found, you can add them to the system.
-            </p>
+
+            {/* Patient Summary Card */}
+            <div className="px-6 pt-5 pb-2">
+              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-4 border border-teal-100">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center">
+                    <span className="text-white font-bold text-base">
+                      {editPatient.name?.charAt(0)?.toUpperCase() || "?"}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">{editPatient.name}</p>
+                    <p className="text-sm text-gray-500">{editPatient.patientId} &middot; {editPatient.phone}</p>
+                  </div>
+                </div>
+                <div className="flex gap-3 text-sm">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${getGenderColor(editPatient.gender)}`}>
+                    {editPatient.gender}
+                  </span>
+                  <span className="text-gray-500">{editPatient.age} years</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Edit Form */}
+            <form onSubmit={handleUpdatePatient} className="px-6 py-5 space-y-5">
+              {/* Allergies */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                  <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  Allergies
+                </label>
+                <input
+                  type="text"
+                  value={editForm.allergies}
+                  onChange={(e) => setEditForm({ ...editForm, allergies: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
+                  placeholder="Comma-separated (e.g. Penicillin, Dust, Pollen)"
+                />
+                <p className="text-xs text-gray-400 mt-1">Separate multiple allergies with commas</p>
+              </div>
+
+              {/* Medical History */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Medical History
+                </label>
+                <textarea
+                  value={editForm.medicalHistory}
+                  onChange={(e) => setEditForm({ ...editForm, medicalHistory: e.target.value })}
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50 resize-none"
+                  placeholder="Previous conditions, surgeries, ongoing treatments, chronic diseases..."
+                />
+              </div>
+
+              {/* Age */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                  <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Age
+                </label>
+                <input
+                  type="number"
+                  value={editForm.age}
+                  onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
+                  min="0"
+                  max="150"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
+                  placeholder="Patient's current age"
+                />
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                  <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Address
+                </label>
+                <input
+                  type="text"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
+                  placeholder="Patient's address"
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                  <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
+                  placeholder="email@example.com"
+                />
+              </div>
+
+              {/* Submit */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditPatient(null)}
+                  className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="flex-[2] py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 transition-all font-semibold text-base disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-teal-500/20 disabled:shadow-none"
+                >
+                  {editLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Saving...
+                    </span>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </main>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4">
+          <div className={`flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg border ${
+            toast.type === "success" ? "bg-white border-emerald-200 text-emerald-700" : "bg-white border-red-200 text-red-700"
+          }`}>
+            {toast.type === "success" ? (
+              <svg className="w-5 h-5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span className="text-sm font-medium">{toast.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

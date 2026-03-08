@@ -42,6 +42,8 @@ export async function POST(request: NextRequest) {
 
     const { user: authUser } = authResult;
 
+    console.log("Upload - Auth user:", authUser);
+
     // Verify user is Tier 1 or Tier 2 (Tier 2 can use AI analysis for dermoscope images)
     if (authUser.tier !== "tier1" && authUser.tier !== "tier2") {
       return NextResponse.json(
@@ -171,10 +173,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Ensure AI model is ready
-    await ensureModelReady();
+    // Check if caller wants to skip AI inference (upload-only mode)
+    const skipAI = request.nextUrl.searchParams.get("skipAI") === "true";
 
-    // Process each image: upload, AI inference
+    if (!skipAI) {
+      // Ensure AI model is ready only when needed
+      await ensureModelReady();
+    }
+
+    // Process each image: upload, and optionally AI inference
     const imageResults = [];
     let totalProcessingTime = 0;
 
@@ -192,13 +199,29 @@ export async function POST(request: NextRequest) {
         .jpeg({ quality: 85 })
         .toBuffer();
 
-      // Run AI inference
-      const aiResult = await predictSkinCondition(processedImage);
-      totalProcessingTime += aiResult.processingTime;
+      let aiResultData = null;
+      if (!skipAI) {
+        // Run AI inference
+        const aiResult = await predictSkinCondition(processedImage);
+        totalProcessingTime += aiResult.processingTime;
+        aiResultData = {
+          predictions: aiResult.predictions.map((p) => ({
+            condition: p.condition,
+            probability: p.probability,
+            confidence: p.confidence,
+          })),
+          topPrediction: {
+            condition: aiResult.topPrediction.condition,
+            probability: aiResult.topPrediction.probability,
+            confidence: aiResult.topPrediction.confidence,
+          },
+          processingTime: aiResult.processingTime,
+        };
+      }
 
       // Upload to S3
       const s3Result = await uploadToS3(processedImage, "image/jpeg", {
-        folder: "tier1Scans",
+        folder: "TIER1_SCANS",
         userId: authUser.userId,
       });
 
@@ -217,18 +240,18 @@ export async function POST(request: NextRequest) {
       imageResults.push({
         imageUrl: s3Result.url,
         s3Key: s3Result.key,
-        aiResult: {
-          predictions: aiResult.predictions.map((p) => ({
-            condition: p.condition,
-            probability: p.probability,
-            confidence: p.confidence,
-          })),
-          topPrediction: {
-            condition: aiResult.topPrediction.condition,
-            probability: aiResult.topPrediction.probability,
-            confidence: aiResult.topPrediction.confidence,
-          },
-          processingTime: aiResult.processingTime,
+        aiResult: aiResultData,
+      });
+    }
+
+    // For Tier 2 users with skipAI: just return image URLs, no analysis
+    if (authUser.tier === "tier2" && skipAI) {
+      return NextResponse.json({
+        success: true,
+        message: `${imageFiles.length} image(s) uploaded successfully`,
+        data: {
+          imageUrls: imageResults.map(r => r.imageUrl),
+          imageCount: imageFiles.length,
         },
       });
     }
@@ -240,7 +263,7 @@ export async function POST(request: NextRequest) {
 
     // Sum up probabilities for each condition across all images
     for (const result of imageResults) {
-      for (const prediction of result.aiResult.predictions) {
+      for (const prediction of (result.aiResult as any).predictions) {
         const current = conditionSums.get(prediction.condition) || 0;
         conditionSums.set(prediction.condition, current + prediction.probability);
 

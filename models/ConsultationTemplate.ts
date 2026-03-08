@@ -8,38 +8,12 @@ export interface IConsultationTemplate extends Document {
   name: string;
   description?: string;
   category?: string; // e.g., "Eczema", "Psoriasis", "Vitiligo", etc.
+  templateType: "dermatology" | "cosmetology"; // NEW: Template type
   isActive: boolean;
 
   // Template fields (mirrors the consultation form structure)
-  templateData: {
-    // Chief Complaint & History
-    complaint?: string;
-    duration?: string;
-    previousTreatment?: string;
-
-    // Clinical Examination
-    lesionSite?: string;
-    morphology?: string;
-    distribution?: string;
-    severity?: string;
-
-    // Dermoscopic Findings
-    patterns?: string;
-    finalInterpretation?: string;
-
-    // Diagnosis
-    provisional?: string;
-    differentials?: string;
-
-    // Treatment Plan
-    topicals?: string;
-    orals?: string;
-    lifestyleChanges?: string;
-    investigations?: string;
-
-    // Follow-up
-    reason?: string;
-  };
+  // For dermatology OR cosmetology - stored as flexible object
+  templateData: Record<string, any>;
 
   // Timestamps
   createdAt: Date;
@@ -71,38 +45,19 @@ const consultationTemplateSchema = new Schema<IConsultationTemplate>(
       type: String,
       trim: true,
     },
+    templateType: {
+      type: String,
+      enum: ["dermatology", "cosmetology"],
+      default: "dermatology",
+      required: true,
+    },
     isActive: {
       type: Boolean,
       default: true,
     },
     templateData: {
-      // Chief Complaint & History
-      complaint: String,
-      duration: String,
-      previousTreatment: String,
-
-      // Clinical Examination
-      lesionSite: String,
-      morphology: String,
-      distribution: String,
-      severity: String,
-
-      // Dermoscopic Findings
-      patterns: String,
-      finalInterpretation: String,
-
-      // Diagnosis
-      provisional: String,
-      differentials: String,
-
-      // Treatment Plan
-      topicals: String,
-      orals: String,
-      lifestyleChanges: String,
-      investigations: String,
-
-      // Follow-up
-      reason: String,
+      type: Schema.Types.Mixed,
+      default: {},
     },
   },
   {
@@ -113,6 +68,7 @@ const consultationTemplateSchema = new Schema<IConsultationTemplate>(
 // Index for faster queries
 consultationTemplateSchema.index({ clinicId: 1, isActive: 1 });
 consultationTemplateSchema.index({ clinicId: 1, category: 1 });
+consultationTemplateSchema.index({ clinicId: 1, templateType: 1 });
 
 const ConsultationTemplate: Model<IConsultationTemplate> =
   mongoose.models.ConsultationTemplate ||

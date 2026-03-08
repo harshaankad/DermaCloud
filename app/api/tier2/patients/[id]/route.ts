@@ -4,10 +4,19 @@ import { connectDB } from "@/lib/db/connection";
 import Patient from "@/models/Patient";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 import ConsultationCosmetology from "@/models/ConsultationCosmetology";
+import { z } from "zod";
+
+const updatePatientSchema = z.object({
+  allergies: z.array(z.string()).optional(),
+  medicalHistory: z.string().optional(),
+  age: z.number().min(0).max(150).optional(),
+  address: z.string().optional(),
+  email: z.string().email().optional().or(z.literal("")),
+});
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authenticate user
@@ -29,7 +38,8 @@ export async function GET(
       );
     }
 
-    const patientId = params.id;
+    const { id } = await params;
+    const patientId = id;
 
     await connectDB();
 
@@ -112,6 +122,87 @@ export async function GET(
         message: "Failed to fetch patient data",
         error: error.message,
       },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const authResult = await authMiddleware(request);
+    if (authResult instanceof NextResponse) {
+      return authResult;
+    }
+
+    const { user: authUser } = authResult;
+
+    if (authUser.tier !== "tier2") {
+      return NextResponse.json(
+        { success: false, message: "This endpoint is only for Tier 2 users" },
+        { status: 403 }
+      );
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+
+    const validation = updatePatientSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, message: "Validation failed", errors: validation.error.errors },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    const patient = await Patient.findById(id);
+    if (!patient) {
+      return NextResponse.json(
+        { success: false, message: "Patient not found" },
+        { status: 404 }
+      );
+    }
+
+    if (patient.clinicId.toString() !== authUser.clinicId.toString()) {
+      return NextResponse.json(
+        { success: false, message: "Access denied" },
+        { status: 403 }
+      );
+    }
+
+    const updates = validation.data;
+    if (updates.allergies !== undefined) patient.allergies = updates.allergies;
+    if (updates.medicalHistory !== undefined) patient.medicalHistory = updates.medicalHistory;
+    if (updates.age !== undefined) patient.age = updates.age;
+    if (updates.address !== undefined) patient.address = updates.address;
+    if (updates.email !== undefined) patient.email = updates.email || undefined;
+
+    await patient.save();
+
+    return NextResponse.json({
+      success: true,
+      message: "Patient updated successfully",
+      data: {
+        _id: patient._id,
+        patientId: patient.patientId,
+        name: patient.name,
+        age: patient.age,
+        gender: patient.gender,
+        phone: patient.phone,
+        email: patient.email,
+        address: patient.address,
+        medicalHistory: patient.medicalHistory,
+        allergies: patient.allergies,
+      },
+    });
+  } catch (error: any) {
+    console.error("Update patient error:", error);
+    return NextResponse.json(
+      { success: false, message: "Failed to update patient", error: error.message },
       { status: 500 }
     );
   }

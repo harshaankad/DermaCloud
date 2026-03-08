@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authMiddleware } from "@/lib/auth/middleware";
+import { verifyTier2Request } from "@/lib/auth/verify-request";
 import { connectDB } from "@/lib/db/connection";
 import FormSettings from "@/models/FormSettings";
 import {
@@ -10,18 +10,12 @@ import {
 // GET: Fetch form settings
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await authMiddleware(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
     }
-
-    const { user: authUser } = authResult;
-
-    if (authUser.tier !== "tier2") {
-      return NextResponse.json(
-        { success: false, message: "This endpoint is only for Tier 2 users" },
-        { status: 403 }
-      );
+    if (auth.role !== "doctor") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -38,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     // Try to find existing settings
     let formSettings = await FormSettings.findOne({
-      userId: authUser.userId,
+      userId: auth.userId,
       formType,
     });
 
@@ -50,7 +44,7 @@ export async function GET(request: NextRequest) {
           : defaultCosmetologyForm;
 
       formSettings = await FormSettings.create({
-        userId: authUser.userId,
+        userId: auth.userId,
         formType,
         sections: defaultSections,
       });
@@ -78,18 +72,12 @@ export async function GET(request: NextRequest) {
 // PUT: Update form settings
 export async function PUT(request: NextRequest) {
   try {
-    const authResult = await authMiddleware(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
     }
-
-    const { user: authUser } = authResult;
-
-    if (authUser.tier !== "tier2") {
-      return NextResponse.json(
-        { success: false, message: "This endpoint is only for Tier 2 users" },
-        { status: 403 }
-      );
+    if (auth.role !== "doctor") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -114,7 +102,7 @@ export async function PUT(request: NextRequest) {
     // Update or create form settings
     const formSettings = await FormSettings.findOneAndUpdate(
       {
-        userId: authUser.userId,
+        userId: auth.userId,
         formType,
       },
       {

@@ -1,10 +1,11 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
-// Image Interface for Before/After
+// Image Interface - Now stores visit photos without before/after distinction
+// Comparison is done across different visits, not within the same visit
 export interface ICosmetologyImage {
   url: string;
-  type: "before" | "after";
-  comparisonTag?: string;
+  type?: "before" | "after"; // Optional, for legacy support
+  comparisonTag?: string; // Optional, for legacy support
   uploadedAt: Date;
 }
 
@@ -12,6 +13,7 @@ export interface IConsultationCosmetology extends Document {
   clinicId: mongoose.Types.ObjectId;
   patientId: mongoose.Types.ObjectId;
   doctorId: mongoose.Types.ObjectId;
+  appointmentId?: mongoose.Types.ObjectId; // Links to frontdesk appointment
   consultationDate: Date;
 
   // Patient Information
@@ -41,7 +43,7 @@ export interface IConsultationCosmetology extends Document {
     immediateOutcome?: string;
   };
 
-  // Images (Before/After)
+  // Images - Visit photos for cross-visit comparison
   images: ICosmetologyImage[];
 
   // Aftercare & Follow-up
@@ -65,6 +67,16 @@ export interface IConsultationCosmetology extends Document {
     seal?: string;
   };
 
+  // AI Patient Summary
+  patientSummary?: {
+    aiGenerated?: string;
+    doctorEdited?: string;
+    translations?: {
+      hindi?: string;
+      kannada?: string;
+    };
+  };
+
   // Custom Fields (Doctor-added fields)
   customFields?: Record<string, any>;
 
@@ -74,6 +86,9 @@ export interface IConsultationCosmetology extends Document {
     wordUrl?: string;
     generatedAt?: Date;
   };
+
+  // Billing
+  consultationFee?: number;
 
   // Metadata
   status: "draft" | "completed";
@@ -87,9 +102,9 @@ const CosmetologyImageSchema = new Schema<ICosmetologyImage>(
     type: {
       type: String,
       enum: ["before", "after"],
-      required: true,
+      required: false, // Optional, for legacy support
     },
-    comparisonTag: String,
+    comparisonTag: String, // Optional, for legacy support
     uploadedAt: { type: Date, default: Date.now },
   },
   { _id: false }
@@ -111,6 +126,10 @@ const ConsultationCosmetologySchema = new Schema<IConsultationCosmetology>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+    appointmentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Appointment",
     },
     consultationDate: {
       type: Date,
@@ -171,10 +190,26 @@ const ConsultationCosmetologySchema = new Schema<IConsultationCosmetology>(
       seal: String,
     },
 
+    // AI Patient Summary
+    patientSummary: {
+      aiGenerated: String,
+      doctorEdited: String,
+      translations: {
+        hindi: String,
+        kannada: String,
+      },
+    },
+
     // Custom Fields
     customFields: {
       type: Schema.Types.Mixed,
       default: {},
+    },
+
+    // Billing
+    consultationFee: {
+      type: Number,
+      min: 0,
     },
 
     // Generated Files

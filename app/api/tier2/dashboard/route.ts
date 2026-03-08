@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authMiddleware } from "@/lib/auth/middleware";
 import { connectDB } from "@/lib/db/connection";
+import { verifyTier2Request } from "@/lib/auth/verify-request";
 import Patient from "@/models/Patient";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 import ConsultationCosmetology from "@/models/ConsultationCosmetology";
+import Appointment from "@/models/Appointment";
+import InventoryItem from "@/models/InventoryItem";
+import Sale from "@/models/Sale";
+import mongoose from "mongoose";
 
 // Usage limits for Tier 2
 const DAILY_LIMIT = 20;
@@ -11,48 +15,39 @@ const MONTHLY_LIMIT = 500;
 
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate user
-    const authResult = await authMiddleware(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json(
+        { success: false, message: auth.error },
+        { status: auth.status || 401 }
+      );
     }
 
-    const { user: authUser } = authResult;
-
-    // Verify user is Tier 2
-    if (authUser.tier !== "tier2") {
+    // Only doctors should access this dashboard
+    if (auth.role !== "doctor") {
       return NextResponse.json(
-        {
-          success: false,
-          message: "This endpoint is only for Tier 2 users",
-        },
+        { success: false, message: "This endpoint is only for doctors" },
         { status: 403 }
       );
     }
 
     await connectDB();
 
-    // Get usage stats
+    const clinicId = auth.clinicId;
+    const doctorId = auth.doctorId;
+
+    // Date helpers
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    // Get clinic ID from user
-    const clinicId = authUser.clinicId;
+    const clinicObjectId = new mongoose.Types.ObjectId(clinicId);
 
-    if (!clinicId) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Clinic not found for this user",
-        },
-        { status: 400 }
-      );
-    }
-
-    // Count consultations for today and this month
+    // Fetch all data in parallel
     const [
+      // Consultation counts
       dailyDermCount,
       dailyCosmoCount,
       monthlyDermCount,
@@ -62,43 +57,46 @@ export async function GET(request: NextRequest) {
       totalPatients,
       todayDermVisits,
       todayCosmoVisits,
+      // Appointments
+      todayAppointments,
+      appointmentStats,
+      // Inventory
+      inventoryStats,
+      lowStockItems,
+      expiringCount,
+      // Sales
+      todaySalesStats,
     ] = await Promise.all([
-      // Daily counts
+      // Daily consultation counts
       ConsultationDermatology.countDocuments({
-        doctorId: authUser.userId,
+        doctorId,
         consultationDate: { $gte: today },
       }),
       ConsultationCosmetology.countDocuments({
-        doctorId: authUser.userId,
+        doctorId,
         consultationDate: { $gte: today },
       }),
 
-      // Monthly counts
+      // Monthly consultation counts
       ConsultationDermatology.countDocuments({
-        doctorId: authUser.userId,
+        doctorId,
         consultationDate: { $gte: firstDayOfMonth },
       }),
       ConsultationCosmetology.countDocuments({
-        doctorId: authUser.userId,
+        doctorId,
         consultationDate: { $gte: firstDayOfMonth },
       }),
 
-      // Total counts
-      ConsultationDermatology.countDocuments({
-        doctorId: authUser.userId,
-      }),
-      ConsultationCosmetology.countDocuments({
-        doctorId: authUser.userId,
-      }),
+      // Total consultation counts
+      ConsultationDermatology.countDocuments({ doctorId }),
+      ConsultationCosmetology.countDocuments({ doctorId }),
 
-      // Total patients in clinic
-      Patient.countDocuments({
-        clinicId: clinicId,
-      }),
+      // Total patients
+      Patient.countDocuments({ clinicId: clinicObjectId }),
 
       // Today's dermatology visits
       ConsultationDermatology.find({
-        doctorId: authUser.userId,
+        doctorId,
         consultationDate: { $gte: today },
       })
         .select("patientInfo consultationDate status")
@@ -107,22 +105,101 @@ export async function GET(request: NextRequest) {
 
       // Today's cosmetology visits
       ConsultationCosmetology.find({
-        doctorId: authUser.userId,
+        doctorId,
         consultationDate: { $gte: today },
       })
         .select("patientInfo consultationDate status")
         .sort({ consultationDate: -1 })
         .limit(10),
+
+      // Today's appointments
+      Appointment.find({
+        clinicId: clinicObjectId,
+        appointmentDate: { $gte: today, $lt: tomorrow },
+      })
+        .populate("patientId", "name patientId phone age gender")
+        .sort({ appointmentTime: 1 }),
+
+      // Appointment stats for today
+      Appointment.aggregate([
+        {
+          $match: {
+            clinicId: clinicObjectId,
+            appointmentDate: { $gte: today, $lt: tomorrow },
+          },
+        },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+
+      // Inventory stats
+      InventoryItem.aggregate([
+        { $match: { clinicId: clinicId } },
+        {
+          $group: {
+            _id: null,
+            totalItems: { $sum: 1 },
+            totalValue: { $sum: { $multiply: ["$currentStock", "$costPrice"] } },
+            lowStockCount: {
+              $sum: {
+                $cond: [{ $lte: ["$currentStock", "$minStockLevel"] }, 1, 0],
+              },
+            },
+            outOfStockCount: {
+              $sum: {
+                $cond: [{ $eq: ["$currentStock", 0] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]),
+
+      // Low stock items (top 5)
+      InventoryItem.find({
+        clinicId: clinicId,
+        $expr: { $lte: ["$currentStock", "$minStockLevel"] },
+      })
+        .select("name itemCode currentStock minStockLevel unit status")
+        .sort({ currentStock: 1 })
+        .limit(5),
+
+      // Expiring items count (within 30 days)
+      InventoryItem.countDocuments({
+        clinicId: clinicId,
+        expiryDate: { $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), $gte: new Date() },
+      }),
+
+      // Today's sales stats
+      Sale.aggregate([
+        {
+          $match: {
+            clinicId: clinicObjectId,
+            createdAt: { $gte: today, $lt: tomorrow },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalSales: { $sum: 1 },
+            totalRevenue: { $sum: "$totalAmount" },
+            totalPaid: { $sum: "$amountPaid" },
+            totalDue: { $sum: "$amountDue" },
+          },
+        },
+      ]),
     ]);
 
-    // Combine daily and monthly counts
+    // Process consultation data
     const dailyUsed = dailyDermCount + dailyCosmoCount;
     const monthlyUsed = monthlyDermCount + monthlyCosmoCount;
     const totalConsultations = totalDermCount + totalCosmoCount;
 
-    // Format today's visits
     const todayVisits = [
-      ...todayDermVisits.map((visit) => ({
+      ...todayDermVisits.map((visit: any) => ({
         id: visit._id.toString(),
         patientName: visit.patientInfo.name,
         visitType: "dermatology" as const,
@@ -132,7 +209,7 @@ export async function GET(request: NextRequest) {
         }),
         status: visit.status,
       })),
-      ...todayCosmoVisits.map((visit) => ({
+      ...todayCosmoVisits.map((visit: any) => ({
         id: visit._id.toString(),
         patientName: visit.patientInfo.name,
         visitType: "cosmetology" as const,
@@ -142,10 +219,13 @@ export async function GET(request: NextRequest) {
         }),
         status: visit.status,
       })),
-    ].sort((a, b) => {
-      // Sort by time (most recent first)
-      return b.time.localeCompare(a.time);
-    });
+    ].sort((a, b) => b.time.localeCompare(a.time));
+
+    // Process appointment stats
+    const appointmentStatsMap = appointmentStats.reduce((acc: any, curr: any) => {
+      acc[curr._id] = curr.count;
+      return acc;
+    }, {} as Record<string, number>);
 
     return NextResponse.json({
       success: true,
@@ -161,6 +241,33 @@ export async function GET(request: NextRequest) {
           totalPatients,
         },
         todayVisits,
+        appointments: {
+          list: todayAppointments,
+          stats: {
+            total: todayAppointments.length,
+            scheduled: appointmentStatsMap["scheduled"] || 0,
+            confirmed: appointmentStatsMap["confirmed"] || 0,
+            completed: appointmentStatsMap["completed"] || 0,
+            cancelled: appointmentStatsMap["cancelled"] || 0,
+            "checked-in": appointmentStatsMap["checked-in"] || 0,
+            "in-progress": appointmentStatsMap["in-progress"] || 0,
+            "no-show": appointmentStatsMap["no-show"] || 0,
+          },
+        },
+        pharmacy: {
+          totalItems: inventoryStats[0]?.totalItems || 0,
+          totalValue: inventoryStats[0]?.totalValue || 0,
+          lowStockCount: inventoryStats[0]?.lowStockCount || 0,
+          outOfStockCount: inventoryStats[0]?.outOfStockCount || 0,
+          expiringCount,
+          lowStockItems,
+        },
+        sales: todaySalesStats[0] || {
+          totalSales: 0,
+          totalRevenue: 0,
+          totalPaid: 0,
+          totalDue: 0,
+        },
       },
     });
   } catch (error: any) {

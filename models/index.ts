@@ -36,3 +36,19 @@ export type { ITier1Scan } from "./Tier1Scan";
 
 export { default as UsageTracking } from "./UsageTracking";
 export type { IUsageTracking } from "./UsageTracking";
+
+// Frontdesk Add-on Kit Models
+export { default as FrontdeskStaff } from "./FrontdeskStaff";
+export type { IFrontdeskStaff } from "./FrontdeskStaff";
+
+export { default as Appointment } from "./Appointment";
+export type { IAppointment } from "./Appointment";
+
+export { default as InventoryItem } from "./InventoryItem";
+export type { IInventoryItem } from "./InventoryItem";
+
+export { default as InventoryTransaction } from "./InventoryTransaction";
+export type { IInventoryTransaction } from "./InventoryTransaction";
+
+export { default as Sale } from "./Sale";
+export type { ISale, ISaleItem } from "./Sale";

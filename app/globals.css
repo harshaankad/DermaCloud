@@ -55,13 +55,21 @@ textarea {
   transition: all 0.2s ease-in-out;
 }
 
-/* Focus states for accessibility */
-button:focus,
-input:focus,
-select:focus,
-textarea:focus {
+/* Focus states for accessibility - only show on keyboard navigation */
+/* Inputs/selects/textareas use custom focus rings, so suppress the browser outline */
+button:focus-visible {
   outline: 2px solid #0ea5e9;
   outline-offset: 2px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+button:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* Card styles */
@@ -208,4 +216,32 @@ textarea:focus {
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
+}
+
+/* Slide in from right - for toast notifications */
+@keyframes slide-in-right {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+/* Slide up - for bottom toast notifications */
+@keyframes slideUp {
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }

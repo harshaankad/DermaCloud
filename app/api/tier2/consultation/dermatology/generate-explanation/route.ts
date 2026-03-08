@@ -1,311 +1,193 @@
 /**
  * API endpoint to generate AI explanation for existing consultations
+ * Streams the response progressively using Claude Sonnet
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { authMiddleware } from "@/lib/auth/middleware";
+import Anthropic from "@anthropic-ai/sdk";
+import { verifyTier2Request } from "@/lib/auth/verify-request";
 import { connectDB } from "@/lib/db/connection";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 
-// Common skin condition causes database for generating patient explanations
-const conditionCauses: Record<string, { causes: string[]; tips: string[] }> = {
-  eczema: {
-    causes: [
-      "Genetic predisposition and family history",
-      "Dry skin and impaired skin barrier",
-      "Environmental triggers (dust, pollen, pet dander)",
-      "Stress and emotional factors",
-      "Certain soaps, detergents, or fabrics",
-      "Weather changes (especially dry, cold weather)",
-    ],
-    tips: [
-      "Keep skin moisturized with fragrance-free creams",
-      "Avoid hot showers; use lukewarm water",
-      "Wear soft, breathable cotton clothing",
-      "Identify and avoid personal triggers",
-      "Manage stress through relaxation techniques",
-    ],
-  },
-  psoriasis: {
-    causes: [
-      "Immune system dysfunction (autoimmune condition)",
-      "Genetic factors and family history",
-      "Stress and emotional triggers",
-      "Certain medications",
-      "Skin injuries or infections",
-      "Smoking and alcohol consumption",
-    ],
-    tips: [
-      "Keep skin moisturized regularly",
-      "Get moderate sun exposure (with doctor's guidance)",
-      "Avoid skin injuries and scratching",
-      "Manage stress effectively",
-      "Avoid smoking and limit alcohol",
-    ],
-  },
-  acne: {
-    causes: [
-      "Excess oil (sebum) production",
-      "Hormonal changes (puberty, menstruation, PCOS)",
-      "Bacteria (Propionibacterium acnes)",
-      "Clogged hair follicles",
-      "Certain medications or cosmetics",
-      "Diet high in refined sugars and dairy (in some cases)",
-    ],
-    tips: [
-      "Wash face twice daily with gentle cleanser",
-      "Avoid touching or picking at pimples",
-      "Use non-comedogenic (non-pore-clogging) products",
-      "Change pillowcases regularly",
-      "Stay hydrated and maintain a balanced diet",
-    ],
-  },
-  vitiligo: {
-    causes: [
-      "Autoimmune condition (immune system attacks melanocytes)",
-      "Genetic predisposition",
-      "Oxidative stress in skin cells",
-      "Nerve-related factors",
-      "Triggered by sunburn or skin trauma",
-      "Associated with other autoimmune conditions",
-    ],
-    tips: [
-      "Protect skin from sun with sunscreen (SPF 30+)",
-      "Avoid skin injuries when possible",
-      "Consider cosmetic camouflage options",
-      "Join support groups for emotional support",
-      "Follow treatment plan consistently",
-    ],
-  },
-  fungal: {
-    causes: [
-      "Fungal organisms (dermatophytes, yeasts)",
-      "Warm, moist environments",
-      "Weakened immune system",
-      "Close contact with infected persons or animals",
-      "Sharing personal items (towels, combs)",
-      "Poor hygiene or excessive sweating",
-    ],
-    tips: [
-      "Keep affected areas clean and dry",
-      "Wear loose, breathable clothing",
-      "Don't share personal items",
-      "Change socks and underwear daily",
-      "Complete full course of antifungal treatment",
-    ],
-  },
-  dermatitis: {
-    causes: [
-      "Contact with irritants or allergens",
-      "Genetic susceptibility",
-      "Environmental factors",
-      "Stress and immune dysfunction",
-      "Occupational exposure to chemicals",
-      "Certain foods or medications",
-    ],
-    tips: [
-      "Identify and avoid triggers",
-      "Use gentle, fragrance-free products",
-      "Moisturize regularly",
-      "Wear protective gloves when needed",
-      "Apply prescribed medications as directed",
-    ],
-  },
-  urticaria: {
-    causes: [
-      "Allergic reactions to food, medications, or insect stings",
-      "Infections (viral, bacterial)",
-      "Physical triggers (pressure, cold, heat, sun)",
-      "Stress and emotional factors",
-      "Autoimmune conditions",
-      "Unknown causes (chronic idiopathic urticaria)",
-    ],
-    tips: [
-      "Identify and avoid known triggers",
-      "Keep a diary to track flare-ups",
-      "Avoid tight clothing",
-      "Stay cool and avoid hot showers",
-      "Take antihistamines as prescribed",
-    ],
-  },
-  melanoma: {
-    causes: [
-      "UV radiation exposure (sun, tanning beds)",
-      "Fair skin, light hair, light eyes",
-      "Many moles or atypical moles",
-      "Family history of melanoma",
-      "Weakened immune system",
-      "Previous severe sunburns",
-    ],
-    tips: [
-      "Use broad-spectrum sunscreen (SPF 30+) daily",
-      "Avoid tanning beds completely",
-      "Wear protective clothing and hats",
-      "Perform regular self-skin exams",
-      "Follow up regularly with your dermatologist",
-    ],
-  },
-  default: {
-    causes: [
-      "Genetic and hereditary factors",
-      "Environmental triggers",
-      "Immune system responses",
-      "Infections or irritants",
-      "Lifestyle and dietary factors",
-    ],
-    tips: [
-      "Follow your doctor's treatment plan",
-      "Keep the affected area clean",
-      "Avoid scratching or irritating the area",
-      "Maintain good overall skin hygiene",
-      "Attend follow-up appointments",
-    ],
-  },
-};
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Medicine purpose explanations
-const medicinePurposes: Record<string, string> = {
-  // Topicals
-  corticosteroid: "reduces inflammation, redness, and itching",
-  steroid: "reduces inflammation and immune response in the skin",
-  moisturizer: "hydrates skin and repairs the skin barrier",
-  emollient: "softens and moisturizes dry, rough skin",
-  antifungal: "kills or stops the growth of fungus causing the infection",
-  antibiotic: "kills bacteria or prevents bacterial infection",
-  retinoid: "promotes skin cell turnover and prevents clogged pores",
-  salicylic: "helps unclog pores and remove dead skin cells",
-  "benzoyl peroxide": "kills acne-causing bacteria and reduces oil",
-  calcineurin: "reduces inflammation without steroid side effects",
-  tacrolimus: "suppresses immune response to reduce inflammation",
-  pimecrolimus: "reduces inflammation for sensitive areas",
-  "coal tar": "slows skin cell growth and reduces scaling",
-  "vitamin d": "slows skin cell growth in psoriasis",
-  calcipotriol: "synthetic vitamin D that slows rapid skin cell growth",
-  hydroquinone: "lightens dark spots by reducing melanin production",
-  "azelaic acid": "reduces bacteria and helps with pigmentation",
-  clindamycin: "antibiotic that kills acne-causing bacteria",
-  erythromycin: "antibiotic for bacterial skin infections",
-  mupirocin: "treats bacterial skin infections like impetigo",
-  ketoconazole: "antifungal for yeast and fungal infections",
-  terbinafine: "antifungal that kills fungus causing infection",
-  clotrimazole: "antifungal for ringworm and other fungal infections",
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-  // Oral medications
-  antihistamine: "blocks allergic reactions and reduces itching",
-  cetirizine: "antihistamine that reduces allergic symptoms and itching",
-  loratadine: "antihistamine for allergies without causing drowsiness",
-  fexofenadine: "antihistamine for allergic reactions",
-  prednisolone: "steroid that reduces severe inflammation",
-  prednisone: "oral steroid for serious inflammatory conditions",
-  methotrexate: "slows down overactive immune system",
-  cyclosporine: "suppresses immune system in severe skin conditions",
-  isotretinoin: "reduces oil production and prevents severe acne",
-  doxycycline: "antibiotic that also reduces inflammation",
-  azithromycin: "antibiotic for bacterial infections",
-  fluconazole: "oral antifungal for widespread fungal infections",
-  itraconazole: "antifungal for stubborn fungal infections",
-  griseofulvin: "antifungal specifically for skin, hair, nail fungus",
-  acyclovir: "antiviral for herpes and related viral infections",
-  valacyclovir: "antiviral that treats viral skin infections",
-};
+function parseMedicines(topicals: string, orals: string): string[] {
+  const items: string[] = [];
+  if (topicals) items.push(...topicals.split(/[,;\n\r]+/).map((m: string) => m.trim()).filter(Boolean).map((m: string) => `${m} (topical)`));
+  if (orals)    items.push(...orals.split(/[,;\n\r]+/).map((m: string) => m.trim()).filter(Boolean).map((m: string) => `${m} (oral)`));
+  return items;
+}
 
-function generatePatientExplanation(
-  diagnosis: string,
-  topicals: string,
-  orals: string,
-  complaint: string,
-  severity: string
-): string {
-  const diagnosisLower = diagnosis?.toLowerCase() || "";
+// ── Single-issue prompt (unchanged logic) ──────────────────────────────────────
 
-  // Find matching condition
-  let matchedCondition = "default";
-  for (const condition of Object.keys(conditionCauses)) {
-    if (condition !== "default" && diagnosisLower.includes(condition)) {
-      matchedCondition = condition;
-      break;
-    }
-  }
+function buildSingleIssuePrompt(consultation: any): string {
+  const diagnosis = consultation.diagnosis?.provisional || "";
+  const severity  = consultation.clinicalExamination?.severity || "";
+  const complaint = consultation.patientInfo?.complaint || "";
+  const duration  = consultation.patientInfo?.duration || "";
+  const topicals  = consultation.treatmentPlan?.topicals || "";
+  const orals     = consultation.treatmentPlan?.orals || "";
+  const instructions = consultation.treatmentPlan?.instructions || "";
 
-  const conditionInfo = conditionCauses[matchedCondition];
+  const medicineItems = parseMedicines(topicals, orals);
+  const medicineCount = medicineItems.length;
+  const numberedMedicines = medicineItems.map((m, i) => `  ${i + 1}. ${m}`).join("\n");
 
-  // Generate medicine explanations
-  const allMedicines = `${topicals || ""} ${orals || ""}`.toLowerCase();
-  const medicineExplanations: string[] = [];
+  return `You are a warm, friendly AI health companion speaking directly to a patient right after their dermatology visit. Your job is to make them feel genuinely cared for, fully informed, and confident — like they're getting a personal explanation from someone who truly understands their situation, not a generic pamphlet.
 
-  for (const [medicine, purpose] of Object.entries(medicinePurposes)) {
-    if (allMedicines.includes(medicine)) {
-      medicineExplanations.push(
-        `• Medicines containing ${medicine}: ${purpose}`
-      );
-    }
-  }
+Consultation details:
+- Patient complaint: ${complaint || "Not specified"}
+- Duration: ${duration || "Not specified"}
+- Diagnosis: ${diagnosis || "Skin condition under evaluation"}
+- Severity: ${severity || "Not specified"}
+- Doctor's instructions: ${instructions || "None"}
 
-  // Build the explanation
-  let explanation = `## Understanding Your Skin Condition\n\n`;
+Use this exact structure. Each section has a strict word limit — do not exceed it:
 
-  // What's the problem
-  explanation += `### What's Happening?\n`;
-  if (complaint) {
-    explanation += `You came to us with concerns about: ${complaint}. `;
-  }
-  explanation += `Based on the examination, you have been diagnosed with **${diagnosis || "a skin condition"}**`;
-  if (severity) {
-    explanation += ` (${severity} severity)`;
-  }
-  explanation += `.\n\n`;
+Opening (NO heading — 55 words max):
+Introduce yourself as the patient's AI health companion. Acknowledge their specific complaint and duration. Say your goal is to help them understand in plain language. Keep it to 2 short, warm sentences.
 
-  // Why it happens
-  explanation += `### Common Causes\n`;
-  explanation += `This condition can be caused by:\n`;
-  conditionInfo.causes.forEach((cause) => {
-    explanation += `• ${cause}\n`;
-  });
-  explanation += `\n`;
+## What's Happening With Your Skin? (90 words max)
+In plain, friendly language: what is this condition, what is happening inside their skin, what does it look and feel like, and what does the severity mean for them? End with one short reassuring sentence about what is possible with treatment.
 
-  // Medicine explanations
-  if (medicineExplanations.length > 0) {
-    explanation += `### Why These Medicines?\n`;
-    explanation += `Your prescribed medications work in the following ways:\n`;
-    medicineExplanations.forEach((med) => {
-      explanation += `${med}\n`;
-    });
-    explanation += `\n`;
-  }
+## Why Did This Happen? (exactly 5 bullets, 20 words max each)
+Five specific triggers or causes for this exact condition. Start each with •. One concise sentence per bullet — relate to real-life experiences the patient would recognise.
 
-  // Tips
-  explanation += `### Tips for Better Recovery\n`;
-  conditionInfo.tips.forEach((tip) => {
-    explanation += `• ${tip}\n`;
-  });
-  explanation += `\n`;
+## How Your Medicines Help
+${medicineCount > 0
+  ? `IMPORTANT: The doctor prescribed exactly ${medicineCount} medicine(s) for this patient. You must write EXACTLY ${medicineCount} bullet point(s) in this section — one bullet per medicine. Do not add, combine, or invent any medicines beyond this list.
 
-  // Disclaimer
-  explanation += `---\n`;
-  explanation += `*This explanation is generated to help you understand your condition better. Always follow your doctor's specific advice and attend follow-up appointments as scheduled.*`;
+The complete medicine list (write one • bullet for each, in order):
+${numberedMedicines}
 
-  return explanation;
+For each medicine (use the exact name as given, without adding descriptions like "cream" or "ointment" unless already in the name), write exactly 1 sentence — 30 words max: what it does for this patient's condition and what they will notice. Start each bullet with •. After the last bullet, one short encouraging sentence.`
+  : "No medicines were prescribed for this visit. Give 3–4 specific, evidence-based skin care tips that directly apply to this condition. Start each with •."}
+
+## Your Recovery Journey (exactly 5 bullets, 20 words max each)
+Five specific, actionable home care tips for this exact condition. Tell them what to do. Start each with •. End with one short warm sentence about their recovery.
+
+End with exactly:
+---
+*Hi, I am your AI health companion. This explanation was prepared to help you understand your condition and feel confident about your recovery. Please follow your doctor's instructions carefully and bring any questions to your next visit — you deserve to feel fully informed.*
+
+Rules:
+- The opening paragraph must NOT have a ## heading — it speaks directly to the patient
+- Start the opening with "Hi! I am your AI health companion" and make it feel genuinely warm
+- Use "you" and "your" throughout — speak TO the patient, not about them
+- Never use medical jargon without immediately explaining it in plain language
+- Be specific to this exact diagnosis — nothing that could apply to any skin condition
+- Validate the patient's experience — it is okay to acknowledge that having this condition can be worrying or frustrating
+- Make the patient feel hopeful, cared for, and empowered to manage their recovery
+- Do NOT use bullet points outside the ## sections
+- NEVER mention or describe any medicine that is not in the prescribed list above — this is a patient-facing medical document and accuracy is critical
+- CRITICAL: You have enough token budget to complete this fully. Write all sections completely and end with the --- disclaimer. Never stop mid-sentence or mid-section.
+- WORD LIMITS ARE HARD CAPS: Do not exceed any section's word limit. Concise = better.`;
+}
+
+// ── Multi-issue prompt ─────────────────────────────────────────────────────────
+
+function buildMultiIssuePrompt(issues: any[]): string {
+  const N = issues.length;
+  // Scale word budget: ~260 per issue for 2, ~210 for 3, ~180 for 4
+  const wordsPerIssue = Math.max(180, Math.round(520 / N));
+  const totalWords = wordsPerIssue * N + 80; // +80 for shared opening/closing
+
+  // Build concise context block for the model
+  const contextBlock = issues.map((issue, idx) => {
+    const fd = issue.formData || {};
+    const diagnosis = fd.provisional || fd.provisionalDiagnosis || `Condition ${idx + 1}`;
+    const complaint = fd.complaint || fd.chiefComplaint || "Not specified";
+    const duration  = fd.duration || "Not specified";
+    const meds = parseMedicines(fd.topicals || "", fd.orals || "");
+    return `Issue ${idx + 1} — ${issue.label || diagnosis}:
+  Complaint: ${complaint} | Duration: ${duration}
+  Diagnosis: ${diagnosis}
+  Medicines (${meds.length}): ${meds.length > 0 ? meds.map((m, i) => `${i + 1}. ${m}`).join(", ") : "None"}`;
+  }).join("\n\n");
+
+  // Build per-issue structure block
+  const structureBlock = issues.map((issue, idx) => {
+    const fd = issue.formData || {};
+    const diagnosis = fd.provisional || fd.provisionalDiagnosis || `Condition ${idx + 1}`;
+    const duration  = fd.duration || "some time";
+    const meds = parseMedicines(fd.topicals || "", fd.orals || "");
+    const mCount = meds.length;
+    const numberedMeds = meds.map((m, i) => `    ${i + 1}. ${m}`).join("\n");
+
+    return `## Issue ${idx + 1}: ${diagnosis}
+
+### What's Happening? (60 words max)
+Plain language: what is ${diagnosis}, what is happening in their skin, what does it look/feel like. One short reassuring sentence at the end.
+
+### Why Did This Happen? (exactly 3 bullets, 18 words max each)
+Three specific causes for ${diagnosis}. One concise sentence per bullet starting with •. Relate to real-life experience.
+
+### How Your Medicines Help
+${mCount > 0
+  ? `EXACTLY ${mCount} bullet(s) — one per medicine, in this exact order:
+${numberedMeds}
+For each: 1 sentence — 28 words max: what it does and what the patient will notice. Start each bullet with •. Do NOT add any medicine not in this list.`
+  : `No medicines for this issue. Give 2 specific skincare tips for ${diagnosis}, each starting with •, 20 words max each.`}
+
+### Recovery Tips (exactly 3 bullets, 18 words max each)
+Three actionable home care tips for ${diagnosis}. Start each with •. Tell them what to do.`;
+  }).join("\n\n---\n\n");
+
+  return `You are a warm, friendly AI health companion speaking directly to a patient after their dermatology visit. They came in with ${N} separate skin conditions today.
+
+Consultation summary:
+${contextBlock}
+
+WORD BUDGET: Write approximately ${totalWords} words total (about ${wordsPerIssue} words per issue). This budget is carefully sized so you can complete ALL sections fully within your token limit. Stick to it — do not go over, and do not leave anything unfinished.
+
+CRITICAL COMPLETION RULE: You MUST write every section for every issue AND end with the closing disclaimer. If you find yourself running long on one issue, trim it — but never skip a section or stop before the closing. A complete answer that is slightly shorter is far better than one that cuts off in the middle.
+
+─────────────────────────────────────────
+
+Opening paragraph (NO ## heading — 55 words max):
+Start with "Hi! I am your AI health companion." Tell the patient they came in for ${N} separate skin concerns today — name each diagnosis briefly. Say you'll walk them through each one. 2 short sentences only.
+
+${structureBlock}
+
+End with EXACTLY this closing (do not skip or shorten it):
+---
+*Hi, I am your AI health companion. This explanation was prepared to help you understand your conditions and feel confident about your recovery. Please follow your doctor's instructions carefully and bring any questions to your next visit — you deserve to feel fully informed.*
+
+─────────────────────────────────────────
+
+Rules:
+- Complete ALL ${N} issues fully — every ### subheading under every ## issue
+- Use "you"/"your" throughout — speak TO the patient
+- Be specific to each exact diagnosis — not generic
+- ONLY mention medicines from the lists provided — this is a patient-facing medical document
+- Do NOT use bullet points outside ### sections
+- End with the --- disclaimer — this is mandatory
+- WORD LIMITS ARE HARD CAPS: Do not exceed any section's word limit. Concise = better.`;
+}
+
+// ── Dispatcher ─────────────────────────────────────────────────────────────────
+
+function buildPrompt(consultation: any): string {
+  const isMultiIssue =
+    consultation.customFields?._multiIssue === true &&
+    Array.isArray(consultation.customFields?._issues) &&
+    consultation.customFields._issues.length > 1;
+
+  return isMultiIssue
+    ? buildMultiIssuePrompt(consultation.customFields._issues)
+    : buildSingleIssuePrompt(consultation);
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user
-    const authResult = await authMiddleware(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
     }
-
-    const { user: authUser } = authResult;
-
-    // Verify user is Tier 2
-    if (authUser.tier !== "tier2") {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "This endpoint is only for Tier 2 users",
-        },
-        { status: 403 }
-      );
+    if (auth.role !== "doctor") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -313,66 +195,84 @@ export async function POST(request: NextRequest) {
 
     if (!consultationId) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Consultation ID is required",
-        },
+        { success: false, message: "Consultation ID is required" },
         { status: 400 }
+      );
+    }
+
+    if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === "your-anthropic-api-key-here") {
+      return NextResponse.json(
+        { success: false, message: "AI explanation is not configured. Please set ANTHROPIC_API_KEY in your environment." },
+        { status: 503 }
       );
     }
 
     await connectDB();
 
-    // Find the consultation
     const consultation = await ConsultationDermatology.findById(consultationId);
 
     if (!consultation) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Consultation not found",
-        },
+        { success: false, message: "Consultation not found" },
         { status: 404 }
       );
     }
 
-    // Extract data for generating explanation
-    const diagnosis = consultation.diagnosis?.provisional || "";
-    const topicals = consultation.treatmentPlan?.topicals || "";
-    const orals = consultation.treatmentPlan?.orals || "";
-    const complaint = consultation.patientInfo?.complaint || "";
-    const severity = consultation.clinicalExamination?.severity || "";
+    const prompt = buildPrompt(consultation);
 
-    // Generate the explanation
-    const aiExplanation = generatePatientExplanation(
-      diagnosis,
-      topicals,
-      orals,
-      complaint,
-      severity
-    );
+    // Start streaming from Anthropic
+    const anthropicStream = anthropic.messages.stream({
+      model: "claude-sonnet-4-6",
+      max_tokens: 3500,
+      messages: [{ role: "user", content: prompt }],
+    });
 
-    // Update the consultation with the new explanation
-    consultation.patientSummary = {
-      aiGenerated: aiExplanation,
-      doctorEdited: consultation.patientSummary?.doctorEdited,
-    };
+    const encoder = new TextEncoder();
 
-    await consultation.save();
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Stream text chunks to client as they arrive
+          for await (const chunk of anthropicStream) {
+            if (
+              chunk.type === "content_block_delta" &&
+              chunk.delta.type === "text_delta"
+            ) {
+              controller.enqueue(encoder.encode(chunk.delta.text));
+            }
+          }
 
-    return NextResponse.json({
-      success: true,
-      message: "AI explanation generated successfully",
-      explanation: aiExplanation,
+          // After stream ends, get full text and save to DB
+          const finalMessage = await anthropicStream.finalMessage();
+          const fullText =
+            finalMessage.content[0]?.type === "text"
+              ? finalMessage.content[0].text
+              : "";
+
+          consultation.patientSummary = {
+            aiGenerated: fullText,
+            doctorEdited: consultation.patientSummary?.doctorEdited,
+          };
+          await consultation.save();
+
+          controller.close();
+        } catch (err) {
+          controller.error(err);
+        }
+      },
+    });
+
+    return new Response(readableStream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+      },
     });
   } catch (error: any) {
     console.error("Generate explanation error:", error);
     return NextResponse.json(
-      {
-        success: false,
-        message: "Failed to generate AI explanation",
-        error: error.message,
-      },
+      { success: false, message: "Failed to generate AI explanation", error: error.message },
       { status: 500 }
     );
   }
