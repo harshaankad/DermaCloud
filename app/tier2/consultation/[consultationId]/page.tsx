@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { saveAs } from "file-saver";
@@ -269,7 +270,7 @@ export default function ConsultationDetailsPage() {
         const { done, value } = await reader.read();
         if (done) break;
         fullText += decoder.decode(value, { stream: true });
-        setStreamingText(fullText);
+        flushSync(() => setStreamingText(fullText));
       }
 
       // Commit the final text to consultation state
@@ -1109,7 +1110,9 @@ export default function ConsultationDetailsPage() {
                       }
                       return (
                         <div>
-                          <RenderMarkdown text={cached} headingColor={accent.text} />
+                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                            {cached.replace(/^##+ /gm, "").replace(/\*\*/g, "")}
+                          </p>
                           {translatingLang !== lang && (
                             <div className="mt-5 pt-4 border-t border-gray-100 flex justify-end">
                               <button onClick={() => { setEditingTranslationLang(lang); setEditedTranslation(cached); }} className={`px-3 py-1.5 text-xs font-medium ${accent.text} border ${accent.border} rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5`}>

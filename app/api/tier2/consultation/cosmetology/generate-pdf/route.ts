@@ -159,11 +159,21 @@ function textBlock(doc: PDFKit.PDFDocument, text: string, titleColor = C.navy, u
     const line = raw.trimEnd();
     if (!line) { doc.y += 8; continue; }
 
+    // Indic scripts: plain text only — no heading/bold styling
+    if (useIndicFont) {
+      const plainText = line.replace(/^##+ /, "").replace(/\*\*/g, "");
+      ensureSpace(doc, lineEst);
+      doc.fillColor(C.body).font(bodyFont).fontSize(9.5)
+         .text(plainText, ML + pad, doc.y, { width: w, lineGap });
+      doc.y += 2;
+      safePageBreak();
+      continue;
+    }
+
     if (line.startsWith("## ")) {
-      ensureSpace(doc, useIndicFont ? 50 : 36);
+      ensureSpace(doc, 36);
       doc.y += 10;
-      const h2Font = useIndicFont ? "Indic" : "Helvetica-Bold";
-      doc.fillColor(titleColor).font(h2Font).fontSize(useIndicFont ? 12 : 13)
+      doc.fillColor(titleColor).font("Helvetica-Bold").fontSize(13)
          .text(line.slice(3), ML + pad, doc.y, { width: w, lineGap });
       hLine(doc, ML + pad, ML + pad + w, doc.y, titleColor, 1.5);
       doc.y += 10;
@@ -171,10 +181,9 @@ function textBlock(doc: PDFKit.PDFDocument, text: string, titleColor = C.navy, u
       continue;
     }
     if (line.startsWith("### ")) {
-      ensureSpace(doc, useIndicFont ? 40 : 28);
+      ensureSpace(doc, 28);
       doc.y += 6;
-      const h3Font = useIndicFont ? "Indic" : "Helvetica-Bold";
-      doc.fillColor(C.navy).font(h3Font).fontSize(useIndicFont ? 11 : 11)
+      doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(11)
          .text(line.slice(4), ML + pad, doc.y, { width: w, lineGap });
       hLine(doc, ML + pad, ML + pad + w, doc.y, C.border, 0.75);
       doc.y += 7;
@@ -422,7 +431,7 @@ export async function POST(request: NextRequest) {
 
     const doc = new PDFDocument({
       size: "A4",
-      margin: 0,
+      margins: { top: MT, bottom: MB, left: ML, right: MR },
       bufferPages: true,
       info: {
         Title: "Cosmetology Consultation Report",

@@ -190,32 +190,37 @@ function textBlock(doc: PDFKit.PDFDocument, text: string, titleColor = C.navy, u
 
     if (!line) { doc.y += 8; continue; }  // consistent blank line spacing
 
+    // Indic scripts: render everything as plain body text (no heading/bold styling)
+    if (useIndicFont) {
+      const plainText = line.replace(/^##+ /, "").replace(/\*\*/g, "");
+      ensureSpace(doc, lineEst);
+      doc.fillColor(C.body).font(bodyFont).fontSize(9.5)
+         .text(plainText, ML + pad, doc.y, { width: w, lineGap });
+      doc.y += 2;
+      safePageBreak();
+      continue;
+    }
+
     if (line.startsWith("## ")) {
-      ensureSpace(doc, useIndicFont ? 50 : 36);
-      doc.y += 10;  // gap before main heading
+      ensureSpace(doc, 36);
+      doc.y += 10;
       const headingText = line.slice(3);
-      // Always bold (Indic Regular at larger size for scripts without bold variant)
-      const h2Font = useIndicFont ? "Indic" : "Helvetica-Bold";
-      doc.fillColor(titleColor).font(h2Font).fontSize(useIndicFont ? 12 : 13)
+      doc.fillColor(titleColor).font("Helvetica-Bold").fontSize(13)
          .text(headingText, ML + pad, doc.y, { width: w, lineGap });
-      // Prominent underline beneath heading
       hLine(doc, ML + pad, ML + pad + w, doc.y, titleColor, 1.5);
-      doc.y += 10;  // gap after heading
+      doc.y += 10;
       safePageBreak();
       continue;
     }
 
     if (line.startsWith("### ")) {
-      ensureSpace(doc, useIndicFont ? 40 : 28);
-      doc.y += 6;  // gap before subheading
+      ensureSpace(doc, 28);
+      doc.y += 6;
       const headingText = line.slice(4);
-      // Always bold
-      const h3Font = useIndicFont ? "Indic" : "Helvetica-Bold";
-      doc.fillColor(C.navy).font(h3Font).fontSize(useIndicFont ? 11 : 11)
+      doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(11)
          .text(headingText, ML + pad, doc.y, { width: w, lineGap });
-      // Subtle divider line beneath subheading
       hLine(doc, ML + pad, ML + pad + w, doc.y, C.border, 0.75);
-      doc.y += 7;  // gap after subheading
+      doc.y += 7;
       safePageBreak();
       continue;
     }
@@ -223,7 +228,7 @@ function textBlock(doc: PDFKit.PDFDocument, text: string, titleColor = C.navy, u
     if (line.startsWith("• ") || line.startsWith("- ")) {
       ensureSpace(doc, lineEst);
       renderLineWithBold(line, ML + pad + 8, 9.5, C.body, w - 8);
-      doc.y += 4;  // gap after bullet
+      doc.y += 4;
       safePageBreak();
       continue;
     }
@@ -507,7 +512,7 @@ export async function POST(request: NextRequest) {
 
     const doc = new PDFDocument({
       size: "A4",
-      margin: 0,
+      margins: { top: MT, bottom: MB, left: ML, right: MR },
       bufferPages: true,
       info: {
         Title: "Dermatology Consultation Report",

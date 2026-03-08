@@ -486,11 +486,7 @@ function DermatologyVisitPageInner() {
       aiProcessing: false,
       isExpanded: true,
     };
-    // Collapse all current issues so only the new one is open
-    setIssues((prev) => [
-      ...prev.map((i) => ({ ...i, isExpanded: false })),
-      newIssue,
-    ]);
+    setIssues((prev) => [...prev, newIssue]);
   }, [issues.length, buildIssueFormData, showToast]);
 
   const removeIssue = (id: string) => {

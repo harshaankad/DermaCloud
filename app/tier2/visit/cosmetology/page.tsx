@@ -368,7 +368,7 @@ function CosmetologyVisitPageInner() {
       visitPreviews: [],
       isExpanded: true,
     };
-    setIssues((prev) => [...prev.map((i) => ({ ...i, isExpanded: false })), newIssue]);
+    setIssues((prev) => [...prev, newIssue]);
   }, [issues.length, buildIssueFormData, showToast]);
 
   const removeIssue = (id: string) => {

@@ -15,20 +15,11 @@ const LANG_CODES: Record<string, string> = {
   kannada: "kn-IN",
 };
 
-/** Protect markdown markers so Sarvam doesn't drop them */
-function protectMarkdown(text: string): string {
+/** Strip all markdown before sending to Sarvam — plain text translates more reliably */
+function cleanForTranslation(text: string): string {
   return text
-    .replace(/^## /gm, "H2MARKER ")    // ## heading → H2MARKER
-    .replace(/^### /gm, "H3MARKER ")   // ### heading → H3MARKER
-    .replace(/\*\*([\s\S]*?)\*\*/g, "<b>$1</b>"); // **bold** → <b>bold</b>
-}
-
-/** Restore protected markers back to markdown after translation */
-function restoreMarkdown(text: string): string {
-  return text
-    .replace(/<b>([\s\S]*?)<\/b>/g, "**$1**")
-    .replace(/H2MARKER\s*/g, "## ")
-    .replace(/H3MARKER\s*/g, "### ");
+    .replace(/^##+ /gm, "")   // strip ## and ### heading prefixes
+    .replace(/\*\*/g, "");     // strip bold markers
 }
 
 async function translateChunk(text: string, targetCode: string, apiKey: string): Promise<string> {
@@ -39,13 +30,13 @@ async function translateChunk(text: string, targetCode: string, apiKey: string):
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      input: protectMarkdown(text),
+      input: cleanForTranslation(text),
       source_language_code: "en-IN",
       target_language_code: targetCode,
       speaker_gender: "Female",
       mode: "formal",
       model: "mayura:v1",
-      enable_preprocessing: false,
+      enable_preprocessing: true,
     }),
   });
 
@@ -57,8 +48,9 @@ async function translateChunk(text: string, targetCode: string, apiKey: string):
   const data = await res.json();
   const translated = data.translated_text;
   if (!translated) throw new Error("Empty response from Sarvam AI");
-  return restoreMarkdown(translated);
+  return translated;
 }
+
 
 /** Split a long string into chunks ≤ MAX_CHARS on sentence then word boundaries */
 function splitLongText(text: string): string[] {
