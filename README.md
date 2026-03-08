@@ -57,13 +57,6 @@ derma-hms/
 
 ## Features
 
-### Tier 1 (AI-Only Plan)
-- Upload dermoscopy images
-- AI inference for diagnosis
-- Top predictions with probabilities
-- Download results as Word/PDF
-- Usage limits: 5 scans/day, 100-120 scans/month
-
 ### Tier 2 (Clinic Workflow + AI)
 - Patient profile management
 - Visit records with custom fields
