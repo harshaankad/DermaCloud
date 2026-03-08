@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function GoogleCallbackPage() {
+function GoogleCallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -23,7 +23,6 @@ export default function GoogleCallbackPage() {
         router.replace("/dashboard");
       }
     } else {
-      // No token, redirect back to login
       router.replace(role === "frontdesk" ? "/frontdesk/login" : "/login");
     }
   }, [searchParams, router]);
@@ -35,5 +34,17 @@ export default function GoogleCallbackPage() {
         <p className="text-gray-600 font-medium">Signing you in...</p>
       </div>
     </div>
+  );
+}
+
+export default function GoogleCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      </div>
+    }>
+      <GoogleCallbackInner />
+    </Suspense>
   );
 }
