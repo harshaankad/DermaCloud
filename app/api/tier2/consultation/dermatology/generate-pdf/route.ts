@@ -10,6 +10,7 @@ import { connectDB } from "@/lib/db/connection";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 import "@/models/Clinic";
 import "@/models/User";
+import "@/models/Patient";
 import path from "path";
 import fs from "fs";
 
