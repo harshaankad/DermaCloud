@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 const ALLOWED_ORIGINS = [
   "https://dermacloud.in",
   "https://www.dermacloud.in",
-  ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
+  ...(process.env.NEXT_PUBLIC_APP_URL
+    ? [process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "")]
+    : []),
 ];
 
 /**
