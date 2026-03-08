@@ -18,8 +18,13 @@ let session: ort.InferenceSession | null = null;
 /**
  * Initialize the AI model and load labels
  */
+let modelUnavailable = false;
+
 export async function initializeModel(): Promise<void> {
   try {
+    // Check if model file exists
+    await fs.access(MODEL_PATH);
+
     // Load labels
     const labelsData = await fs.readFile(LABELS_PATH, "utf-8");
     labels = JSON.parse(labelsData);
@@ -31,8 +36,8 @@ export async function initializeModel(): Promise<void> {
     });
     console.log("✅ ONNX model loaded successfully");
   } catch (error) {
-    console.error("❌ Failed to initialize AI model:", error);
-    throw error;
+    console.warn("⚠️ AI model not available — running without skin condition detection:", (error as Error).message);
+    modelUnavailable = true;
   }
 }
 
@@ -111,17 +116,17 @@ export interface InferenceResult {
  */
 export async function predictSkinCondition(
   imageBuffer: Buffer
-): Promise<InferenceResult> {
+): Promise<InferenceResult | null> {
   const startTime = Date.now();
 
   try {
     // Initialize model if not already loaded
-    if (!session || labels.length === 0) {
+    if (!session && !modelUnavailable && labels.length === 0) {
       await initializeModel();
     }
 
-    if (!session) {
-      throw new Error("Model session not initialized");
+    if (modelUnavailable || !session) {
+      return null;
     }
 
     // Preprocess image

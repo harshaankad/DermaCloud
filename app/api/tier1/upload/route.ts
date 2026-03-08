@@ -177,9 +177,10 @@ export async function POST(request: NextRequest) {
     const skipAI = request.nextUrl.searchParams.get("skipAI") === "true";
 
     if (!skipAI) {
-      // Ensure AI model is ready only when needed
+      // Ensure AI model is ready only when needed (graceful — won't throw if model missing)
       await ensureModelReady();
     }
+    let aiActuallyAvailable = !skipAI;
 
     // Process each image: upload, and optionally AI inference
     const imageResults = [];
@@ -201,22 +202,26 @@ export async function POST(request: NextRequest) {
 
       let aiResultData = null;
       if (!skipAI) {
-        // Run AI inference
+        // Run AI inference (returns null if model not available)
         const aiResult = await predictSkinCondition(processedImage);
-        totalProcessingTime += aiResult.processingTime;
-        aiResultData = {
-          predictions: aiResult.predictions.map((p) => ({
-            condition: p.condition,
-            probability: p.probability,
-            confidence: p.confidence,
-          })),
-          topPrediction: {
-            condition: aiResult.topPrediction.condition,
-            probability: aiResult.topPrediction.probability,
-            confidence: aiResult.topPrediction.confidence,
-          },
-          processingTime: aiResult.processingTime,
-        };
+        if (aiResult) {
+          totalProcessingTime += aiResult.processingTime;
+          aiResultData = {
+            predictions: aiResult.predictions.map((p) => ({
+              condition: p.condition,
+              probability: p.probability,
+              confidence: p.confidence,
+            })),
+            topPrediction: {
+              condition: aiResult.topPrediction.condition,
+              probability: aiResult.topPrediction.probability,
+              confidence: aiResult.topPrediction.confidence,
+            },
+            processingTime: aiResult.processingTime,
+          };
+        } else {
+          aiActuallyAvailable = false;
+        }
       }
 
       // Upload to S3
@@ -244,8 +249,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // For Tier 2 users with skipAI: just return image URLs, no analysis
-    if (authUser.tier === "tier2" && skipAI) {
+    // For Tier 2 users with skipAI or when model unavailable: just return image URLs
+    if (authUser.tier === "tier2" && !aiActuallyAvailable) {
       return NextResponse.json({
         success: true,
         message: `${imageFiles.length} image(s) uploaded successfully`,

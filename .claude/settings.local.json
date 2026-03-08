@@ -48,7 +48,12 @@
       "Bash(npx tsc --noEmit)",
       "Bash(cmd /c \"taskkill /PID 11052 /F\")",
       "Bash(npx kill-port 3000)",
-      "Bash(npx next build --no-lint)"
+      "Bash(npx next build --no-lint)",
+      "Bash(for f in \"c:/Users/Harsha Ankad/Desktop/V1-Derma-HMS/app/login/page.tsx\" \"c:/Users/Harsha Ankad/Desktop/V1-Derma-HMS/app/frontdesk/appointments/page.tsx\" \"c:/Users/Harsha Ankad/Desktop/V1-Derma-HMS/app/frontdesk/patients/page.tsx\" \"c:/Users/Harsha Ankad/Desktop/V1-Derma-HMS/app/tier2/visit/new/page.tsx\" \"c:/Users/Harsha Ankad/Desktop/V1-Derma-HMS/app/tier2/consultations/page.tsx\" \"c:/Users/Harsha Ankad/Desktop/V1-Derma-HMS/app/tier2/visit/cosmetology/page.tsx\" \"c:/Users/Harsha Ankad/Desktop/V1-Derma-HMS/app/tier2/visit/dermatology/page.tsx\" \"c:/Users/Harsha Ankad/Desktop/V1-Derma-HMS/app/tier2/patients/[id]/page.tsx\")",
+      "Bash(do)",
+      "Bash(echo \"=== $f ===\")",
+      "Read(//c/Users/Harsha Ankad/Desktop/V1-Derma-HMS/**)",
+      "Bash(done)"
     ]
   }
 }

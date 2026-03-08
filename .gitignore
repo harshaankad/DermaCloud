@@ -1,3 +1,8 @@
+# ML model files (too large for Vercel — host separately)
+*.pth
+*.onnx
+*.onnx.data
+
 # dependencies
 /node_modules
 /.pnp
