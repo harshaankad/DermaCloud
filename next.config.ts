@@ -45,6 +45,16 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // Include font files and pdfkit assets needed at runtime
+  outputFileTracingIncludes: {
+    "/api/tier2/consultation/**": [
+      "./public/fonts/**",
+      "./node_modules/pdfkit/**",
+      "./node_modules/fontkit/**",
+      "./node_modules/linebreak/**",
+    ],
+  },
+
   eslint: {
     ignoreDuringBuilds: true,
   },
