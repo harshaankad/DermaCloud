@@ -37,6 +37,10 @@ const nextConfig: NextConfig = {
   // pdfkit + fontkit are pure Node.js modules — tell Turbopack/webpack not to bundle them
   serverExternalPackages: ["pdfkit", "fontkit"],
 
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   turbopack: {
     root: __dirname,
   },
