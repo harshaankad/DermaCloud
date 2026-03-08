@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -41,7 +41,7 @@ interface TimeSlot {
   available: boolean;
 }
 
-export default function FrontdeskAppointmentsPage() {
+function FrontdeskAppointmentsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const action = searchParams.get("action");
@@ -1949,5 +1949,13 @@ export default function FrontdeskAppointmentsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function FrontdeskAppointmentsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" /></div>}>
+      <FrontdeskAppointmentsPageInner />
+    </Suspense>
   );
 }

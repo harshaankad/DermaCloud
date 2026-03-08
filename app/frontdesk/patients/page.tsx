@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -39,7 +39,7 @@ interface Patient {
 
 const PATIENTS_PER_PAGE = 20;
 
-export default function FrontdeskPatientsPage() {
+function FrontdeskPatientsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const action = searchParams.get("action");
@@ -758,5 +758,13 @@ export default function FrontdeskPatientsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function FrontdeskPatientsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" /></div>}>
+      <FrontdeskPatientsPageInner />
+    </Suspense>
   );
 }

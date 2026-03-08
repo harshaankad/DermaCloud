@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -115,7 +115,7 @@ function getVisitIssueGroups(visit: PreviousVisit): VisitIssueGroup[] {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CosmetologyVisitPage() {
+function CosmetologyVisitPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const patientId = searchParams.get("patientId");
@@ -1514,5 +1514,13 @@ export default function CosmetologyVisitPage() {
       )}
 
     </div>
+  );
+}
+
+export default function CosmetologyVisitPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" /></div>}>
+      <CosmetologyVisitPageInner />
+    </Suspense>
   );
 }

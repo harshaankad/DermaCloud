@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -41,7 +41,7 @@ const NAV_ITEMS = [
   { label: "Frontdesk", href: "/tier2/settings/frontdesk" },
 ];
 
-export default function ConsultationsPage() {
+function ConsultationsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialFilter = (searchParams.get("filter") as FilterType) || "all";
@@ -504,5 +504,13 @@ export default function ConsultationsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ConsultationsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" /></div>}>
+      <ConsultationsPageInner />
+    </Suspense>
   );
 }
