@@ -25,8 +25,10 @@ const CW = PW - ML - MR;
 
 // ── Font paths for Indic scripts ──────────────────────────────────────────────
 const FONTS_DIR = path.join(process.cwd(), "public", "fonts");
-const KANNADA_FONT = path.join(FONTS_DIR, "NotoSansKannada-Regular.ttf");
-const DEVANAGARI_FONT = path.join(FONTS_DIR, "NotoSansDevanagari-Regular.ttf");
+const KANNADA_FONT         = path.join(FONTS_DIR, "NotoSansKannada-Regular.ttf");
+const KANNADA_BOLD_FONT    = path.join(FONTS_DIR, "NotoSansKannada-Bold.ttf");
+const DEVANAGARI_FONT      = path.join(FONTS_DIR, "NotoSansDevanagari-Regular.ttf");
+const DEVANAGARI_BOLD_FONT = path.join(FONTS_DIR, "NotoSansDevanagari-Bold.ttf");
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 const C = {
@@ -111,7 +113,7 @@ function textBlock(doc: PDFKit.PDFDocument, text: string, titleColor = C.navy, u
   const w   = CW - pad * 2;
   const lines = text.split("\n");
   const bodyFont = useIndicFont ? "Indic" : "Helvetica";
-  const boldFont = useIndicFont ? "Indic" : "Helvetica-Bold";
+  const boldFont = useIndicFont ? "IndicBold" : "Helvetica-Bold";
   const lineEst  = useIndicFont ? 40 : 16;
   const lineGap  = useIndicFont ? 6  : 2;
 
@@ -213,12 +215,15 @@ function buildPdf(
   includeExplanation: boolean,
   language: string | null,
 ) {
-  // Register Indic fonts
-  const indicFontPath = language === "hindi" ? DEVANAGARI_FONT : KANNADA_FONT;
+  // Register Indic fonts (Regular + Bold)
+  const indicFontPath     = language === "hindi" ? DEVANAGARI_FONT      : KANNADA_FONT;
+  const indicBoldFontPath = language === "hindi" ? DEVANAGARI_BOLD_FONT : KANNADA_BOLD_FONT;
   if (language && fs.existsSync(indicFontPath)) {
     doc.registerFont("Indic", indicFontPath);
+    doc.registerFont("IndicBold", fs.existsSync(indicBoldFontPath) ? indicBoldFontPath : indicFontPath);
   } else if (language && fs.existsSync(KANNADA_FONT)) {
     doc.registerFont("Indic", KANNADA_FONT);
+    doc.registerFont("IndicBold", fs.existsSync(KANNADA_BOLD_FONT) ? KANNADA_BOLD_FONT : KANNADA_FONT);
   }
 
   const patient  = consultation.patientId   || {};

@@ -15,15 +15,20 @@ const LANG_CODES: Record<string, string> = {
   kannada: "kn-IN",
 };
 
-/** Protect markdown bold markers so Sarvam doesn't drop them */
+/** Protect markdown markers so Sarvam doesn't drop them */
 function protectMarkdown(text: string): string {
-  // **bold** → <b>bold</b>  (HTML tags are preserved by neural MT models)
-  return text.replace(/\*\*([\s\S]*?)\*\*/g, "<b>$1</b>");
+  return text
+    .replace(/^## /gm, "H2MARKER ")    // ## heading → H2MARKER
+    .replace(/^### /gm, "H3MARKER ")   // ### heading → H3MARKER
+    .replace(/\*\*([\s\S]*?)\*\*/g, "<b>$1</b>"); // **bold** → <b>bold</b>
 }
 
-/** Restore HTML bold tags back to markdown after translation */
+/** Restore protected markers back to markdown after translation */
 function restoreMarkdown(text: string): string {
-  return text.replace(/<b>([\s\S]*?)<\/b>/g, "**$1**");
+  return text
+    .replace(/<b>([\s\S]*?)<\/b>/g, "**$1**")
+    .replace(/H2MARKER\s*/g, "## ")
+    .replace(/H3MARKER\s*/g, "### ");
 }
 
 async function translateChunk(text: string, targetCode: string, apiKey: string): Promise<string> {
