@@ -3,10 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 const ALLOWED_ORIGINS = [
   "https://dermacloud.in",
   "https://www.dermacloud.in",
-  ...(process.env.NEXT_PUBLIC_APP_URL
-    ? [process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "")]
-    : []),
 ];
+
+/** Strip path/trailing-slash so Edge Runtime won't throw on Access-Control-Allow-Origin */
+function sanitizeOrigin(origin: string): string {
+  try {
+    const u = new URL(origin);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return origin;
+  }
+}
 
 /**
  * Next.js Edge Middleware — runs before every request.
@@ -20,7 +27,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const origin = request.headers.get("origin") ?? "";
+  const rawOrigin = request.headers.get("origin") ?? "";
+  const origin = rawOrigin ? sanitizeOrigin(rawOrigin) : "";
 
   // Allow same-origin requests (no Origin header) and the configured origins
   const isAllowed =
