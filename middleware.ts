@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const ALLOWED_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://dermacloud.in";
+const ALLOWED_ORIGINS = [
+  "https://dermacloud.in",
+  "https://www.dermacloud.in",
+  ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
+];
 
 /**
  * Next.js Edge Middleware — runs before every request.
@@ -16,12 +20,12 @@ export function middleware(request: NextRequest) {
 
   const origin = request.headers.get("origin") ?? "";
 
-  // Allow same-origin requests (no Origin header) and the configured origin
+  // Allow same-origin requests (no Origin header) and the configured origins
   const isAllowed =
     !origin || // server-to-server / same-origin
-    origin === ALLOWED_ORIGIN ||
+    ALLOWED_ORIGINS.includes(origin) ||
     // Allow localhost in development
-    (process.env.NODE_ENV === "development" && /^https?:\/\/localhost(:\d+)?$/.test(origin));
+    /^https?:\/\/localhost(:\d+)?$/.test(origin);
 
   // Handle preflight (OPTIONS) requests
   if (request.method === "OPTIONS") {
