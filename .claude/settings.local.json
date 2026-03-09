@@ -53,7 +53,9 @@
       "Bash(do)",
       "Bash(echo \"=== $f ===\")",
       "Read(//c/Users/Harsha Ankad/Desktop/V1-Derma-HMS/**)",
-      "Bash(done)"
+      "Bash(done)",
+      "WebFetch(domain:www.softwaresuggest.com)",
+      "WebFetch(domain:www.softwareadvice.com)"
     ]
   }
 }

@@ -172,51 +172,71 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-24 pb-12 px-4 sm:px-6 lg:px-8 overflow-hidden bg-gradient-to-br from-teal-50 via-white to-cyan-50">
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center space-y-5">
-            <div className="inline-block animate-fade-in">
-              <span className="inline-flex items-center px-5 py-2 rounded-full bg-teal-50 text-teal-700 text-sm font-semibold border border-teal-200">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <section
+        className="relative overflow-hidden bg-white"
+        style={{ height: 'calc(100vh - 64px)', marginTop: '64px' }}
+      >
+
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 h-full flex flex-col lg:flex-row gap-8 lg:gap-12 -mt-8">
+
+          {/* Left: text */}
+          <div className="lg:w-[42%] flex flex-col justify-center space-y-7">
+            <div className="animate-fade-in animation-delay-100">
+              <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-teal-600/10 text-teal-700 text-sm font-semibold border border-teal-200">
+                <svg className="w-3.5 h-3.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 AI-Powered Dermatology Platform
               </span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold text-gray-900 leading-tight animate-fade-in-up" style={{ lineHeight: 1.3, paddingBottom: '0.15em' }}>
+            <h1 className="animate-fade-in-up animation-delay-200 text-5xl sm:text-6xl font-extrabold text-gray-900 leading-[1.12] tracking-tight">
               Transform Your
-              <span className="block mt-2 text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-cyan-600" style={{ paddingBottom: '0.15em', lineHeight: 1.3 }}>
+              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-cyan-500 pb-1">
                 Dermatology Practice
               </span>
             </h1>
 
-            <p className="text-lg sm:text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed animate-fade-in-up delay-100">
-              AI-powered diagnosis, comprehensive patient management, and seamless clinic workflows - all in one intelligent cloud platform.
+            <p className="animate-fade-in-up animation-delay-400 text-xl text-gray-500 max-w-md leading-relaxed">
+              AI-powered diagnosis, comprehensive patient management, and seamless clinic workflows — all in one intelligent cloud platform.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-1 animate-fade-in-up delay-200">
+            <div className="animate-fade-in-up animation-delay-500 flex flex-row gap-4 pt-1">
               <button
                 onClick={() => scrollToSection("demo-video")}
-                className="group inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                className="inline-flex items-center justify-center px-7 py-3.5 text-base font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
               >
-                <svg className="mr-2 w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+                <svg className="mr-2 w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                 Watch Demo
               </button>
               <button
                 onClick={() => scrollToSection("contact")}
-                className="group inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-gray-700 bg-white border-2 border-gray-200 hover:border-teal-300 hover:bg-teal-50 rounded-xl shadow-md transition-all duration-300 hover:-translate-y-1"
+                className="inline-flex items-center justify-center px-7 py-3.5 text-base font-semibold text-teal-700 bg-white border-2 border-teal-200 hover:border-teal-400 hover:bg-teal-50 rounded-xl shadow-sm hover:-translate-y-0.5 transition-all duration-200"
               >
-                <span>Get in Touch</span>
-                <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
+                Get in Touch
               </button>
             </div>
-
           </div>
+
+          {/* Right: browser mockup */}
+          <div className="flex-1 hidden lg:flex items-center mt-14 animate-hero-slide-right animation-delay-300">
+            <div className="w-full rounded-2xl overflow-hidden shadow-2xl shadow-teal-900/20 border border-gray-200 bg-white">
+              <div className="bg-gray-100 px-4 py-3 flex items-center gap-2 border-b border-gray-200">
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-400" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                  <div className="w-3 h-3 rounded-full bg-green-400" />
+                </div>
+                <div className="flex-1 mx-4">
+                  <div className="bg-white rounded-md px-3 py-1 text-xs text-gray-400 text-center border border-gray-200">
+                    dermacloud.in
+                  </div>
+                </div>
+              </div>
+              <img src="/images/image.png" alt="DermaCloud Dashboard" className="w-full block" />
+            </div>
+          </div>
+
         </div>
       </section>
 
