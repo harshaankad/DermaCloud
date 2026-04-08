@@ -116,13 +116,17 @@ export async function GET(request: NextRequest) {
       available: !bookedSlots.has(time),
     }));
 
-    // Check if the date is today and filter out past slots
-    const today = new Date();
-    const isToday = startOfDay.toDateString() === today.toDateString();
+    // Check if the date is today (IST) and filter out past slots
+    // Vercel runs in UTC, so we must convert to IST (UTC+5:30) explicitly
+    const nowUtc = new Date();
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const nowIST = new Date(nowUtc.getTime() + istOffsetMs);
+    const todayIST = nowIST.toISOString().split("T")[0]; // YYYY-MM-DD in IST
+    const isToday = date === todayIST;
 
     if (isToday) {
-      const currentHour = today.getHours();
-      const currentMinute = today.getMinutes();
+      const currentHour = nowIST.getUTCHours();
+      const currentMinute = nowIST.getUTCMinutes();
 
       slots.forEach((slot) => {
         const [slotHour, slotMinute] = slot.time.split(":").map(Number);
