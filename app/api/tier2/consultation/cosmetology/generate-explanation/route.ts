@@ -11,165 +11,174 @@ import ConsultationCosmetology from "@/models/ConsultationCosmetology";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function formatMedicines(prescription?: any[]): string[] {
+  const items: string[] = [];
+  if (Array.isArray(prescription)) {
+    for (const med of prescription) {
+      if (med.name?.trim()) {
+        const parts = [med.name.trim()];
+        if (med.dosage) parts.push(med.dosage);
+        if (med.route) parts.push(`(${med.route})`);
+        if (med.frequency) parts.push(`— ${med.frequency}`);
+        if (med.duration) parts.push(`for ${med.duration}`);
+        if (med.instructions) parts.push(`[${med.instructions}]`);
+        items.push(parts.join(" "));
+      }
+    }
+  }
+  return items;
+}
+
+/** Collect all non-empty fields from formData into a readable block */
+function collectAllFields(fd: Record<string, any>, skipKeys: string[] = []): string {
+  const skip = new Set(["_multiIssue", "_issues", "prescription", ...skipKeys]);
+  const lines: string[] = [];
+  for (const [key, val] of Object.entries(fd)) {
+    if (skip.has(key) || !val) continue;
+    if (typeof val === "string" && !val.trim()) continue;
+    if (Array.isArray(val)) continue;
+    const label = key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
+    lines.push(`- ${label}: ${val}`);
+  }
+  return lines.join("\n");
+}
+
+// ── Single-issue prompt ───────────────────────────────────────────────────────
+
 function buildCosmetologyPrompt(consultation: any): string {
-  const primaryConcern = consultation.patientInfo?.primaryConcern || "";
-  const skinType = consultation.patientInfo?.skinType || "";
-  const procedureName = consultation.procedure?.name || "";
-  const procedureGoals = consultation.procedure?.goals || "";
-  const sessionNumber = consultation.procedure?.sessionNumber;
-  const totalPackage = consultation.procedure?.package || "";
-  const productsAndParameters = consultation.procedure?.productsAndParameters || "";
-  const immediateOutcome = consultation.procedure?.immediateOutcome || "";
-  const aftercareInstructions = consultation.aftercare?.instructions || "";
-  const homeProducts = consultation.aftercare?.homeProducts || "";
-  const expectedResults = consultation.aftercare?.expectedResults || "";
-  const followUpDate = consultation.aftercare?.followUpDate;
-  const diagnosis = consultation.assessment?.diagnosis || "";
-  const findings = consultation.assessment?.findings || "";
+  const cf = consultation.customFields || {};
+  const fd = cf._issues?.[0]?.formData || cf;
+  const allFields = collectAllFields(fd);
 
-  const followUpStr = followUpDate
-    ? new Date(followUpDate).toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
-    : "";
+  const pi = consultation.patientInfo || {};
+  const assess = consultation.assessment || {};
+  const proc = consultation.procedure || {};
+  const after = consultation.aftercare || {};
 
-  const sessionLabel = sessionNumber
-    ? `Session ${sessionNumber}${totalPackage ? ` of ${totalPackage}` : ""}`
-    : totalPackage
-    ? totalPackage
-    : "First visit";
+  const concern = fd.primaryConcern || pi.primaryConcern || "";
+  const procedureName = fd.procedureName || fd.name || proc.name || "";
 
-  return `You are a warm, friendly AI health companion speaking directly to a patient right after their cosmetology visit. Your job is to make them feel genuinely cared for, fully informed, and confident about their skin — like getting a personal explanation from someone who truly understands their situation, not a generic pamphlet.
+  const rxData = fd.prescription || cf.prescription;
+  const meds = formatMedicines(rxData);
+  const medCount = meds.length;
+  const numberedMeds = meds.map((m, i) => `  ${i + 1}. ${m}`).join("\n");
 
-Consultation details:
-- Primary concern: ${primaryConcern || "Skin improvement"}
-- Skin type: ${skinType || "Not specified"}
-- Clinical findings: ${findings || "Not documented"}
-- Diagnosis / Assessment: ${diagnosis || "Skin evaluation completed"}
-- Procedure performed: ${procedureName || "Cosmetology treatment"}
-- Treatment goals: ${procedureGoals || "Skin improvement and rejuvenation"}
-- Session: ${sessionLabel}
-- Products / Parameters used: ${productsAndParameters || "Not specified"}
-- Immediate outcome after procedure: ${immediateOutcome || "Procedure completed well"}
-- Aftercare instructions: ${aftercareInstructions || "Standard aftercare"}
-- Home products recommended: ${homeProducts || "None"}
-- Expected results: ${expectedResults || "Gradual improvement with sessions"}
-${followUpStr ? `- Follow-up date: ${followUpStr}` : ""}
+  return `You are a warm AI health companion speaking directly to a patient after their cosmetology visit. Be concise, warm, and specific.
 
-Use this exact structure. Each section has a strict word limit — do not exceed it:
+FULL CONSULTATION DATA:
+${allFields || "No additional details recorded."}
+${concern ? `- Primary Concern: ${concern}` : ""}
+${pi.skinType ? `- Skin Type: ${pi.skinType}` : ""}
+${assess.findings ? `- Findings: ${assess.findings}` : ""}
+${assess.diagnosis ? `- Diagnosis: ${assess.diagnosis}` : ""}
+${procedureName ? `- Procedure: ${procedureName}` : ""}
+${proc.goals ? `- Goals: ${proc.goals}` : ""}
+${proc.productsAndParameters ? `- Products/Parameters: ${proc.productsAndParameters}` : ""}
+${proc.immediateOutcome ? `- Immediate Outcome: ${proc.immediateOutcome}` : ""}
+${after.instructions ? `- Aftercare: ${after.instructions}` : ""}
+${after.homeProducts ? `- Home Products: ${after.homeProducts}` : ""}
+${after.expectedResults ? `- Expected Results: ${after.expectedResults}` : ""}
 
-Opening (NO heading — 50 words max):
-Start with "Hi! I am your AI health companion." Acknowledge their primary concern and what was done today. State your goal briefly. 2 short, warm sentences only.
+${medCount > 0 ? `PRESCRIBED MEDICINES (${medCount}):\n${numberedMeds}` : "No medicines prescribed."}
 
-## What Was Done Today? (90 words max)
-In plain language: what is this procedure, what happens to the skin during it, and why was it chosen for their concern and skin type? If a follow-up session, acknowledge their progress. End with one short reassuring sentence.
+STRICT LIMIT: 500 words total. Complete all sections. Do not exceed.
 
-## What To Expect Next (exactly 4 bullets, 20 words max each)
-Four specific things to expect — both normal reactions and positive healing signs for this exact procedure. Start each with •. One concise sentence per bullet.
+Write in this exact structure:
 
-## Your Home Care Routine (exactly 5 bullets, 20 words max each)
-${homeProducts ? `The doctor recommended: ${homeProducts}. For each product, 22 words max: what it does and when to use it. Fill remaining bullets with specific aftercare tips.` : "Five specific, actionable aftercare tips for this procedure and skin concern. Tell them what to do."} Start each with •. End with one short encouraging sentence.
+Opening (NO heading — 2 sentences max):
+"Hi! I am your AI health companion." Acknowledge their concern and what was done today.
 
-## When To Expect Results (60 words max)
-What specific improvements will they see and in what realistic timeframe for this exact procedure?${followUpStr ? ` Mention follow-up on ${followUpStr}.` : " Encourage scheduling a follow-up."} One honest, encouraging closing sentence.
+## What Was Done Today? (70 words max)
+Plain language explanation of the procedure, what happens to the skin, and why it was chosen. One reassuring sentence.
 
-End with exactly:
+## What To Expect Next (4 bullets, 15 words each max)
+Normal reactions and positive healing signs for this procedure. Start each with •.
+
+${medCount > 0
+  ? `## How Your Medicines Help\nEXACTLY ${medCount} bullet(s) — one per medicine. Use exact names from the list. 20 words max each. Start each with •.`
+  : "## Your Home Care Tips\n4 specific aftercare tips for this procedure. Start each with •. 15 words max each."}
+
+## Your Recovery Journey (4 bullets, 15 words each max)
+Actionable home care and aftercare tips. Start each with •.
+
+End with:
 ---
-*Hi, I am your AI health companion. This explanation was prepared to help you understand your cosmetology treatment and feel confident about your skin care journey. Please follow your doctor's aftercare instructions carefully and bring any questions to your next visit — beautiful, healthy skin is a journey, and you are on the right path.*
+*I am your AI health companion. This was prepared to help you understand your cosmetology treatment. Follow your doctor's instructions and bring questions to your next visit.*
 
 Rules:
-- The opening paragraph must NOT have a ## heading — it speaks directly to the patient
-- Start the opening with "Hi! I am your AI health companion" and make it feel genuinely warm
-- Use "you" and "your" throughout — speak TO the patient, not about them
-- Never use medical jargon without immediately explaining it in plain language
-- Be specific to this exact procedure — nothing generic that could apply to any treatment
-- Make the patient feel hopeful, cared for, and empowered to follow their aftercare routine
-- Do NOT use bullet points outside the ## sections
-- CRITICAL: Write all sections completely and end with the --- disclaimer. Never stop mid-sentence or mid-section.
-- WORD LIMITS ARE HARD CAPS: Do not exceed any section's word limit. Concise = better.`;
+- Analyse ALL the consultation data above to make your response specific and personalised
+- Use "you"/"your" — speak TO the patient
+- No jargon without plain explanation
+- ONLY mention medicines from the list — accuracy is critical
+- Complete all sections and end with the disclaimer
+- Do NOT use emojis anywhere in the response
+- 500 WORDS MAX — hard cap`;
 }
 
 // ── Multi-issue prompt ─────────────────────────────────────────────────────────
 
 function buildMultiIssueCosmetologyPrompt(issues: any[]): string {
   const N = issues.length;
-  // Scale word budget: ~260 per issue for 2, ~210 for 3
-  const wordsPerIssue = Math.max(180, Math.round(520 / N));
-  const totalWords = wordsPerIssue * N + 80;
 
-  // Concise context block for the model
   const contextBlock = issues.map((issue, idx) => {
     const fd = issue.formData || {};
+    const allFields = collectAllFields(fd);
     const concern = fd.primaryConcern || `Concern ${idx + 1}`;
-    const procedure = fd.procedureName || fd.name || "Cosmetology treatment";
-    const homeProducts = fd.homeProducts || "None";
-    return `Issue ${idx + 1} — ${issue.label || concern}:
-  Primary concern: ${concern}
-  Skin type: ${fd.skinType || "Not specified"}
-  Procedure: ${procedure}
-  Goals: ${fd.goals || "Skin improvement"}
-  Immediate outcome: ${fd.immediateOutcome || "Completed well"}
-  Home products: ${homeProducts}`;
+    const meds = formatMedicines(fd.prescription);
+    return `ISSUE ${idx + 1} — ${issue.label || concern}:
+${allFields || "  No additional details."}
+  Medicines (${meds.length}): ${meds.length > 0 ? meds.map((m, i) => `${i + 1}. ${m}`).join(", ") : "None"}`;
   }).join("\n\n");
 
-  // Per-issue structure block
   const structureBlock = issues.map((issue, idx) => {
     const fd = issue.formData || {};
     const concern = fd.primaryConcern || `Concern ${idx + 1}`;
-    const procedure = fd.procedureName || fd.name || "Cosmetology treatment";
-    const homeProducts = fd.homeProducts || "";
-    const expectedResults = fd.expectedResults || "";
-    const followUpDate = fd.followUpDate
-      ? new Date(fd.followUpDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
-      : "";
+    const meds = formatMedicines(fd.prescription);
+    const mCount = meds.length;
+    const numberedMeds = meds.map((m, i) => `    ${i + 1}. ${m}`).join("\n");
 
     return `## Issue ${idx + 1}: ${concern}
 
-### What Was Done? (60 words max)
-Plain language: what is "${procedure}", what happens to the skin, why chosen for "${concern}" and "${fd.skinType || "their skin type"}". One short reassuring sentence at the end.
+### What Was Done? (50 words max)
+Plain language explanation. One reassuring sentence.
 
-### What To Expect Next (exactly 3 bullets, 18 words max each)
-Three specific things to expect — normal reactions and positive healing signs for ${procedure}. Start each with •. One concise sentence per bullet.
+### What To Expect Next (3 bullets, 15 words each max)
+Normal reactions and healing signs. Start each with •.
 
-### Your Home Care Routine (exactly 3 bullets, 18 words max each)
-${homeProducts
-  ? `Doctor recommended: ${homeProducts}. For each product, 22 words max: what it does and when to use it. Fill remaining bullets with aftercare tips for ${procedure}.`
-  : `Three specific aftercare tips for ${procedure} and ${concern}. Start each with •. Tell them what to do.`}
+### How Your Medicines Help
+${mCount > 0
+  ? `EXACTLY ${mCount} bullet(s), one per medicine in order:\n${numberedMeds}\n20 words max each. Start with •. Do NOT invent medicines.`
+  : "2 specific aftercare tips for this procedure. Start each with •. 15 words max each."}
 
-### When To Expect Results (50 words max)
-${expectedResults ? `Expected: ${expectedResults}. ` : ""}Realistic timeline for ${procedure}.${followUpDate ? ` Mention follow-up on ${followUpDate}.` : " Encourage scheduling a follow-up."} One encouraging sentence.`;
+### Recovery Tips (3 bullets, 15 words each max)
+Actionable home care. Start each with •.`;
   }).join("\n\n---\n\n");
 
-  return `You are a warm, friendly AI health companion speaking directly to a patient after their cosmetology visit. They had ${N} separate treatments today.
+  return `You are a warm AI health companion speaking to a patient after their cosmetology visit. They had ${N} treatments today. Be concise and specific.
 
-Consultation summary:
+FULL CONSULTATION DATA:
 ${contextBlock}
 
-WORD BUDGET: Write approximately ${totalWords} words total (about ${wordsPerIssue} words per issue). This is carefully sized so you can complete ALL sections within your token limit. Do not go over, and do not leave anything unfinished.
+STRICT LIMIT: 700 words total. Complete ALL sections for ALL issues. Do not exceed.
 
-CRITICAL COMPLETION RULE: You MUST write every section for every issue AND end with the closing disclaimer. If you run long on one issue, trim it — but never skip a section or stop before the closing.
-
-─────────────────────────────────────────
-
-Opening paragraph (NO ## heading — ~60 words):
-Start with "Hi! I am your AI health companion." Warmly tell the patient they had ${N} separate treatments today — name each concern briefly. Say you'll walk them through each one. Keep it warm and reassuring.
+Opening (NO heading — 2 sentences max):
+"Hi! I am your AI health companion." Name each concern briefly.
 
 ${structureBlock}
 
-End with EXACTLY this closing (do not skip or shorten it):
+End with:
 ---
-*Hi, I am your AI health companion. This explanation was prepared to help you understand your cosmetology treatments and feel confident about your skin care journey. Please follow your doctor's aftercare instructions carefully and bring any questions to your next visit — beautiful, healthy skin is a journey, and you are on the right path.*
-
-─────────────────────────────────────────
+*I am your AI health companion. This was prepared to help you understand your cosmetology treatments. Follow your doctor's instructions and bring questions to your next visit.*
 
 Rules:
-- Complete ALL ${N} issues fully — every ### subheading under every ## issue
-- Use "you"/"your" throughout — speak TO the patient
-- Be specific to each procedure and concern — nothing generic
-- Do NOT use bullet points outside ### sections
-- End with the --- disclaimer — this is mandatory`;
+- Analyse ALL consultation data above — be specific to each procedure, not generic
+- Use "you"/"your" — speak TO the patient
+- ONLY mention medicines from the lists — accuracy is critical
+- Complete every section for every issue and end with disclaimer
+- Do NOT use emojis anywhere in the response
+- 700 WORDS MAX — hard cap`;
 }
 
 // ── Dispatcher ─────────────────────────────────────────────────────────────────
@@ -240,7 +249,7 @@ export async function POST(request: NextRequest) {
 
     const anthropicStream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 3500,
+      max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],
     });
 

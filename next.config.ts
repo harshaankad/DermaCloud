@@ -91,37 +91,6 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Redirect tier1 UI routes to tier2 (tier1 has been removed)
-  // Note: /api/tier1/upload is kept for AI analysis functionality used by tier2
-  async redirects() {
-    return [
-      {
-        source: "/tier1",
-        destination: "/tier2/dashboard",
-        permanent: true,
-      },
-      {
-        source: "/tier1/dashboard",
-        destination: "/tier2/dashboard",
-        permanent: true,
-      },
-      {
-        source: "/tier1/upload",
-        destination: "/tier2/dashboard",
-        permanent: true,
-      },
-      {
-        source: "/tier1/scans",
-        destination: "/tier2/dashboard",
-        permanent: true,
-      },
-      {
-        source: "/tier1/scans/:path*",
-        destination: "/tier2/dashboard",
-        permanent: true,
-      },
-    ];
-  },
 
 };
 

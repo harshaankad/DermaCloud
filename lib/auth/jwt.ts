@@ -9,7 +9,7 @@ const REFRESH_TOKEN_EXPIRY = "30d";
 export interface JWTPayload {
   userId: string;
   email: string;
-  tier: "tier1" | "tier2";
+  tier: "tier2";
   clinicId?: string;
   jti: string; // unique token ID for revocation
 }

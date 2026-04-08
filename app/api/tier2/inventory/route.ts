@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!hasPermission(auth, "pharmacy")) {
+    if (!hasPermission(auth, "pharmacy") && !hasPermission(auth, "sales")) {
       return NextResponse.json(
         { success: false, message: "You don't have permission to view inventory" },
         { status: 403 }

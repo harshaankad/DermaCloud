@@ -307,9 +307,9 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8 mt-6">
+        <div className="text-center -mb-3 mt-6">
           <Link href="/" className="inline-flex items-center space-x-2.5 group">
-            <Logo size="sm" />
+            <Logo size="xl" />
           </Link>
         </div>
 
@@ -343,7 +343,7 @@ export default function SignupPage() {
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none text-gray-900 bg-white text-sm"
-                        placeholder="Dr. John Doe"
+                        placeholder="John Doe"
                       />
                     </div>
                   </div>
@@ -803,17 +803,6 @@ export default function SignupPage() {
           )}
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-gray-400 text-sm mt-6">
-          By signing up, you agree to our{" "}
-          <Link href="/terms" className="text-teal-500 hover:underline">
-            Terms
-          </Link>{" "}
-          and{" "}
-          <Link href="/privacy" className="text-teal-500 hover:underline">
-            Privacy Policy
-          </Link>
-        </p>
       </div>
     </div>
   );

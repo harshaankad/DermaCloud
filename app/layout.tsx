@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   authors: [{ name: "DermaCloud" }],
   creator: "DermaCloud",
   publisher: "DermaCloud",
+  icons: {
+    apple: "/favicon-light.png",
+  },
   robots: "index, follow",
   openGraph: {
     type: "website",
@@ -50,6 +53,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={poppins.variable}>
+      <head>
+        <link rel="icon" href="/favicon-light.png" media="(prefers-color-scheme: light)" />
+        <link rel="icon" href="/favicon-dark.png" media="(prefers-color-scheme: dark)" />
+      </head>
       <body className="antialiased">
         {/* Load Razorpay globally so it's ready before the user reaches the payment step */}
         <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />

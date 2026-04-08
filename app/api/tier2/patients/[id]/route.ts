@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authMiddleware } from "@/lib/auth/middleware";
+import { verifyTier2Request } from "@/lib/auth/verify-request";
 import { connectDB } from "@/lib/db/connection";
 import Patient from "@/models/Patient";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
@@ -19,23 +19,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Authenticate user
-    const authResult = await authMiddleware(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
-
-    const { user: authUser } = authResult;
-
-    // Verify user is Tier 2
-    if (authUser.tier !== "tier2") {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "This endpoint is only for Tier 2 users",
-        },
-        { status: 403 }
-      );
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
     }
 
     const { id } = await params;
@@ -57,7 +43,7 @@ export async function GET(
     }
 
     // Verify patient belongs to the same clinic
-    if (patient.clinicId.toString() !== authUser.clinicId.toString()) {
+    if (patient.clinicId.toString() !== auth.clinicId!.toString()) {
       return NextResponse.json(
         {
           success: false,
@@ -132,18 +118,14 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authResult = await authMiddleware(request);
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
     }
 
-    const { user: authUser } = authResult;
-
-    if (authUser.tier !== "tier2") {
-      return NextResponse.json(
-        { success: false, message: "This endpoint is only for Tier 2 users" },
-        { status: 403 }
-      );
+    // Frontdesk staff must have patients permission
+    if (auth.role === "frontdesk" && !auth.permissions?.patients) {
+      return NextResponse.json({ success: false, message: "Insufficient permissions" }, { status: 403 });
     }
 
     const { id } = await params;
@@ -167,7 +149,7 @@ export async function PUT(
       );
     }
 
-    if (patient.clinicId.toString() !== authUser.clinicId.toString()) {
+    if (patient.clinicId.toString() !== auth.clinicId!.toString()) {
       return NextResponse.json(
         { success: false, message: "Access denied" },
         { status: 403 }

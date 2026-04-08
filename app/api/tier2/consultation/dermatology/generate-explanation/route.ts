@@ -13,158 +13,171 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function parseMedicines(topicals: string, orals: string): string[] {
+function formatMedicines(prescription?: any[], topicals?: string, orals?: string): string[] {
   const items: string[] = [];
+  if (Array.isArray(prescription)) {
+    for (const med of prescription) {
+      if (med.name?.trim()) {
+        const parts = [med.name.trim()];
+        if (med.dosage) parts.push(med.dosage);
+        if (med.route) parts.push(`(${med.route})`);
+        if (med.frequency) parts.push(`— ${med.frequency}`);
+        if (med.duration) parts.push(`for ${med.duration}`);
+        if (med.instructions) parts.push(`[${med.instructions}]`);
+        items.push(parts.join(" "));
+      }
+    }
+  }
   if (topicals) items.push(...topicals.split(/[,;\n\r]+/).map((m: string) => m.trim()).filter(Boolean).map((m: string) => `${m} (topical)`));
-  if (orals)    items.push(...orals.split(/[,;\n\r]+/).map((m: string) => m.trim()).filter(Boolean).map((m: string) => `${m} (oral)`));
+  if (orals) items.push(...orals.split(/[,;\n\r]+/).map((m: string) => m.trim()).filter(Boolean).map((m: string) => `${m} (oral)`));
   return items;
 }
 
-// ── Single-issue prompt (unchanged logic) ──────────────────────────────────────
-
-function buildSingleIssuePrompt(consultation: any): string {
-  const diagnosis = consultation.diagnosis?.provisional || "";
-  const severity  = consultation.clinicalExamination?.severity || "";
-  const complaint = consultation.patientInfo?.complaint || "";
-  const duration  = consultation.patientInfo?.duration || "";
-  const topicals  = consultation.treatmentPlan?.topicals || "";
-  const orals     = consultation.treatmentPlan?.orals || "";
-  const instructions = consultation.treatmentPlan?.instructions || "";
-
-  const medicineItems = parseMedicines(topicals, orals);
-  const medicineCount = medicineItems.length;
-  const numberedMedicines = medicineItems.map((m, i) => `  ${i + 1}. ${m}`).join("\n");
-
-  return `You are a warm, friendly AI health companion speaking directly to a patient right after their dermatology visit. Your job is to make them feel genuinely cared for, fully informed, and confident — like they're getting a personal explanation from someone who truly understands their situation, not a generic pamphlet.
-
-Consultation details:
-- Patient complaint: ${complaint || "Not specified"}
-- Duration: ${duration || "Not specified"}
-- Diagnosis: ${diagnosis || "Skin condition under evaluation"}
-- Severity: ${severity || "Not specified"}
-- Doctor's instructions: ${instructions || "None"}
-
-Use this exact structure. Each section has a strict word limit — do not exceed it:
-
-Opening (NO heading — 55 words max):
-Introduce yourself as the patient's AI health companion. Acknowledge their specific complaint and duration. Say your goal is to help them understand in plain language. Keep it to 2 short, warm sentences.
-
-## What's Happening With Your Skin? (90 words max)
-In plain, friendly language: what is this condition, what is happening inside their skin, what does it look and feel like, and what does the severity mean for them? End with one short reassuring sentence about what is possible with treatment.
-
-## Why Did This Happen? (exactly 5 bullets, 20 words max each)
-Five specific triggers or causes for this exact condition. Start each with •. One concise sentence per bullet — relate to real-life experiences the patient would recognise.
-
-## How Your Medicines Help
-${medicineCount > 0
-  ? `IMPORTANT: The doctor prescribed exactly ${medicineCount} medicine(s) for this patient. You must write EXACTLY ${medicineCount} bullet point(s) in this section — one bullet per medicine. Do not add, combine, or invent any medicines beyond this list.
-
-The complete medicine list (write one • bullet for each, in order):
-${numberedMedicines}
-
-For each medicine (use the exact name as given, without adding descriptions like "cream" or "ointment" unless already in the name), write exactly 1 sentence — 30 words max: what it does for this patient's condition and what they will notice. Start each bullet with •. After the last bullet, one short encouraging sentence.`
-  : "No medicines were prescribed for this visit. Give 3–4 specific, evidence-based skin care tips that directly apply to this condition. Start each with •."}
-
-## Your Recovery Journey (exactly 5 bullets, 20 words max each)
-Five specific, actionable home care tips for this exact condition. Tell them what to do. Start each with •. End with one short warm sentence about their recovery.
-
-End with exactly:
----
-*Hi, I am your AI health companion. This explanation was prepared to help you understand your condition and feel confident about your recovery. Please follow your doctor's instructions carefully and bring any questions to your next visit — you deserve to feel fully informed.*
-
-Rules:
-- The opening paragraph must NOT have a ## heading — it speaks directly to the patient
-- Start the opening with "Hi! I am your AI health companion" and make it feel genuinely warm
-- Use "you" and "your" throughout — speak TO the patient, not about them
-- Never use medical jargon without immediately explaining it in plain language
-- Be specific to this exact diagnosis — nothing that could apply to any skin condition
-- Validate the patient's experience — it is okay to acknowledge that having this condition can be worrying or frustrating
-- Make the patient feel hopeful, cared for, and empowered to manage their recovery
-- Do NOT use bullet points outside the ## sections
-- NEVER mention or describe any medicine that is not in the prescribed list above — this is a patient-facing medical document and accuracy is critical
-- CRITICAL: You have enough token budget to complete this fully. Write all sections completely and end with the --- disclaimer. Never stop mid-sentence or mid-section.
-- WORD LIMITS ARE HARD CAPS: Do not exceed any section's word limit. Concise = better.`;
+/** Collect all non-empty fields from formData into a readable block */
+function collectAllFields(fd: Record<string, any>, skipKeys: string[] = []): string {
+  const skip = new Set(["_multiIssue", "_issues", "prescription", ...skipKeys]);
+  const lines: string[] = [];
+  for (const [key, val] of Object.entries(fd)) {
+    if (skip.has(key) || !val) continue;
+    if (typeof val === "string" && !val.trim()) continue;
+    if (Array.isArray(val)) continue; // prescription handled separately
+    const label = key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
+    lines.push(`- ${label}: ${val}`);
+  }
+  return lines.join("\n");
 }
 
-// ── Multi-issue prompt ─────────────────────────────────────────────────────────
+// ── Single-issue prompt ───────────────────────────────────────────────────────
+
+function buildSingleIssuePrompt(consultation: any): string {
+  // Gather all form data from customFields
+  const cf = consultation.customFields || {};
+  const fd = cf._issues?.[0]?.formData || cf;
+  const allFields = collectAllFields(fd);
+
+  // Also include structured top-level fields as fallback
+  const pi = consultation.patientInfo || {};
+  const ce = consultation.clinicalExamination || {};
+  const tp = consultation.treatmentPlan || {};
+  const diag = consultation.diagnosis || {};
+
+  const complaint = fd.complaint || pi.complaint || "";
+  const diagnosis = fd.provisional || diag.provisional || "";
+
+  const prescription = fd.prescription || cf.prescription;
+  const meds = formatMedicines(prescription, fd.topicals || tp.topicals, fd.orals || tp.orals);
+  const medCount = meds.length;
+  const numberedMeds = meds.map((m, i) => `  ${i + 1}. ${m}`).join("\n");
+
+  return `You are a warm AI health companion speaking directly to a patient after their dermatology visit. Be concise, warm, and specific.
+
+FULL CONSULTATION DATA:
+${allFields || "No additional details recorded."}
+${complaint ? `- Chief Complaint: ${complaint}` : ""}
+${diagnosis ? `- Diagnosis: ${diagnosis}` : ""}
+${ce.lesionSite ? `- Lesion Site: ${ce.lesionSite}` : ""}
+${ce.morphology ? `- Morphology: ${ce.morphology}` : ""}
+${ce.severity ? `- Severity: ${ce.severity}` : ""}
+
+${medCount > 0 ? `PRESCRIBED MEDICINES (${medCount}):\n${numberedMeds}` : "No medicines prescribed."}
+
+STRICT LIMIT: 500 words total. Complete all sections. Do not exceed.
+
+Write in this exact structure:
+
+Opening (NO heading — 2 sentences max):
+"Hi! I am your AI health companion." Acknowledge their complaint warmly.
+
+## What's Happening With Your Skin? (70 words max)
+Plain language explanation of the condition, what's happening, and reassurance.
+
+## Why Did This Happen? (4 bullets, 15 words each max)
+Specific causes/triggers for this condition. Start each with •.
+
+## How Your Medicines Help
+${medCount > 0
+  ? `EXACTLY ${medCount} bullet(s) — one per medicine. Use exact names from the list. 20 words max each. Start with •.`
+  : "3 specific skincare tips for this condition. Start each with •. 15 words max each."}
+
+## Your Recovery Journey (4 bullets, 15 words each max)
+Actionable home care tips. Start each with •.
+
+End with:
+---
+*I am your AI health companion. This was prepared to help you understand your condition. Follow your doctor's instructions and bring questions to your next visit.*
+
+Rules:
+- Analyse ALL the consultation data above to make your response specific and personalised
+- Use "you"/"your" — speak TO the patient
+- No jargon without plain explanation
+- ONLY mention medicines from the list — accuracy is critical
+- Complete all sections and end with the disclaimer
+- Do NOT use emojis anywhere in the response
+- 500 WORDS MAX — hard cap`;
+}
+
+// ── Multi-issue prompt ────────────────────────────────────────────────────────
 
 function buildMultiIssuePrompt(issues: any[]): string {
   const N = issues.length;
-  // Scale word budget: ~260 per issue for 2, ~210 for 3, ~180 for 4
-  const wordsPerIssue = Math.max(180, Math.round(520 / N));
-  const totalWords = wordsPerIssue * N + 80; // +80 for shared opening/closing
 
-  // Build concise context block for the model
   const contextBlock = issues.map((issue, idx) => {
     const fd = issue.formData || {};
+    const allFields = collectAllFields(fd);
     const diagnosis = fd.provisional || fd.provisionalDiagnosis || `Condition ${idx + 1}`;
-    const complaint = fd.complaint || fd.chiefComplaint || "Not specified";
-    const duration  = fd.duration || "Not specified";
-    const meds = parseMedicines(fd.topicals || "", fd.orals || "");
-    return `Issue ${idx + 1} — ${issue.label || diagnosis}:
-  Complaint: ${complaint} | Duration: ${duration}
-  Diagnosis: ${diagnosis}
+    const meds = formatMedicines(fd.prescription, fd.topicals, fd.orals);
+    return `ISSUE ${idx + 1} — ${issue.label || diagnosis}:
+${allFields || "  No additional details."}
   Medicines (${meds.length}): ${meds.length > 0 ? meds.map((m, i) => `${i + 1}. ${m}`).join(", ") : "None"}`;
   }).join("\n\n");
 
-  // Build per-issue structure block
   const structureBlock = issues.map((issue, idx) => {
     const fd = issue.formData || {};
     const diagnosis = fd.provisional || fd.provisionalDiagnosis || `Condition ${idx + 1}`;
-    const duration  = fd.duration || "some time";
-    const meds = parseMedicines(fd.topicals || "", fd.orals || "");
+    const meds = formatMedicines(fd.prescription, fd.topicals, fd.orals);
     const mCount = meds.length;
     const numberedMeds = meds.map((m, i) => `    ${i + 1}. ${m}`).join("\n");
 
     return `## Issue ${idx + 1}: ${diagnosis}
 
-### What's Happening? (60 words max)
-Plain language: what is ${diagnosis}, what is happening in their skin, what does it look/feel like. One short reassuring sentence at the end.
+### What's Happening? (50 words max)
+Plain language explanation. One reassuring sentence.
 
-### Why Did This Happen? (exactly 3 bullets, 18 words max each)
-Three specific causes for ${diagnosis}. One concise sentence per bullet starting with •. Relate to real-life experience.
+### Why Did This Happen? (3 bullets, 15 words each max)
+Specific causes. Start each with •.
 
 ### How Your Medicines Help
 ${mCount > 0
-  ? `EXACTLY ${mCount} bullet(s) — one per medicine, in this exact order:
-${numberedMeds}
-For each: 1 sentence — 28 words max: what it does and what the patient will notice. Start each bullet with •. Do NOT add any medicine not in this list.`
-  : `No medicines for this issue. Give 2 specific skincare tips for ${diagnosis}, each starting with •, 20 words max each.`}
+  ? `EXACTLY ${mCount} bullet(s), one per medicine in order:\n${numberedMeds}\n20 words max each. Start with •. Do NOT invent medicines.`
+  : "2 skincare tips for this condition. Start each with •. 15 words max each."}
 
-### Recovery Tips (exactly 3 bullets, 18 words max each)
-Three actionable home care tips for ${diagnosis}. Start each with •. Tell them what to do.`;
+### Recovery Tips (3 bullets, 15 words each max)
+Actionable home care. Start each with •.`;
   }).join("\n\n---\n\n");
 
-  return `You are a warm, friendly AI health companion speaking directly to a patient after their dermatology visit. They came in with ${N} separate skin conditions today.
+  return `You are a warm AI health companion speaking to a patient after their dermatology visit. They had ${N} skin conditions today. Be concise and specific.
 
-Consultation summary:
+FULL CONSULTATION DATA:
 ${contextBlock}
 
-WORD BUDGET: Write approximately ${totalWords} words total (about ${wordsPerIssue} words per issue). This budget is carefully sized so you can complete ALL sections fully within your token limit. Stick to it — do not go over, and do not leave anything unfinished.
+STRICT LIMIT: 700 words total. Complete ALL sections for ALL issues. Do not exceed.
 
-CRITICAL COMPLETION RULE: You MUST write every section for every issue AND end with the closing disclaimer. If you find yourself running long on one issue, trim it — but never skip a section or stop before the closing. A complete answer that is slightly shorter is far better than one that cuts off in the middle.
-
-─────────────────────────────────────────
-
-Opening paragraph (NO ## heading — 55 words max):
-Start with "Hi! I am your AI health companion." Tell the patient they came in for ${N} separate skin concerns today — name each diagnosis briefly. Say you'll walk them through each one. 2 short sentences only.
+Opening (NO heading — 2 sentences max):
+"Hi! I am your AI health companion." Name each condition briefly.
 
 ${structureBlock}
 
-End with EXACTLY this closing (do not skip or shorten it):
+End with:
 ---
-*Hi, I am your AI health companion. This explanation was prepared to help you understand your conditions and feel confident about your recovery. Please follow your doctor's instructions carefully and bring any questions to your next visit — you deserve to feel fully informed.*
-
-─────────────────────────────────────────
+*I am your AI health companion. This was prepared to help you understand your conditions. Follow your doctor's instructions and bring questions to your next visit.*
 
 Rules:
-- Complete ALL ${N} issues fully — every ### subheading under every ## issue
-- Use "you"/"your" throughout — speak TO the patient
-- Be specific to each exact diagnosis — not generic
-- ONLY mention medicines from the lists provided — this is a patient-facing medical document
-- Do NOT use bullet points outside ### sections
-- End with the --- disclaimer — this is mandatory
-- WORD LIMITS ARE HARD CAPS: Do not exceed any section's word limit. Concise = better.`;
+- Analyse ALL consultation data above — be specific to each condition, not generic
+- Use "you"/"your" — speak TO the patient
+- ONLY mention medicines from the lists — accuracy is critical
+- Complete every section for every issue and end with disclaimer
+- Do NOT use emojis anywhere in the response
+- 700 WORDS MAX — hard cap`;
 }
 
 // ── Dispatcher ─────────────────────────────────────────────────────────────────
@@ -223,7 +236,7 @@ export async function POST(request: NextRequest) {
     // Start streaming from Anthropic
     const anthropicStream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 3500,
+      max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],
     });
 

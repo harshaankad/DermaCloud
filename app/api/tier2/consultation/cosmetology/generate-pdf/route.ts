@@ -217,6 +217,68 @@ function simpleBox(doc: PDFKit.PDFDocument, text: string) {
   doc.y = y + h + 12;
 }
 
+// ── Prescription table (horizontal format like a real Rx pad) ──────────────────
+function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
+  const cols = [
+    { label: "#",            w: 25  },
+    { label: "Medicine",     w: 120 },
+    { label: "Dosage",       w: 60  },
+    { label: "Route",        w: 55  },
+    { label: "Frequency",    w: 75  },
+    { label: "Duration",     w: 60  },
+    { label: "Instructions", w: CW - 25 - 120 - 60 - 55 - 75 - 60 },
+  ];
+  const rowH = 22;
+  const headerH = 20;
+  const pad = 6;
+
+  ensureSpace(doc, headerH + rowH * (meds.length + 1) + 10);
+  const startY = doc.y;
+
+  // Header row
+  let x = ML;
+  fillRect(doc, ML, startY, CW, headerH, C.navyLight);
+  for (const col of cols) {
+    doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(7.5)
+       .text(col.label.toUpperCase(), x + pad, startY + 6, { width: col.w - pad * 2, lineBreak: false });
+    x += col.w;
+  }
+  doc.save().rect(ML, startY, CW, headerH).strokeColor(C.border).lineWidth(0.5).stroke().restore();
+  doc.y = startY + headerH;
+
+  // Data rows
+  meds.forEach((med: any, idx: number) => {
+    ensureSpace(doc, rowH + 2);
+    const y = doc.y;
+    const bg = idx % 2 === 0 ? C.white : C.rowAlt;
+    fillRect(doc, ML, y, CW, rowH, bg);
+
+    x = ML;
+    const vals = [
+      String(idx + 1),
+      med.name || "—",
+      med.dosage || "—",
+      med.route || "—",
+      med.frequency || "—",
+      med.duration || "—",
+      med.instructions || "—",
+    ];
+    vals.forEach((val, ci) => {
+      const isFirst = ci === 0;
+      const isName = ci === 1;
+      doc.fillColor(isFirst ? C.blue : C.body)
+         .font(isName ? "Helvetica-Bold" : "Helvetica").fontSize(8.5)
+         .text(val, x + pad, y + 6, { width: cols[ci].w - pad * 2, lineBreak: false });
+      x += cols[ci].w;
+    });
+
+    doc.save().rect(ML, y, CW, rowH).strokeColor(C.border).lineWidth(0.3).stroke().restore();
+    doc.y = y + rowH;
+  });
+
+  doc.y += 8;
+}
+
 // ── Main PDF builder ──────────────────────────────────────────────────────────
 function buildPdf(
   doc: PDFKit.PDFDocument,
@@ -306,57 +368,96 @@ function buildPdf(
     ...(info.primaryConcern ? [{ label: "Primary Concern", value: info.primaryConcern }] : []),
   ]);
 
-  // ── 5. ASSESSMENT ─────────────────────────────────────────────────────────────
-  if (assess.findings || assess.diagnosis || assess.baselineEvaluation || assess.contraindicationsCheck) {
-    sectionHeader(doc, "Assessment");
-    infoTable(doc, [
-      ...(assess.findings               ? [{ label: "Clinical Findings",    value: assess.findings }] : []),
-      ...(assess.diagnosis              ? [{ label: "Diagnosis",            value: assess.diagnosis }] : []),
-      ...(assess.baselineEvaluation     ? [{ label: "Baseline Evaluation",  value: assess.baselineEvaluation }] : []),
-      ...(assess.contraindicationsCheck ? [{ label: "Contraindications",    value: assess.contraindicationsCheck }] : []),
-    ]);
-  }
+  // ── 5–8. CLINICAL DATA (single-issue OR per-issue for multi-issue) ──────────
+  const cf = consultation.customFields || {};
+  const isMultiIssue =
+    cf._multiIssue === true &&
+    Array.isArray(cf._issues) &&
+    cf._issues.length > 1;
 
-  // ── 6. PROCEDURE ──────────────────────────────────────────────────────────────
-  if (proc.name || proc.goals || proc.productsAndParameters || proc.immediateOutcome) {
-    const sessionLabel = proc.sessionNumber
-      ? `Session ${proc.sessionNumber}${proc.package ? ` · ${proc.package}` : ""}`
-      : proc.package || "";
-    sectionHeader(doc, sessionLabel ? `Procedure — ${sessionLabel}` : "Procedure");
-    infoTable(doc, [
-      ...(proc.name                  ? [{ label: "Procedure Name",        value: proc.name }] : []),
-      ...(proc.goals                 ? [{ label: "Treatment Goals",       value: proc.goals }] : []),
-      ...(proc.productsAndParameters ? [{ label: "Products & Parameters", value: proc.productsAndParameters }] : []),
-      ...(proc.immediateOutcome      ? [{ label: "Immediate Outcome",     value: proc.immediateOutcome }] : []),
-    ]);
-  }
+  const knownOrder: { key: string; label: string; alts?: string[] }[] = [
+    { key: "primaryConcern", label: "Primary Concern" },
+    { key: "findings", label: "Clinical Findings" },
+    { key: "diagnosis", label: "Diagnosis" },
+    { key: "baselineEvaluation", label: "Baseline Evaluation" },
+    { key: "contraindicationsCheck", label: "Contraindications" },
+    { key: "procedureName", label: "Procedure Name", alts: ["name"] },
+    { key: "goals", label: "Treatment Goals" },
+    { key: "sessionNumber", label: "Session Number" },
+    { key: "package", label: "Package" },
+    { key: "productsAndParameters", label: "Products & Parameters" },
+    { key: "immediateOutcome", label: "Immediate Outcome" },
+    { key: "instructions", label: "Aftercare Instructions" },
+    { key: "homeProducts", label: "Home Products" },
+    { key: "expectedResults", label: "Expected Results" },
+    { key: "followUpDate", label: "Follow-up Date" },
+    { key: "risksExplained", label: "Risks Explained" },
+    { key: "consentConfirmed", label: "Consent Status" },
+  ];
 
-  // ── 7. AFTERCARE ──────────────────────────────────────────────────────────────
-  if (ac.instructions || ac.homeProducts || ac.followUpDate || ac.expectedResults) {
-    sectionHeader(doc, "Aftercare & Follow-up");
-    const rows: { label: string; value: string }[] = [
-      ...(ac.instructions    ? [{ label: "Instructions",    value: ac.instructions }] : []),
-      ...(ac.homeProducts    ? [{ label: "Home Products",   value: ac.homeProducts }] : []),
-      ...(ac.expectedResults ? [{ label: "Expected Results", value: ac.expectedResults }] : []),
-    ];
-    if (ac.followUpDate) {
-      rows.push({
-        label: "Follow-up Date",
-        value: new Date(ac.followUpDate).toLocaleDateString("en-IN", {
-          day: "2-digit", month: "long", year: "numeric",
-        }),
-      });
+  const renderIssueData = (fd: Record<string, any>, issueTitle?: string) => {
+    if (issueTitle) sectionHeader(doc, issueTitle);
+
+    const renderedKeys = new Set(["prescription", "_multiIssue", "_issues"]);
+    const rows: { label: string; value: string }[] = [];
+
+    for (const item of knownOrder) {
+      let val = fd[item.key] || (item.alts ? item.alts.map((a) => fd[a]).find(Boolean) : undefined);
+      if (val) {
+        if (item.key === "followUpDate") {
+          try { val = new Date(val).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }); } catch {}
+        }
+        if (item.key === "consentConfirmed") {
+          val = val === true || val === "true" ? "Confirmed" : "Not confirmed";
+        }
+        rows.push({ label: item.label, value: String(val) });
+      }
+      renderedKeys.add(item.key);
+      if (item.alts) item.alts.forEach((a) => renderedKeys.add(a));
     }
-    if (rows.length > 0) infoTable(doc, rows);
-  }
 
-  // ── 8. CONSENT ────────────────────────────────────────────────────────────────
-  if (consent.risksExplained || consent.consentConfirmed !== undefined) {
-    sectionHeader(doc, "Consent & Risks");
-    infoTable(doc, [
-      ...(consent.risksExplained        ? [{ label: "Risks Explained",  value: consent.risksExplained }] : []),
-      ...(consent.consentConfirmed !== undefined ? [{ label: "Consent Status", value: consent.consentConfirmed ? "Confirmed" : "Not confirmed" }] : []),
-    ]);
+    // Custom/extra fields
+    for (const [key, val] of Object.entries(fd)) {
+      if (renderedKeys.has(key) || !val) continue;
+      if (typeof val === "string" && !val.trim()) continue;
+      if (Array.isArray(val) || typeof val === "object") continue;
+      const label = key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
+      rows.push({ label, value: String(val) });
+    }
+
+    if (rows.length > 0) infoTable(doc, rows);
+
+    // Prescription table
+    const rxMeds = Array.isArray(fd.prescription) ? fd.prescription.filter((m: any) => m.name?.trim()) : [];
+    if (rxMeds.length > 0) {
+      sectionHeader(doc, "Prescription (Rx)");
+      prescriptionTable(doc, rxMeds);
+    }
+  };
+
+  if (isMultiIssue) {
+    const issues: any[] = cf._issues;
+    issues.forEach((issue: any, idx: number) => {
+      const fd = idx === 0
+        ? {
+            primaryConcern: info.primaryConcern, ...assess, ...proc, ...ac,
+            risksExplained: consent.risksExplained, consentConfirmed: consent.consentConfirmed,
+            ...(issue.formData || {}),
+          }
+        : (issue.formData || {});
+      const concern = fd.primaryConcern || fd.procedureName || fd.name || "";
+      const title = concern ? `Issue ${idx + 1}: ${concern}` : `Issue ${idx + 1}`;
+      renderIssueData(fd, title);
+    });
+  } else {
+    // Single-issue: merge structured fields + customFields
+    const fd: Record<string, any> = {
+      primaryConcern: info.primaryConcern,
+      ...assess, ...proc, ...ac,
+      risksExplained: consent.risksExplained, consentConfirmed: consent.consentConfirmed,
+      ...(cf._issues?.[0]?.formData || cf),
+    };
+    renderIssueData(fd);
   }
 
   // ── 9. PATIENT EXPLANATION (AI) ───────────────────────────────────────────────

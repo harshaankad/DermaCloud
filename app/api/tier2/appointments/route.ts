@@ -4,6 +4,7 @@ import { verifyTier2Request, hasPermission } from "@/lib/auth/verify-request";
 import { z } from "zod";
 import Appointment from "@/models/Appointment";
 import Patient from "@/models/Patient";
+import Sale from "@/models/Sale";
 import {
   sendAppointmentConfirmation,
   formatAppointmentDate,
@@ -78,6 +79,19 @@ export async function GET(request: NextRequest) {
 
     const total = await Appointment.countDocuments(query);
 
+    // Find which appointments already have a sale (dispensed)
+    const appointmentIds = appointments.map((a) => a._id);
+    const dispensedSales = await Sale.find(
+      { appointmentId: { $in: appointmentIds } },
+      { appointmentId: 1 }
+    ).lean();
+    const dispensedSet = new Set(dispensedSales.map((s) => s.appointmentId?.toString()));
+
+    const appointmentsWithDispensed = appointments.map((a) => ({
+      ...a.toObject(),
+      dispensed: dispensedSet.has(a._id.toString()),
+    }));
+
     // Get stats for today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -102,7 +116,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        appointments,
+        appointments: appointmentsWithDispensed,
         pagination: {
           page,
           limit,

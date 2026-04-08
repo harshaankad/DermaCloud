@@ -6,6 +6,41 @@ import {
   defaultDermatologyForm,
   defaultCosmetologyForm,
 } from "@/lib/defaultFormConfig";
+import { IFormSection } from "@/models/FormSettings";
+
+// Sync saved settings with defaults: add missing fields/sections, remove deprecated ones
+function mergeWithDefaults(saved: any[], defaults: IFormSection[]): { merged: any[]; changed: boolean } {
+  let changed = false;
+  const merged = saved.map((section: any) => ({ ...section, fields: [...section.fields] }));
+
+  for (const defaultSection of defaults) {
+    const existingSection = merged.find((s: any) => s.sectionName === defaultSection.sectionName);
+    if (!existingSection) {
+      merged.push({ ...defaultSection });
+      changed = true;
+    } else {
+      // Add missing fields
+      for (const defaultField of defaultSection.fields) {
+        const existingField = existingSection.fields.find(
+          (f: any) => f.fieldName === defaultField.fieldName
+        );
+        if (!existingField) {
+          existingSection.fields.push({ ...defaultField });
+          changed = true;
+        }
+      }
+      // Remove fields no longer in defaults (but keep custom user-added fields)
+      const defaultFieldNames = defaultSection.fields.map((f) => f.fieldName);
+      const before = existingSection.fields.length;
+      existingSection.fields = existingSection.fields.filter(
+        (f: any) => defaultFieldNames.includes(f.fieldName) || f.custom
+      );
+      if (existingSection.fields.length !== before) changed = true;
+    }
+  }
+
+  return { merged, changed };
+}
 
 // GET: Fetch form settings
 export async function GET(request: NextRequest) {
@@ -30,6 +65,11 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
+    const defaultSections =
+      formType === "dermatology"
+        ? defaultDermatologyForm
+        : defaultCosmetologyForm;
+
     // Try to find existing settings
     let formSettings = await FormSettings.findOne({
       userId: auth.userId,
@@ -38,23 +78,36 @@ export async function GET(request: NextRequest) {
 
     // If not found, create with defaults
     if (!formSettings) {
-      const defaultSections =
-        formType === "dermatology"
-          ? defaultDermatologyForm
-          : defaultCosmetologyForm;
-
       formSettings = await FormSettings.create({
         userId: auth.userId,
         formType,
         sections: defaultSections,
       });
+    } else {
+      // Merge any new default fields into saved settings
+      const { merged, changed } = mergeWithDefaults(
+        formSettings.toObject().sections,
+        defaultSections
+      );
+      if (changed) {
+        formSettings.sections = merged;
+        await formSettings.save();
+      }
     }
+
+    const plain = formSettings.toObject();
+    plain.sections = plain.sections.map((section: any) => ({
+      ...section,
+      fields: section.fields.map((field: any) =>
+        field.fieldName === "severity" && field.type === "select"
+          ? { ...field, type: "text", options: undefined, placeholder: "e.g. Mild, Moderate, Severe" }
+          : field
+      ),
+    }));
 
     return NextResponse.json({
       success: true,
-      data: {
-        sections: formSettings.sections,
-      },
+      data: { sections: plain.sections },
     });
   } catch (error: any) {
     console.error("Get form settings error:", error);

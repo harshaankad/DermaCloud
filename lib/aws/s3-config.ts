@@ -30,9 +30,6 @@ export const BUCKET_NAME = AWS_S3_BUCKET_NAME || "";
 
 // S3 folder structure
 export const S3_FOLDERS = {
-  // Tier 1 uploads
-  TIER1_SCANS: "tier1/scans",
-
   // Tier 2 uploads
   TIER2_CLINICAL: "tier2/clinical",
   TIER2_DERMOSCOPIC: "tier2/dermoscopic",

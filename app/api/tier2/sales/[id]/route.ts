@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request, hasPermission } from "@/lib/auth/verify-request";
 import Sale from "@/models/Sale";
+import Clinic from "@/models/Clinic";
 
 // GET - Get single sale details
 export async function GET(
@@ -48,9 +49,14 @@ export async function GET(
       );
     }
 
+    // Add clinicName for print bill
+    const saleObj = sale.toObject();
+    const clinic = await Clinic.findById(auth.clinicId, { clinicName: 1 }).lean() as any;
+    (saleObj as any).clinicName = clinic?.clinicName || auth.clinicName || "Pharmacy";
+
     return NextResponse.json({
       success: true,
-      data: sale,
+      data: saleObj,
     });
   } catch (error) {
     console.error("Error fetching sale:", error);

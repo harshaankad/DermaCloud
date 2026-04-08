@@ -74,10 +74,6 @@ export default function Home() {
       a: "Our AI model is trained on thousands of dermoscopic images and provides suggestions to assist your diagnosis. It's designed to be a helpful tool, not a replacement for clinical judgment. The AI highlights possible conditions with confidence scores to help you make informed decisions."
     },
     {
-      q: "Is my patient data secure?",
-      a: "Absolutely. All data is encrypted in transit and at rest. We use industry-standard security practices and store data on secure cloud servers. Your patient information is never shared with third parties."
-    },
-    {
       q: "Can I access DermaCloud from my phone?",
       a: "Yes! DermaCloud is fully responsive and works on any device - desktop, tablet, or mobile. Access your clinic data from anywhere with an internet connection."
     },
@@ -87,7 +83,7 @@ export default function Home() {
     },
     {
       q: "Do you provide training and support?",
-      a: "Yes! We provide onboarding support to help you get started. Our team is available via email and chat to answer any questions. We also have documentation and video tutorials."
+      a: "Yes! We provide onboarding support to help you get started. Our team is available via email and chat to answer any questions. We also have video tutorials to guide you through every feature."
     },
   ];
 
@@ -99,7 +95,7 @@ export default function Home() {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <div className="flex items-center space-x-2">
-              <Logo size="sm" />
+              <Logo size="lg" />
             </div>
 
             {/* Desktop Navigation */}
@@ -203,17 +199,16 @@ export default function Home() {
 
             <div className="animate-fade-in-up animation-delay-500 flex flex-row gap-4 pt-1">
               <button
-                onClick={() => scrollToSection("demo-video")}
+                onClick={() => scrollToSection("what-makes-us-different")}
                 className="inline-flex items-center justify-center px-7 py-3.5 text-base font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
               >
-                <svg className="mr-2 w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                Watch Demo
+                Learn More
               </button>
               <button
-                onClick={() => scrollToSection("contact")}
+                onClick={() => { setContactForm(prev => ({ ...prev, message: "Hi, I would like to request a demo of DermaCloud for my clinic." })); scrollToSection("contact"); }}
                 className="inline-flex items-center justify-center px-7 py-3.5 text-base font-semibold text-teal-700 bg-white border-2 border-teal-200 hover:border-teal-400 hover:bg-teal-50 rounded-xl shadow-sm hover:-translate-y-0.5 transition-all duration-200"
               >
-                Get in Touch
+                Request a Demo
               </button>
             </div>
           </div>
@@ -240,31 +235,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Demo Video Section - Below the fold */}
-      <section id="demo-video" className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-cyan-50 to-white scroll-mt-24">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-8 reveal-on-scroll">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">See DermaCloud in Action</h2>
-            <p className="text-gray-600">Watch how DermaCloud streamlines your dermatology practice</p>
-          </div>
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gradient-to-br from-slate-900 to-slate-800 reveal-on-scroll reveal-delay-1">
-            <div className="aspect-video flex items-center justify-center p-8 relative">
-              <div className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer group">
-                <div className="w-24 h-24 bg-white/90 group-hover:bg-white rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 transition-all duration-300">
-                  <svg className="w-12 h-12 text-teal-600 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="text-center z-10 pointer-events-none">
-                <p className="text-white/80 font-medium text-lg">Demo Video Coming Soon</p>
-                <p className="text-white/50 text-sm mt-1">See DermaCloud in action</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* What Makes Us Different Section */}
       <section id="what-makes-us-different" className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 scroll-mt-20 overflow-hidden">
         <div className="max-w-7xl mx-auto relative">
@@ -280,7 +250,7 @@ export default function Home() {
               What Makes Us Different
             </h2>
             <p className="text-lg sm:text-xl text-gray-400 max-w-3xl mx-auto">
-              Unlike generic hospital management systems, DermaCloud is purpose-built for dermatology with AI at its core
+              Unlike generic hospital management systems, DermaCloud is <span className="text-teal-400 font-bold whitespace-nowrap">purpose-built for Dermatology</span> with AI at its core
             </p>
           </div>
 
@@ -514,90 +484,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 reveal-on-scroll">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Trusted by Dermatologists
-            </h2>
-            <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto">
-              See what doctors are saying about DermaCloud
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Testimonial 1 */}
-            <div className="p-8 rounded-2xl bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-100 hover:shadow-lg transition-all duration-300 reveal-on-scroll">
-              <div className="flex items-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-              <p className="text-gray-700 mb-6 leading-relaxed">
-                "DermaCloud has transformed how I manage my clinic. The AI diagnosis feature saves me so much time, and my patients love the professional reports."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                  RP
-                </div>
-                <div className="ml-4">
-                  <p className="font-semibold text-gray-900">Dr. Rajesh Patel</p>
-                  <p className="text-sm text-gray-600">Skin Care Clinic, Mumbai</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Testimonial 2 */}
-            <div className="p-8 rounded-2xl bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-100 hover:shadow-lg transition-all duration-300 reveal-on-scroll reveal-delay-1">
-              <div className="flex items-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-              <p className="text-gray-700 mb-6 leading-relaxed">
-                "Finally, a software that understands dermatology! The consultation templates are perfect, and the frontdesk module keeps everything organized."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-teal-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                  SM
-                </div>
-                <div className="ml-4">
-                  <p className="font-semibold text-gray-900">Dr. Sunita Mehta</p>
-                  <p className="text-sm text-gray-600">Glow Dermatology, Bangalore</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Testimonial 3 */}
-            <div className="p-8 rounded-2xl bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-100 hover:shadow-lg transition-all duration-300 reveal-on-scroll reveal-delay-2">
-              <div className="flex items-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-              <p className="text-gray-700 mb-6 leading-relaxed">
-                "The pharmacy and billing integration is excellent. I can focus on treating patients while DermaCloud handles the paperwork."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                  AK
-                </div>
-                <div className="ml-4">
-                  <p className="font-semibold text-gray-900">Dr. Amit Kumar</p>
-                  <p className="text-sm text-gray-600">DermaCare Hospital, Delhi</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Pricing Section */}
       <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-teal-50 via-white to-cyan-50 scroll-mt-20">
@@ -856,45 +742,18 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Footer Links */}
+        {/* Footer */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 mb-8">
-            {/* Brand */}
-            <div className="sm:col-span-2 md:col-span-1">
-              <div className="flex items-center space-x-2 mb-4">
-                <Logo white size="sm" />
-              </div>
-              <p className="text-gray-400 text-sm">
-                AI-powered dermatology clinic management platform for modern practices.
-              </p>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-8">
+            <div className="flex items-center gap-4">
+              <Logo white size="md" />
+              <span className="text-white font-bold text-xl tracking-tight" style={{ fontFamily: "var(--font-poppins), Poppins, sans-serif" }}>DermaCloud</span>
             </div>
-
-            {/* Product */}
-            <div>
-              <h4 className="text-white font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm">
-                <li><button onClick={() => scrollToSection("features")} className="text-gray-400 hover:text-teal-400 transition-colors">Features</button></li>
-                <li><button onClick={() => scrollToSection("pricing")} className="text-gray-400 hover:text-teal-400 transition-colors">Pricing</button></li>
-                <li><button onClick={() => scrollToSection("what-makes-us-different")} className="text-gray-400 hover:text-teal-400 transition-colors">Why DermaCloud</button></li>
-              </ul>
-            </div>
-
-            {/* Support */}
-            <div>
-              <h4 className="text-white font-semibold mb-4">Support</h4>
-              <ul className="space-y-2 text-sm">
-                <li><button onClick={() => scrollToSection("contact")} className="text-gray-400 hover:text-teal-400 transition-colors">Contact Us</button></li>
-                <li><a href="mailto:support@dermacloud.in" className="text-gray-400 hover:text-teal-400 transition-colors">Help Center</a></li>
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div>
-              <h4 className="text-white font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link href="/privacy" className="text-gray-400 hover:text-teal-400 transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="text-gray-400 hover:text-teal-400 transition-colors">Terms of Service</Link></li>
-              </ul>
+            <div className="flex gap-6 text-sm">
+              <button onClick={() => scrollToSection("features")} className="text-gray-400 hover:text-teal-400 transition-colors">Features</button>
+              <button onClick={() => scrollToSection("pricing")} className="text-gray-400 hover:text-teal-400 transition-colors">Pricing</button>
+              <button onClick={() => scrollToSection("what-makes-us-different")} className="text-gray-400 hover:text-teal-400 transition-colors">Why DermaCloud</button>
+              <button onClick={() => scrollToSection("contact")} className="text-gray-400 hover:text-teal-400 transition-colors">Contact</button>
             </div>
           </div>
 

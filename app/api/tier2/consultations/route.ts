@@ -78,64 +78,62 @@ export async function GET(request: NextRequest) {
     let consultations: any[] = [];
     let total = 0;
 
-    if (!type || type === "dermatology") {
-      const dermQuery = buildQuery();
-      const dermConsultations = await ConsultationDermatology.find(dermQuery)
-        .populate("patientId", "name patientId phone age gender")
-        .sort({ consultationDate: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean();
-
-      const dermCount = await ConsultationDermatology.countDocuments(dermQuery);
-
-      consultations.push(
-        ...dermConsultations.map((c: any) => ({
-          ...c,
-          type: "dermatology",
-        }))
-      );
-
-      if (type === "dermatology") {
-        total = dermCount;
-      } else {
-        total += dermCount;
-      }
-    }
-
-    if (!type || type === "cosmetology") {
-      const cosmoQuery = buildQuery();
-      const cosmoConsultations = await ConsultationCosmetology.find(cosmoQuery)
-        .populate("patientId", "name patientId phone age gender")
-        .sort({ consultationDate: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean();
-
-      const cosmoCount = await ConsultationCosmetology.countDocuments(cosmoQuery);
-
-      consultations.push(
-        ...cosmoConsultations.map((c: any) => ({
-          ...c,
-          type: "cosmetology",
-        }))
-      );
-
-      if (type === "cosmetology") {
-        total = cosmoCount;
-      } else {
-        total += cosmoCount;
-      }
-    }
-
-    // Sort combined results by date
-    consultations.sort((a, b) =>
-      new Date(b.consultationDate).getTime() - new Date(a.consultationDate).getTime()
-    );
-
-    // Trim to limit if we fetched from both
     if (!type) {
-      consultations = consultations.slice(0, limit);
+      // Fetch both collections in parallel
+      const dermQuery = buildQuery();
+      const cosmoQuery = buildQuery();
+
+      const [dermConsultations, cosmoConsultations, dermCount, cosmoCount] = await Promise.all([
+        ConsultationDermatology.find(dermQuery)
+          .populate("patientId", "name patientId phone age gender")
+          .sort({ consultationDate: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+        ConsultationCosmetology.find(cosmoQuery)
+          .populate("patientId", "name patientId phone age gender")
+          .sort({ consultationDate: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+        ConsultationDermatology.countDocuments(dermQuery),
+        ConsultationCosmetology.countDocuments(cosmoQuery),
+      ]);
+
+      consultations = [
+        ...dermConsultations.map((c: any) => ({ ...c, type: "dermatology" })),
+        ...cosmoConsultations.map((c: any) => ({ ...c, type: "cosmetology" })),
+      ]
+        .sort((a, b) => new Date(b.consultationDate).getTime() - new Date(a.consultationDate).getTime())
+        .slice(0, limit);
+
+      total = dermCount + cosmoCount;
+    } else if (type === "dermatology") {
+      const dermQuery = buildQuery();
+      const [dermConsultations, dermCount] = await Promise.all([
+        ConsultationDermatology.find(dermQuery)
+          .populate("patientId", "name patientId phone age gender")
+          .sort({ consultationDate: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+        ConsultationDermatology.countDocuments(dermQuery),
+      ]);
+      consultations = dermConsultations.map((c: any) => ({ ...c, type: "dermatology" }));
+      total = dermCount;
+    } else if (type === "cosmetology") {
+      const cosmoQuery = buildQuery();
+      const [cosmoConsultations, cosmoCount] = await Promise.all([
+        ConsultationCosmetology.find(cosmoQuery)
+          .populate("patientId", "name patientId phone age gender")
+          .sort({ consultationDate: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+        ConsultationCosmetology.countDocuments(cosmoQuery),
+      ]);
+      consultations = cosmoConsultations.map((c: any) => ({ ...c, type: "cosmetology" }));
+      total = cosmoCount;
     }
 
     return NextResponse.json({

@@ -235,7 +235,7 @@ export async function sendPasswordResetEmail(email: string, name: string, resetU
  */
 export async function sendWelcomeEmail(email: string, name: string, tier: string): Promise<void> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const dashboardUrl = tier === "tier1" ? `${appUrl}/tier1/dashboard` : `${appUrl}/tier2/dashboard`;
+  const dashboardUrl = `${appUrl}/clinic/dashboard`;
   const firstName = name.split(" ")[0];
 
   const features = [

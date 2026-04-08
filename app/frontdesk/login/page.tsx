@@ -68,9 +68,9 @@ export default function FrontdeskLoginPage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8 mt-6">
+        <div className="text-center -mb-3 mt-6">
           <Link href="/" className="inline-flex items-center space-x-2.5 group">
-            <Logo size="sm" />
+            <Logo size="xl" />
           </Link>
         </div>
 

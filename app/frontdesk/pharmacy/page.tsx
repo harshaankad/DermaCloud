@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { printSaleBill } from "@/lib/printBill";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -42,6 +43,7 @@ interface Transaction {
   batchNumber?: string;
   performedBy: { name: string; role: string };
   createdAt: string;
+  referenceType?: string;
 }
 
 export default function FrontdeskPharmacyPage() {
@@ -54,7 +56,7 @@ export default function FrontdeskPharmacyPage() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   // Active tab
-  const [activeTab, setActiveTab] = useState<"inventory" | "activity">("inventory");
+  const [activeTab, setActiveTab] = useState<"inventory" | "activity" | "purchases" | "purchase-returns">("inventory");
 
   // Activity log
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -67,53 +69,222 @@ export default function FrontdeskPharmacyPage() {
   const [detailTransactions, setDetailTransactions] = useState<Transaction[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  // Stock modal
-  const [showStockModal, setShowStockModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
-  const [stockForm, setStockForm] = useState({
-    type: "stock-in",
-    quantity: 1,
-    reason: "",
-    batchNumber: "",
-    expiryDate: "",
+
+  // Purchases state
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [loadingPurchases, setLoadingPurchases] = useState(false);
+  const [loadingMorePurchases, setLoadingMorePurchases] = useState(false);
+  const [purchasePage, setPurchasePage] = useState(1);
+  const [purchaseHasMore, setPurchaseHasMore] = useState(false);
+  const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
+  const [purchaseFrom, setPurchaseFrom] = useState("");
+  const [purchaseTo, setPurchaseTo] = useState("");
+  const [showAddPurchaseModal, setShowAddPurchaseModal] = useState(false);
+  const [purchaseSubmitting, setPurchaseSubmitting] = useState(false);
+  const [invSuggestions, setInvSuggestions] = useState<any[]>([]);
+  const EMPTY_PURCHASE_ITEM = { itemName: "", hsnCode: "", pack: "", batchNo: "", expiryDate: "", quantity: 1, freeQty: 0, mrp: 0, unitPrice: 0, discount: 0, gstRate: 0, total: 0 };
+  const [purchaseForm, setPurchaseForm] = useState({
+    supplierInvNo: "", gstnNo: "", invoiceDate: "", modeOfPayment: "credit",
+    supplierName: "", city: "", grossValue: 0, discount: 0,
+    cgst: 0, sgst: 0, igst: 0,
+    adding: 0, less: 0, roundingAmount: 0, netAmount: 0,
+    items: [{ itemName: "", hsnCode: "", pack: "", manufacturer: "", batchNo: "", expiryDate: "", quantity: 1, freeQty: 0, mrp: 0, unitPrice: 0, discount: 0, gstRate: 0, total: 0 }],
   });
-  const [submitting, setSubmitting] = useState(false);
 
-  // Add item modal
-  const [showAddItemModal, setShowAddItemModal] = useState(false);
-  const [addItemForm, setAddItemForm] = useState({
-    name: "",
-    genericName: "",
-    category: "medicine",
-    type: "otc",
-    currentStock: 0,
-    minStockLevel: 10,
-    unit: "units",
-    costPrice: 0,
-    sellingPrice: 0,
-    manufacturer: "",
-    description: "",
-    batchNumber: "",
-    expiryDate: "",
-    location: "",
+  // Sales state
+  const EMPTY_SALE_ITEM = { itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, gstRate: 0, total: 0 };
+  const [sales, setSales] = useState<any[]>([]);
+  const [loadingSales, setLoadingSales] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [salesFrom, setSalesFrom] = useState("");
+  const [salesTo, setSalesTo] = useState("");
+  const [showAddSaleModal, setShowAddSaleModal] = useState(false);
+  const [saleSubmitting, setSaleSubmitting] = useState(false);
+  const [lastSale, setLastSale] = useState<any>(null);
+  const [saleForm, setSaleForm] = useState({
+    patientName: "", patientPhone: "", doctorName: "", city: "",
+    modeOfPayment: "cash", isInterstate: false, roundingAmount: 0,
+    items: [{ itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, gstRate: 0, total: 0 }],
   });
-  const [addItemSubmitting, setAddItemSubmitting] = useState(false);
 
-  // Edit item modal
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState<any>(null);
-  const [editSubmitting, setEditSubmitting] = useState(false);
-
-  // Delete confirm
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteItem, setDeleteItem] = useState<InventoryItem | null>(null);
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  // Purchase Returns state
+  const [purchaseReturns, setPurchaseReturns] = useState<any[]>([]);
+  const [loadingPurchaseReturns, setLoadingPurchaseReturns] = useState(false);
+  const [loadingMorePR, setLoadingMorePR] = useState(false);
+  const [prPage, setPrPage] = useState(1);
+  const [prHasMore, setPrHasMore] = useState(false);
+  const [selectedPurchaseReturn, setSelectedPurchaseReturn] = useState<any>(null);
+  const [prFrom, setPrFrom] = useState("");
+  const [prTo, setPrTo] = useState("");
+  const [showAddPrModal, setShowAddPrModal] = useState(false);
+  const [prSubmitting, setPrSubmitting] = useState(false);
+  const [prForm, setPrForm] = useState({
+    supplierInvNo: "", gstnNo: "", invoiceDate: "", modeOfPayment: "credit",
+    supplierName: "", city: "", grossValue: 0, discount: 0,
+    cgst: 0, sgst: 0, igst: 0,
+    adding: 0, less: 0, roundingAmount: 0, netAmount: 0, reason: "",
+    items: [{ itemName: "", hsnCode: "", pack: "", manufacturer: "", batchNo: "", expiryDate: "", quantity: 1, freeQty: 0, mrp: 0, unitPrice: 0, discount: 0, gstRate: 0, total: 0 }],
+  });
 
   const showToast = useCallback((type: Toast["type"], message: string) => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
   }, []);
+
+  const getToken = () => {
+    const token = localStorage.getItem("frontdeskToken");
+    if (!token) { router.push("/frontdesk/login"); return null; }
+    return token;
+  };
+
+  const fetchPurchases = useCallback(async (from?: string, to?: string, page = 1) => {
+    const token = localStorage.getItem("frontdeskToken"); if (!token) return;
+    if (page === 1) setLoadingPurchases(true); else setLoadingMorePurchases(true);
+    try {
+      let url = `/api/tier2/purchases?limit=20&page=${page}`;
+      if (from) url += `&from=${from}`;
+      if (to) url += `&to=${to}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) {
+        const items = data.data.purchases || [];
+        setPurchases(prev => page === 1 ? items : [...prev, ...items]);
+        setPurchasePage(page);
+        setPurchaseHasMore(data.data.pagination.page < data.data.pagination.pages);
+      }
+    } catch { showToast("error", "Failed to load purchases"); }
+    finally { setLoadingPurchases(false); setLoadingMorePurchases(false); }
+  }, [showToast]);
+
+  const fetchPurchaseReturns = useCallback(async (from?: string, to?: string, page = 1) => {
+    const token = localStorage.getItem("frontdeskToken"); if (!token) return;
+    if (page === 1) setLoadingPurchaseReturns(true); else setLoadingMorePR(true);
+    try {
+      let url = `/api/tier2/purchase-returns?limit=20&page=${page}`;
+      if (from) url += `&from=${from}`;
+      if (to) url += `&to=${to}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) {
+        const items = data.data.returns || [];
+        setPurchaseReturns(prev => page === 1 ? items : [...prev, ...items]);
+        setPrPage(page);
+        setPrHasMore(data.data.pagination.page < data.data.pagination.pages);
+      }
+    } catch { showToast("error", "Failed to load purchase returns"); }
+    finally { setLoadingPurchaseReturns(false); setLoadingMorePR(false); }
+  }, [showToast]);
+
+  const fetchSales = useCallback(async (from?: string, to?: string) => {
+    const token = localStorage.getItem("frontdeskToken"); if (!token) return;
+    setLoadingSales(true);
+    try {
+      let url = "/api/tier2/sales?limit=50";
+      if (from) url += `&startDate=${from}`;
+      if (to) url += `&endDate=${to}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setSales(data.data.sales || []);
+    } catch { showToast("error", "Failed to load sales"); }
+    finally { setLoadingSales(false); }
+  }, [showToast]);
+
+  const calcTotalGst = (cgst: number, sgst: number, igst: number) =>
+    +((cgst || 0) + (sgst || 0) + (igst || 0)).toFixed(2);
+
+  const fetchInvSuggestions = useCallback(async () => {
+    const token = getToken(); if (!token) return;
+    try {
+      const res = await fetch("/api/tier2/inventory?limit=500", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setInvSuggestions(data.data?.items || []);
+    } catch {}
+  }, []);
+
+  const downloadReport = async (url: string, filename: string) => {
+    const token = getToken(); if (!token) return;
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { showToast("error", "Failed to download report"); return; }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch { showToast("error", "Download failed"); }
+  };
+
+  const handleAddPurchase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = getToken(); if (!token) return;
+    setPurchaseSubmitting(true);
+    try {
+      const totalGst = calcTotalGst(purchaseForm.cgst, purchaseForm.sgst, purchaseForm.igst);
+      const body = { ...purchaseForm, totalGst };
+      const res = await fetch("/api/tier2/purchases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("success", "Purchase recorded");
+        setShowAddPurchaseModal(false);
+        setPurchaseForm({ supplierInvNo: "", gstnNo: "", invoiceDate: "", modeOfPayment: "credit", supplierName: "", city: "", grossValue: 0, discount: 0, cgst: 0, sgst: 0, igst: 0, adding: 0, less: 0, roundingAmount: 0, netAmount: 0, items: [{ ...EMPTY_PURCHASE_ITEM }] });
+        fetchPurchases(purchaseFrom, purchaseTo);
+      } else { showToast("error", data.message || "Failed to save"); }
+    } catch { showToast("error", "Failed to save purchase"); }
+    finally { setPurchaseSubmitting(false); }
+  };
+
+  const handleAddSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = getToken(); if (!token) return;
+    setSaleSubmitting(true);
+    try {
+      const res = await fetch("/api/tier2/sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(saleForm),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("success", "Sale recorded");
+        setShowAddSaleModal(false);
+        setLastSale(data.data);
+        setSaleForm({ patientName: "", patientPhone: "", doctorName: "", city: "", modeOfPayment: "cash", isInterstate: false, roundingAmount: 0, items: [{ ...EMPTY_SALE_ITEM }] });
+        fetchSales(salesFrom, salesTo);
+        const token2 = localStorage.getItem("frontdeskToken");
+        if (token2) fetchInventory(token2);
+      } else { showToast("error", data.message || "Failed to save"); }
+    } catch { showToast("error", "Failed to save sale"); }
+    finally { setSaleSubmitting(false); }
+  };
+
+  const handleAddPr = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = getToken(); if (!token) return;
+    setPrSubmitting(true);
+    try {
+      const totalGst = calcTotalGst(prForm.cgst, prForm.sgst, prForm.igst);
+      const body = { ...prForm, totalGst };
+      const res = await fetch("/api/tier2/purchase-returns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("success", "Purchase return recorded");
+        setShowAddPrModal(false);
+        setPrForm({ supplierInvNo: "", gstnNo: "", invoiceDate: "", modeOfPayment: "credit", supplierName: "", city: "", grossValue: 0, discount: 0, cgst: 0, sgst: 0, igst: 0, adding: 0, less: 0, roundingAmount: 0, netAmount: 0, reason: "", items: [{ ...EMPTY_PURCHASE_ITEM }] });
+        fetchPurchaseReturns(prFrom, prTo);
+      } else { showToast("error", data.message || "Failed to save"); }
+    } catch { showToast("error", "Failed to save purchase return"); }
+    finally { setPrSubmitting(false); }
+  };
 
   const fetchInventory = useCallback(async (token: string) => {
     setLoading(true);
@@ -201,181 +372,23 @@ export default function FrontdeskPharmacyPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch transactions when activity tab is active
+  // Fetch data when tab changes
   useEffect(() => {
-    if (activeTab === "activity") {
-      const token = localStorage.getItem("frontdeskToken");
-      if (token) fetchTransactions(token);
-    }
-  }, [activeTab, fetchTransactions]);
+    const token = localStorage.getItem("frontdeskToken");
+    if (activeTab === "inventory" && token) fetchInventory(token);
+    if (activeTab === "activity" && token) fetchTransactions(token);
+    if (activeTab === "purchases") fetchPurchases();
+    if (activeTab === "purchase-returns") fetchPurchaseReturns();
+  }, [activeTab, fetchInventory, fetchTransactions, fetchPurchases, fetchPurchaseReturns, fetchSales]);
+
+  useEffect(() => {
+    if (showAddPurchaseModal || showAddPrModal || showAddSaleModal) fetchInvSuggestions();
+  }, [showAddPurchaseModal, showAddPrModal, showAddSaleModal, fetchInvSuggestions]);
 
   const openItemDetail = (item: InventoryItem) => {
     setDetailItem(item);
     setShowDetailDrawer(true);
     fetchItemDetail(item._id);
-  };
-
-  const handleAddStock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedItem) return;
-    setSubmitting(true);
-    const token = localStorage.getItem("frontdeskToken");
-
-    try {
-      const response = await fetch(`/api/tier2/inventory/${selectedItem._id}/stock`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(stockForm),
-      });
-      const data = await response.json();
-      if (data.success) {
-        showToast("success", `Stock updated for ${selectedItem.name}`);
-        setShowStockModal(false);
-        setSelectedItem(null);
-        setStockForm({ type: "stock-in", quantity: 1, reason: "", batchNumber: "", expiryDate: "" });
-        fetchInventory(token!);
-        // Refresh detail if open
-        if (showDetailDrawer && detailItem?._id === selectedItem._id) {
-          fetchItemDetail(selectedItem._id);
-        }
-      } else {
-        showToast("error", data.message || "Failed to update stock");
-      }
-    } catch {
-      showToast("error", "Error updating stock");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleAddNewItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAddItemSubmitting(true);
-    const token = localStorage.getItem("frontdeskToken");
-
-    try {
-      const payload: any = {
-        name: addItemForm.name,
-        category: addItemForm.category,
-        type: addItemForm.type,
-        currentStock: addItemForm.currentStock,
-        minStockLevel: addItemForm.minStockLevel,
-        unit: addItemForm.unit,
-        costPrice: addItemForm.costPrice,
-        sellingPrice: addItemForm.sellingPrice,
-      };
-      if (addItemForm.genericName) payload.genericName = addItemForm.genericName;
-      if (addItemForm.manufacturer) payload.manufacturer = addItemForm.manufacturer;
-      if (addItemForm.description) payload.description = addItemForm.description;
-      if (addItemForm.batchNumber) payload.batchNumber = addItemForm.batchNumber;
-      if (addItemForm.expiryDate) payload.expiryDate = addItemForm.expiryDate;
-      if (addItemForm.location) payload.location = addItemForm.location;
-
-      const response = await fetch("/api/tier2/inventory", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (data.success) {
-        showToast("success", `${addItemForm.name} added to inventory`);
-        setShowAddItemModal(false);
-        setAddItemForm({
-          name: "", genericName: "", category: "medicine", type: "otc",
-          currentStock: 0, minStockLevel: 10, unit: "units",
-          costPrice: 0, sellingPrice: 0, manufacturer: "", description: "",
-          batchNumber: "", expiryDate: "", location: "",
-        });
-        fetchInventory(token!);
-      } else {
-        showToast("error", data.message || "Failed to add item");
-      }
-    } catch {
-      showToast("error", "An error occurred. Please try again.");
-    } finally {
-      setAddItemSubmitting(false);
-    }
-  };
-
-  const handleEditItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editForm) return;
-    setEditSubmitting(true);
-    const token = localStorage.getItem("frontdeskToken");
-
-    try {
-      const response = await fetch(`/api/tier2/inventory/${editForm._id}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: editForm.name,
-          genericName: editForm.genericName,
-          category: editForm.category,
-          type: editForm.type,
-          minStockLevel: editForm.minStockLevel,
-          unit: editForm.unit,
-          costPrice: editForm.costPrice,
-          sellingPrice: editForm.sellingPrice,
-          manufacturer: editForm.manufacturer,
-          location: editForm.location,
-          description: editForm.description,
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        showToast("success", `${editForm.name} updated successfully`);
-        setShowEditModal(false);
-        setEditForm(null);
-        fetchInventory(token!);
-        if (showDetailDrawer && detailItem?._id === editForm._id) {
-          fetchItemDetail(editForm._id);
-        }
-      } else {
-        showToast("error", data.message || "Failed to update item");
-      }
-    } catch {
-      showToast("error", "Error updating item");
-    } finally {
-      setEditSubmitting(false);
-    }
-  };
-
-  const handleDeleteItem = async () => {
-    if (!deleteItem) return;
-    setDeleteSubmitting(true);
-    const token = localStorage.getItem("frontdeskToken");
-
-    try {
-      const response = await fetch(`/api/tier2/inventory/${deleteItem._id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      if (data.success) {
-        showToast("success", `${deleteItem.name} discontinued`);
-        setShowDeleteConfirm(false);
-        setDeleteItem(null);
-        if (showDetailDrawer && detailItem?._id === deleteItem._id) {
-          setShowDetailDrawer(false);
-        }
-        fetchInventory(token!);
-      } else {
-        showToast("error", data.message || "Failed to discontinue item");
-      }
-    } catch {
-      showToast("error", "Error discontinuing item");
-    } finally {
-      setDeleteSubmitting(false);
-    }
   };
 
   const getCategoryIcon = (category: string) => {
@@ -522,16 +535,6 @@ export default function FrontdeskPharmacyPage() {
               <p className="text-base text-gray-500 hidden sm:block">Manage inventory and stock levels</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowAddItemModal(true)}
-            className="px-4 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 font-medium text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <span className="hidden sm:inline text-base">Add Item</span>
-            <span className="sm:hidden text-base">Add</span>
-          </button>
         </div>
       </header>
 
@@ -622,28 +625,24 @@ export default function FrontdeskPharmacyPage() {
           </div>
         )}
 
-        {/* Tab Switcher: Inventory / Activity Log */}
-        <div className="flex items-center gap-1 mb-5 bg-gray-100 rounded-xl p-1 w-fit">
-          <button
-            onClick={() => setActiveTab("inventory")}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              activeTab === "inventory"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Inventory
-          </button>
-          <button
-            onClick={() => setActiveTab("activity")}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              activeTab === "activity"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Activity Log
-          </button>
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-1 mb-5 bg-gray-100 rounded-xl p-1 w-fit flex-wrap">
+          {([
+            { key: "inventory", label: "Inventory" },
+            { key: "purchases", label: "Purchases" },
+            { key: "purchase-returns", label: "Purchase Returns" },
+            { key: "activity", label: "Activity Log" },
+          ] as const).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                activeTab === tab.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {activeTab === "inventory" ? (
@@ -748,7 +747,7 @@ export default function FrontdeskPharmacyPage() {
                     <div className="col-span-2">Category</div>
                     <div className="col-span-2">Stock</div>
                     <div className="col-span-2">Price</div>
-                    <div className="col-span-2">Actions</div>
+                    <div className="col-span-2">Status</div>
                   </div>
 
                   {/* Items */}
@@ -801,32 +800,6 @@ export default function FrontdeskPharmacyPage() {
                                 <span className={`w-1.5 h-1.5 rounded-full ${stockStatus.dot}`}></span>
                                 {stockStatus.label}
                               </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedItem(item);
-                                  setShowStockModal(true);
-                                }}
-                                className="p-1.5 text-teal-500 hover:bg-teal-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                title="Update Stock"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditForm({ ...item });
-                                  setShowEditModal(true);
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                title="Edit Item"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
                             </div>
                           </div>
 
@@ -849,18 +822,6 @@ export default function FrontdeskPharmacyPage() {
                                   <span className={`w-1.5 h-1.5 rounded-full ${stockStatus.dot}`}></span>
                                   {item.currentStock}
                                 </span>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedItem(item);
-                                    setShowStockModal(true);
-                                  }}
-                                  className="p-1.5 text-teal-500 hover:bg-teal-50 rounded-lg transition-colors"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                  </svg>
-                                </button>
                               </div>
                             </div>
                           </div>
@@ -880,23 +841,168 @@ export default function FrontdeskPharmacyPage() {
                     {searchQuery ? "No items found" : filter !== "all" ? `No ${filter.replace("-", " ")} items` : "No items in inventory"}
                   </p>
                   <p className="text-gray-400 text-base mt-1">
-                    {searchQuery ? `No results for "${searchQuery}"` : filter !== "all" ? "Try a different filter" : "Add your first item to get started"}
+                    {searchQuery ? `No results for "${searchQuery}"` : filter !== "all" ? "Try a different filter" : "Items are added automatically when you record a purchase"}
                   </p>
-                  {!searchQuery && filter === "all" && (
-                    <button
-                      onClick={() => setShowAddItemModal(true)}
-                      className="inline-flex items-center gap-2 mt-5 px-5 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl text-base font-medium hover:from-teal-600 hover:to-cyan-700 transition-all shadow-md shadow-teal-500/20"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Add First Item
-                    </button>
-                  )}
                 </div>
               )}
             </div>
           </>
+        ) : activeTab === "purchases" ? (
+          /* ── Purchases Tab ── */
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <input type="date" value={purchaseFrom} onChange={(e) => setPurchaseFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+                <span className="text-gray-400 text-sm">to</span>
+                <input type="date" value={purchaseTo} onChange={(e) => setPurchaseTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+                <button onClick={() => fetchPurchases(purchaseFrom, purchaseTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { const qs = purchaseFrom && purchaseTo ? `?from=${purchaseFrom}&to=${purchaseTo}` : ""; downloadReport(`/api/tier2/purchases/report${qs}`, `PurchaseRegister.xlsx`); }}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Download Excel
+                </button>
+                <button onClick={() => setShowAddPurchaseModal(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Add Purchase
+                </button>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {loadingPurchases ? (
+                <div className="p-10 text-center text-gray-400 text-sm">Loading...</div>
+              ) : purchases.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-gray-100">
+                    <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  </div>
+                  <p className="text-gray-500 font-medium">No purchases recorded yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Click &quot;Add Purchase&quot; to log a purchase bill</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>{["Sup. Inv. No", "Date", "Supplier", "City", "Mode", "Gross Value", "Discount", "Total GST", "Net Amount"].map((h) => (<th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>))}</tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {purchases.map((p: any) => (
+                        <tr key={p._id} className="hover:bg-teal-50/60 transition-colors cursor-pointer" onClick={() => setSelectedPurchase(p)}>
+                          <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{p.supplierInvNo}</td>
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{new Date(p.invoiceDate).toLocaleDateString("en-IN")}</td>
+                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{p.supplierName}</td>
+                          <td className="px-4 py-3 text-gray-500">{p.city || "—"}</td>
+                          <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium uppercase">{p.modeOfPayment}</span></td>
+                          <td className="px-4 py-3 text-gray-700">₹{(p.grossValue || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-red-600">₹{(p.discount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-blue-600">₹{(p.totalGst || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 font-semibold text-gray-900">₹{(p.netAmount || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 border-t border-gray-200">
+                      <tr>
+                        <td colSpan={5} className="px-4 py-3 text-sm font-semibold text-gray-700">Totals</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">₹{purchases.reduce((s: number, p: any) => s + (p.grossValue || 0), 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold text-red-600">₹{purchases.reduce((s: number, p: any) => s + (p.discount || 0), 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold text-blue-600">₹{purchases.reduce((s: number, p: any) => s + (p.totalGst || 0), 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">₹{purchases.reduce((s: number, p: any) => s + (p.netAmount || 0), 0).toFixed(2)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                  {purchaseHasMore && (
+                    <div className="px-5 py-4 text-center border-t border-gray-100">
+                      <button onClick={() => fetchPurchases(purchaseFrom, purchaseTo, purchasePage + 1)} disabled={loadingMorePurchases} className="text-sm font-semibold text-teal-600 hover:text-teal-700 transition-colors disabled:opacity-40">
+                        {loadingMorePurchases ? "Loading..." : "Load more"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeTab === "purchase-returns" ? (
+          /* ── Purchase Returns Tab ── */
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <input type="date" value={prFrom} onChange={(e) => setPrFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+                <span className="text-gray-400 text-sm">to</span>
+                <input type="date" value={prTo} onChange={(e) => setPrTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+                <button onClick={() => fetchPurchaseReturns(prFrom, prTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { const qs = prFrom && prTo ? `?from=${prFrom}&to=${prTo}` : ""; downloadReport(`/api/tier2/purchase-returns/report${qs}`, `PurchaseReturnRegister.xlsx`); }}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Download Excel
+                </button>
+                <button onClick={() => setShowAddPrModal(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Add Return
+                </button>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {loadingPurchaseReturns ? (
+                <div className="p-10 text-center text-gray-400 text-sm">Loading...</div>
+              ) : purchaseReturns.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-gray-100">
+                    <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                  </div>
+                  <p className="text-gray-500 font-medium">No purchase returns yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Click &quot;Add Return&quot; to log a purchase return</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>{["Sup. Inv. No", "Date", "Supplier", "City", "Mode", "Gross Value", "Discount", "Total GST", "Net Amount", "Reason"].map((h) => (<th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>))}</tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {purchaseReturns.map((p: any) => (
+                        <tr key={p._id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelectedPurchaseReturn(p)}>
+                          <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{p.supplierInvNo}</td>
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{new Date(p.invoiceDate).toLocaleDateString("en-IN")}</td>
+                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{p.supplierName}</td>
+                          <td className="px-4 py-3 text-gray-500">{p.city || "—"}</td>
+                          <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium uppercase">{p.modeOfPayment}</span></td>
+                          <td className="px-4 py-3 text-gray-700">₹{(p.grossValue || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-red-600">₹{(p.discount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-blue-600">₹{(p.totalGst || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 font-semibold text-gray-900">₹{(p.netAmount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-gray-500 text-xs">{p.reason || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 border-t border-gray-200">
+                      <tr>
+                        <td colSpan={5} className="px-4 py-3 text-sm font-semibold text-gray-700">Totals</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">₹{purchaseReturns.reduce((s: number, p: any) => s + (p.grossValue || 0), 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold text-red-600">₹{purchaseReturns.reduce((s: number, p: any) => s + (p.discount || 0), 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold text-blue-600">₹{purchaseReturns.reduce((s: number, p: any) => s + (p.totalGst || 0), 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">₹{purchaseReturns.reduce((s: number, p: any) => s + (p.netAmount || 0), 0).toFixed(2)}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                  {prHasMore && (
+                    <div className="px-5 py-4 text-center border-t border-gray-100">
+                      <button onClick={() => fetchPurchaseReturns(prFrom, prTo, prPage + 1)} disabled={loadingMorePR} className="text-sm font-semibold text-teal-600 hover:text-teal-700 transition-colors disabled:opacity-40">
+                        {loadingMorePR ? "Loading..." : "Load more"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
           /* Activity Log Tab */
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -997,6 +1103,512 @@ export default function FrontdeskPharmacyPage() {
         )}
       </main>
 
+      {/* Purchase Detail Modal */}
+      {selectedPurchase && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setSelectedPurchase(null)}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10 rounded-t-3xl sm:rounded-t-2xl">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Purchase Details</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Inv. {selectedPurchase.supplierInvNo}</p>
+              </div>
+              <button onClick={() => setSelectedPurchase(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors text-lg font-bold">×</button>
+            </div>
+            <div className="p-6 space-y-5">
+              {/* Supplier Info */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[
+                  { label: "Supplier", value: selectedPurchase.supplierName },
+                  { label: "Inv. No", value: selectedPurchase.supplierInvNo },
+                  { label: "Date", value: new Date(selectedPurchase.invoiceDate).toLocaleDateString("en-IN") },
+                  { label: "Mode", value: selectedPurchase.modeOfPayment?.toUpperCase() || "—" },
+                  { label: "GSTN", value: selectedPurchase.gstnNo || "—" },
+                  { label: "City", value: selectedPurchase.city || "—" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
+                    <p className="text-sm font-medium text-gray-800">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Items */}
+              {selectedPurchase.items && selectedPurchase.items.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Items</h3>
+                  <div className="space-y-2">
+                    {selectedPurchase.items.map((item: any, i: number) => (
+                      <div key={i} className="border border-gray-100 rounded-xl p-3 bg-white">
+                        <p className="text-sm font-semibold text-gray-900 mb-2">{item.itemName || "—"}</p>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+                          {[
+                            { label: "HSN", value: item.hsnCode || "—" },
+                            { label: "Pack", value: item.pack || "—" },
+                            { label: "Batch", value: item.batchNo || "—" },
+                            { label: "Expiry", value: item.expiryDate ? new Date(item.expiryDate).toLocaleDateString("en-IN") : "—" },
+                            { label: "Qty", value: item.quantity ?? "—" },
+                            { label: "Free", value: item.freeQty ?? 0 },
+                          ].map(({ label, value }) => (
+                            <div key={label}>
+                              <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+                              <p className="text-xs text-gray-700">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 text-center mt-2 pt-2 border-t border-gray-50">
+                          {[
+                            { label: "MRP ₹", value: `₹${(item.mrp || 0).toFixed(2)}` },
+                            { label: "Rate ₹", value: `₹${(item.unitPrice || 0).toFixed(2)}` },
+                            { label: "GST %", value: `${item.gstRate ?? 0}%` },
+                            { label: "Total ₹", value: `₹${(item.total || 0).toFixed(2)}`, highlight: true },
+                          ].map(({ label, value, highlight }) => (
+                            <div key={label} className={highlight ? "bg-teal-50 rounded-lg p-1" : ""}>
+                              <p className={`text-[9px] font-semibold uppercase tracking-wider ${highlight ? "text-teal-500" : "text-gray-400"}`}>{label}</p>
+                              <p className={`text-xs font-semibold ${highlight ? "text-teal-700" : "text-gray-700"}`}>{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Financial Summary */}
+              <div>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Financial Summary</h3>
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                  {[
+                    { label: "Gross Value", value: `₹${(selectedPurchase.grossValue || 0).toFixed(2)}` },
+                    { label: "Discount", value: `−₹${(selectedPurchase.discount || 0).toFixed(2)}`, red: true },
+                    { label: "CGST", value: `₹${(selectedPurchase.cgst || 0).toFixed(2)}` },
+                    { label: "SGST", value: `₹${(selectedPurchase.sgst || 0).toFixed(2)}` },
+                    { label: "IGST", value: `₹${(selectedPurchase.igst || 0).toFixed(2)}` },
+                    { label: "Total GST", value: `₹${(selectedPurchase.totalGst || 0).toFixed(2)}` },
+                    ...(selectedPurchase.adding ? [{ label: "Adding", value: `₹${selectedPurchase.adding.toFixed(2)}` }] : []),
+                    ...(selectedPurchase.less ? [{ label: "Less", value: `−₹${selectedPurchase.less.toFixed(2)}`, red: true }] : []),
+                    ...(selectedPurchase.roundingAmount ? [{ label: "Rounding", value: `₹${selectedPurchase.roundingAmount.toFixed(2)}` }] : []),
+                  ].map(({ label, value, red }) => (
+                    <div key={label} className="flex justify-between text-sm">
+                      <span className="text-gray-500">{label}</span>
+                      <span className={red ? "text-red-600 font-medium" : "text-gray-700 font-medium"}>{value}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-bold pt-2 border-t border-gray-200">
+                    <span className="text-gray-900">Net Amount</span>
+                    <span className="text-teal-700">₹{(selectedPurchase.netAmount || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Purchase Modal */}
+      {showAddPurchaseModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10 rounded-t-3xl sm:rounded-t-2xl">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">New Purchase Bill</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Record a supplier invoice</p>
+              </div>
+              <button onClick={() => setShowAddPurchaseModal(false)} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleAddPurchase} className="p-6 space-y-6">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Supplier &amp; Bill</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Supplier Name <span className="text-red-400">*</span></label>
+                    <input required value={purchaseForm.supplierName} onChange={(e) => setPurchaseForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="e.g. Cipla Ltd" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">City</label>
+                    <input value={purchaseForm.city} onChange={(e) => setPurchaseForm(f => ({ ...f, city: e.target.value }))} placeholder="e.g. Mumbai" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Supplier Inv. No <span className="text-red-400">*</span></label>
+                    <input required value={purchaseForm.supplierInvNo} onChange={(e) => setPurchaseForm(f => ({ ...f, supplierInvNo: e.target.value }))} placeholder="e.g. INV-2024-001" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">GSTN No</label>
+                    <input value={purchaseForm.gstnNo} onChange={(e) => setPurchaseForm(f => ({ ...f, gstnNo: e.target.value }))} placeholder="e.g. 29AAAAA0000A1Z5" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Invoice Date <span className="text-red-400">*</span></label>
+                    <input required type="date" value={purchaseForm.invoiceDate} onChange={(e) => setPurchaseForm(f => ({ ...f, invoiceDate: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Payment Mode <span className="text-red-400">*</span></label>
+                    <select value={purchaseForm.modeOfPayment} onChange={(e) => setPurchaseForm(f => ({ ...f, modeOfPayment: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white">
+                      <option value="credit">Credit</option><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="neft">NEFT</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Items <span className="text-red-400">*</span></p>
+                  <button type="button" onClick={() => setPurchaseForm(f => ({ ...f, items: [...f.items, { ...EMPTY_PURCHASE_ITEM }] }))} className="text-xs font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                    Add Row
+                  </button>
+                </div>
+                <datalist id="purchase-inv-list">
+                  {invSuggestions.map(inv => <option key={inv._id} value={inv.name} />)}
+                </datalist>
+                <div className="space-y-2">
+                  {purchaseForm.items.map((item, i) => {
+                    const isNewItem = item.itemName.length > 0 && !invSuggestions.some(inv => inv.name.toLowerCase() === item.itemName.toLowerCase());
+                    const ic = "w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none";
+                    return (
+                      <div key={i} className="border border-gray-200 rounded-xl p-3 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Item {i + 1}</span>
+                          {purchaseForm.items.length > 1 && <button type="button" onClick={() => { const items = purchaseForm.items.filter((_, j) => j !== i); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-5 h-5 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>}
+                        </div>
+                        <div className="mb-2">
+                          <input list="purchase-inv-list" placeholder="Type medicine name to search..." required value={item.itemName} onChange={(e) => { const val = e.target.value; const items = [...purchaseForm.items]; items[i].itemName = val; const match = invSuggestions.find(inv => inv.name.toLowerCase() === val.toLowerCase()); if (match) { items[i].unitPrice = match.costPrice || 0; items[i].mrp = match.sellingPrice || 0; items[i].total = +(match.costPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); } else { setPurchaseForm(f => ({ ...f, items })); } }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                          {isNewItem && <p className="text-[10px] text-emerald-600 mt-0.5 px-0.5">+ Will be saved as a new item</p>}
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">HSN Code</label><input placeholder="HSN" value={item.hsnCode} onChange={(e) => { const items = [...purchaseForm.items]; items[i].hsnCode = e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Pack</label><input placeholder="e.g. 30GM" value={item.pack} onChange={(e) => { const items = [...purchaseForm.items]; items[i].pack = e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Manufacturer</label><input placeholder="Mfg name" value={item.manufacturer} onChange={(e) => { const items = [...purchaseForm.items]; items[i].manufacturer = e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Batch No</label><input placeholder="Batch" value={item.batchNo} onChange={(e) => { const items = [...purchaseForm.items]; items[i].batchNo = e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Expiry Date</label><input type="date" value={item.expiryDate} onChange={(e) => { const items = [...purchaseForm.items]; items[i].expiryDate = e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="1" required value={item.quantity || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...purchaseForm.items]; items[i].quantity = val === "" ? 0 : +val; items[i].total = +(items[i].unitPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Free</label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="0" value={item.freeQty || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...purchaseForm.items]; items[i].freeQty = val === "" ? 0 : +val; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">MRP ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.mrp || ""} onChange={(e) => { const items = [...purchaseForm.items]; items[i].mrp = +e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Rate ₹ <span className="text-red-400">*</span></label><input type="number" placeholder="0.00" min={0} step="0.01" required value={item.unitPrice || ""} onChange={(e) => { const items = [...purchaseForm.items]; items[i].unitPrice = +e.target.value; items[i].total = +(+e.target.value * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">GST%</label><select value={item.gstRate} onChange={(e) => { const items = [...purchaseForm.items]; items[i].gstRate = +e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic}><option value={0}>0%</option><option value={5}>5%</option><option value={12}>12%</option><option value={18}>18%</option><option value={28}>28%</option></select></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Total ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.total} onChange={(e) => { const items = [...purchaseForm.items]; items[i].total = +e.target.value; const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-full border border-teal-200 bg-teal-50 rounded-lg px-2 py-1.5 text-xs font-semibold text-teal-700 focus:ring-1 focus:ring-teal-500/30 focus:border-teal-400 outline-none" /></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between items-center mt-3 px-1">
+                  <span className="text-xs font-semibold text-gray-500">Items Total</span>
+                  <span className="text-sm font-bold text-gray-900">₹{purchaseForm.items.reduce((s, it) => s + it.total, 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Financial Summary</p>
+                <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                  {([
+                    { label: "Gross Value", key: "grossValue", hint: "Auto-filled from items" },
+                    { label: "Discount (−)", key: "discount" },
+                    { label: "Adding (+)", key: "adding" },
+                    { label: "Less (−)", key: "less" },
+                    { label: "Rounding", key: "roundingAmount" },
+                  ] as { label: string; key: keyof typeof purchaseForm; hint?: string }[]).map(({ label, key, hint }) => (
+                    <div key={String(key)} className="flex items-center gap-4">
+                      <div className="w-32 shrink-0">
+                        <p className="text-sm text-gray-700 font-medium">{label}</p>
+                        {hint && <p className="text-[10px] text-gray-400">{hint}</p>}
+                      </div>
+                      <input type="number" min={0} step="0.01" value={purchaseForm[key] as number} onChange={(e) => setPurchaseForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue - u.discount + (u.cgst || 0) + (u.sgst || 0) + (u.igst || 0) + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                    </div>
+                  ))}
+                  <div className="border-t border-gray-200 pt-3 space-y-3">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">GST (from bill)</p>
+                    {([
+                      { label: "CGST (₹)", key: "cgst" },
+                      { label: "SGST (₹)", key: "sgst" },
+                      { label: "IGST (₹)", key: "igst" },
+                    ] as { label: string; key: keyof typeof purchaseForm }[]).map(({ label, key }) => (
+                      <div key={String(key)} className="flex items-center gap-4">
+                        <div className="w-32 shrink-0"><p className="text-sm text-gray-700 font-medium">{label}</p></div>
+                        <input type="number" min={0} step="0.01" value={purchaseForm[key] as number} onChange={(e) => setPurchaseForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue - u.discount + (u.cgst || 0) + (u.sgst || 0) + (u.igst || 0) + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-4">
+                      <div className="w-32 shrink-0"><p className="text-sm text-gray-500 font-medium">Total GST</p></div>
+                      <div className="flex-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700">₹{calcTotalGst(purchaseForm.cgst, purchaseForm.sgst, purchaseForm.igst).toFixed(2)}</div>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-200 pt-3 flex items-center gap-4">
+                    <div className="w-32 shrink-0">
+                      <p className="text-sm font-bold text-gray-900">Net Amount</p>
+                      <p className="text-[10px] text-red-400">Required</p>
+                    </div>
+                    <input required type="number" min={0} step="0.01" value={purchaseForm.netAmount} onChange={(e) => setPurchaseForm(f => ({ ...f, netAmount: +e.target.value }))} className="flex-1 bg-white border-2 border-teal-500 rounded-xl px-3 py-2.5 text-base font-bold text-teal-700 focus:ring-2 focus:ring-teal-500/20 outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowAddPurchaseModal(false)} className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="submit" disabled={purchaseSubmitting} className="flex-[2] px-8 py-3 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60 transition-colors">{purchaseSubmitting ? "Saving..." : "Save Purchase"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Purchase Return Detail Modal */}
+      {selectedPurchaseReturn && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setSelectedPurchaseReturn(null)}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10 rounded-t-3xl sm:rounded-t-2xl">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Purchase Return Details</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Inv. {selectedPurchaseReturn.supplierInvNo}</p>
+              </div>
+              <button onClick={() => setSelectedPurchaseReturn(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors text-lg font-bold">×</button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[
+                  { label: "Supplier", value: selectedPurchaseReturn.supplierName },
+                  { label: "Inv. No", value: selectedPurchaseReturn.supplierInvNo },
+                  { label: "Date", value: new Date(selectedPurchaseReturn.invoiceDate).toLocaleDateString("en-IN") },
+                  { label: "Mode", value: selectedPurchaseReturn.modeOfPayment?.toUpperCase() || "—" },
+                  { label: "GSTN", value: selectedPurchaseReturn.gstnNo || "—" },
+                  { label: "City", value: selectedPurchaseReturn.city || "—" },
+                  ...(selectedPurchaseReturn.reason ? [{ label: "Reason", value: selectedPurchaseReturn.reason }] : []),
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
+                    <p className="text-sm font-medium text-gray-800">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {selectedPurchaseReturn.items && selectedPurchaseReturn.items.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Items Returned</h3>
+                  <div className="space-y-2">
+                    {selectedPurchaseReturn.items.map((item: any, i: number) => (
+                      <div key={i} className="border border-gray-100 rounded-xl p-3 bg-white">
+                        <p className="text-sm font-semibold text-gray-900 mb-2">{item.itemName || "—"}</p>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+                          {[
+                            { label: "HSN", value: item.hsnCode || "—" },
+                            { label: "Pack", value: item.pack || "—" },
+                            { label: "Batch", value: item.batchNo || "—" },
+                            { label: "Expiry", value: item.expiryDate ? new Date(item.expiryDate).toLocaleDateString("en-IN") : "—" },
+                            { label: "Qty", value: item.quantity ?? "—" },
+                            { label: "Free", value: item.freeQty ?? 0 },
+                          ].map(({ label, value }) => (
+                            <div key={label}>
+                              <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+                              <p className="text-xs text-gray-700">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 text-center mt-2 pt-2 border-t border-gray-50">
+                          {[
+                            { label: "MRP ₹", value: `₹${(item.mrp || 0).toFixed(2)}` },
+                            { label: "Rate ₹", value: `₹${(item.unitPrice || 0).toFixed(2)}` },
+                            { label: "GST %", value: `${item.gstRate ?? 0}%` },
+                            { label: "Total ₹", value: `₹${(item.total || 0).toFixed(2)}`, highlight: true },
+                          ].map(({ label, value, highlight }) => (
+                            <div key={label} className={highlight ? "bg-orange-50 rounded-lg p-1" : ""}>
+                              <p className={`text-[9px] font-semibold uppercase tracking-wider ${highlight ? "text-orange-500" : "text-gray-400"}`}>{label}</p>
+                              <p className={`text-xs font-semibold ${highlight ? "text-orange-700" : "text-gray-700"}`}>{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Financial Summary</h3>
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                  {[
+                    { label: "Gross Value", value: `₹${(selectedPurchaseReturn.grossValue || 0).toFixed(2)}` },
+                    { label: "Discount", value: `−₹${(selectedPurchaseReturn.discount || 0).toFixed(2)}`, red: true },
+                    { label: "CGST", value: `₹${(selectedPurchaseReturn.cgst || 0).toFixed(2)}` },
+                    { label: "SGST", value: `₹${(selectedPurchaseReturn.sgst || 0).toFixed(2)}` },
+                    { label: "IGST", value: `₹${(selectedPurchaseReturn.igst || 0).toFixed(2)}` },
+                    { label: "Total GST", value: `₹${(selectedPurchaseReturn.totalGst || 0).toFixed(2)}` },
+                    ...(selectedPurchaseReturn.adding ? [{ label: "Adding", value: `₹${selectedPurchaseReturn.adding.toFixed(2)}` }] : []),
+                    ...(selectedPurchaseReturn.less ? [{ label: "Less", value: `−₹${selectedPurchaseReturn.less.toFixed(2)}`, red: true }] : []),
+                    ...(selectedPurchaseReturn.roundingAmount ? [{ label: "Rounding", value: `₹${selectedPurchaseReturn.roundingAmount.toFixed(2)}` }] : []),
+                  ].map(({ label, value, red }) => (
+                    <div key={label} className="flex justify-between text-sm">
+                      <span className="text-gray-500">{label}</span>
+                      <span className={red ? "text-red-600 font-medium" : "text-gray-700 font-medium"}>{value}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-bold pt-2 border-t border-gray-200">
+                    <span className="text-gray-900">Net Amount</span>
+                    <span className="text-orange-700">₹{(selectedPurchaseReturn.netAmount || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Purchase Return Modal */}
+      {showAddPrModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10 rounded-t-3xl sm:rounded-t-2xl">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">New Purchase Return</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Record items returned to supplier</p>
+              </div>
+              <button onClick={() => setShowAddPrModal(false)} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleAddPr} className="p-6 space-y-6">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Supplier &amp; Bill</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Supplier Name <span className="text-red-400">*</span></label>
+                    <input required value={prForm.supplierName} onChange={(e) => setPrForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="e.g. Cipla Ltd" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">City</label>
+                    <input value={prForm.city} onChange={(e) => setPrForm(f => ({ ...f, city: e.target.value }))} placeholder="e.g. Mumbai" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Supplier Inv. No <span className="text-red-400">*</span></label>
+                    <input required value={prForm.supplierInvNo} onChange={(e) => setPrForm(f => ({ ...f, supplierInvNo: e.target.value }))} placeholder="e.g. INV-2024-001" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">GSTN No</label>
+                    <input value={prForm.gstnNo} onChange={(e) => setPrForm(f => ({ ...f, gstnNo: e.target.value }))} placeholder="e.g. 29AAAAA0000A1Z5" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Invoice Date <span className="text-red-400">*</span></label>
+                    <input required type="date" value={prForm.invoiceDate} onChange={(e) => setPrForm(f => ({ ...f, invoiceDate: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Payment Mode <span className="text-red-400">*</span></label>
+                    <select value={prForm.modeOfPayment} onChange={(e) => setPrForm(f => ({ ...f, modeOfPayment: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white">
+                      <option value="credit">Credit</option><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="neft">NEFT</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Reason for Return</label>
+                    <input value={prForm.reason} onChange={(e) => setPrForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Damaged goods, Wrong delivery, Near expiry" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Items <span className="text-red-400">*</span></p>
+                  <button type="button" onClick={() => setPrForm(f => ({ ...f, items: [...f.items, { ...EMPTY_PURCHASE_ITEM }] }))} className="text-xs font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                    Add Row
+                  </button>
+                </div>
+                <datalist id="pr-inv-list">
+                  {invSuggestions.map(inv => <option key={inv._id} value={inv.name} />)}
+                </datalist>
+                <div className="space-y-2">
+                  {prForm.items.map((item, i) => {
+                    const isNewItem = item.itemName.length > 0 && !invSuggestions.some(inv => inv.name.toLowerCase() === item.itemName.toLowerCase());
+                    const ic = "w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none";
+                    return (
+                      <div key={i} className="border border-gray-200 rounded-xl p-3 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Item {i + 1}</span>
+                          {prForm.items.length > 1 && <button type="button" onClick={() => { const items = prForm.items.filter((_, j) => j !== i); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-5 h-5 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>}
+                        </div>
+                        <div className="mb-2">
+                          <input list="pr-inv-list" placeholder="Type medicine name to search..." required value={item.itemName} onChange={(e) => { const val = e.target.value; const items = [...prForm.items]; items[i].itemName = val; const match = invSuggestions.find(inv => inv.name.toLowerCase() === val.toLowerCase()); if (match) { items[i].unitPrice = match.costPrice || 0; items[i].mrp = match.sellingPrice || 0; items[i].total = +(match.costPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); } else { setPrForm(f => ({ ...f, items })); } }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                          {isNewItem && <p className="text-[10px] text-emerald-600 mt-0.5 px-0.5">+ Will be saved as a new item</p>}
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">HSN Code</label><input placeholder="HSN" value={item.hsnCode} onChange={(e) => { const items = [...prForm.items]; items[i].hsnCode = e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Pack</label><input placeholder="e.g. 30GM" value={item.pack} onChange={(e) => { const items = [...prForm.items]; items[i].pack = e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Manufacturer</label><input placeholder="Mfg name" value={item.manufacturer} onChange={(e) => { const items = [...prForm.items]; items[i].manufacturer = e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Batch No</label><input placeholder="Batch" value={item.batchNo} onChange={(e) => { const items = [...prForm.items]; items[i].batchNo = e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Expiry Date</label><input type="date" value={item.expiryDate} onChange={(e) => { const items = [...prForm.items]; items[i].expiryDate = e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="1" required value={item.quantity || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...prForm.items]; items[i].quantity = val === "" ? 0 : +val; items[i].total = +(items[i].unitPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Free</label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="0" value={item.freeQty || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...prForm.items]; items[i].freeQty = val === "" ? 0 : +val; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">MRP ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.mrp || ""} onChange={(e) => { const items = [...prForm.items]; items[i].mrp = +e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Rate ₹ <span className="text-red-400">*</span></label><input type="number" placeholder="0.00" min={0} step="0.01" required value={item.unitPrice || ""} onChange={(e) => { const items = [...prForm.items]; items[i].unitPrice = +e.target.value; items[i].total = +(+e.target.value * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">GST%</label><select value={item.gstRate} onChange={(e) => { const items = [...prForm.items]; items[i].gstRate = +e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic}><option value={0}>0%</option><option value={5}>5%</option><option value={12}>12%</option><option value={18}>18%</option><option value={28}>28%</option></select></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Total ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.total} onChange={(e) => { const items = [...prForm.items]; items[i].total = +e.target.value; const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-full border border-teal-200 bg-teal-50 rounded-lg px-2 py-1.5 text-xs font-semibold text-teal-700 focus:ring-1 focus:ring-teal-500/30 focus:border-teal-400 outline-none" /></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between items-center mt-3 px-1">
+                  <span className="text-xs font-semibold text-gray-500">Items Total</span>
+                  <span className="text-sm font-bold text-gray-900">₹{prForm.items.reduce((s, it) => s + it.total, 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Financial Summary</p>
+                <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                  {([
+                    { label: "Gross Value", key: "grossValue", hint: "Auto-filled from items" },
+                    { label: "Discount (−)", key: "discount" },
+                    { label: "Adding (+)", key: "adding" },
+                    { label: "Less (−)", key: "less" },
+                    { label: "Rounding", key: "roundingAmount" },
+                  ] as { label: string; key: keyof typeof prForm; hint?: string }[]).map(({ label, key, hint }) => (
+                    <div key={String(key)} className="flex items-center gap-4">
+                      <div className="w-32 shrink-0">
+                        <p className="text-sm text-gray-700 font-medium">{label}</p>
+                        {hint && <p className="text-[10px] text-gray-400">{hint}</p>}
+                      </div>
+                      <input type="number" min={0} step="0.01" value={prForm[key] as number} onChange={(e) => setPrForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue - u.discount + (u.cgst || 0) + (u.sgst || 0) + (u.igst || 0) + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                    </div>
+                  ))}
+                  <div className="border-t border-gray-200 pt-3 space-y-3">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">GST (from bill)</p>
+                    {([
+                      { label: "CGST (₹)", key: "cgst" },
+                      { label: "SGST (₹)", key: "sgst" },
+                      { label: "IGST (₹)", key: "igst" },
+                    ] as { label: string; key: keyof typeof prForm }[]).map(({ label, key }) => (
+                      <div key={String(key)} className="flex items-center gap-4">
+                        <div className="w-32 shrink-0"><p className="text-sm text-gray-700 font-medium">{label}</p></div>
+                        <input type="number" min={0} step="0.01" value={prForm[key] as number} onChange={(e) => setPrForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue - u.discount + (u.cgst || 0) + (u.sgst || 0) + (u.igst || 0) + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-4">
+                      <div className="w-32 shrink-0"><p className="text-sm text-gray-500 font-medium">Total GST</p></div>
+                      <div className="flex-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700">₹{calcTotalGst(prForm.cgst, prForm.sgst, prForm.igst).toFixed(2)}</div>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-200 pt-3 flex items-center gap-4">
+                    <div className="w-32 shrink-0">
+                      <p className="text-sm font-bold text-gray-900">Net Amount</p>
+                      <p className="text-[10px] text-red-400">Required</p>
+                    </div>
+                    <input required type="number" min={0} step="0.01" value={prForm.netAmount} onChange={(e) => setPrForm(f => ({ ...f, netAmount: +e.target.value }))} className="flex-1 bg-white border-2 border-teal-500 rounded-xl px-3 py-2.5 text-base font-bold text-teal-700 focus:ring-2 focus:ring-teal-500/20 outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowAddPrModal(false)} className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="submit" disabled={prSubmitting} className="flex-[2] px-8 py-3 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60 transition-colors">{prSubmitting ? "Saving..." : "Save Return"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Item Detail Drawer */}
       {showDetailDrawer && detailItem && (
         <div className="fixed inset-0 z-50 flex justify-end">
@@ -1020,27 +1632,6 @@ export default function FrontdeskPharmacyPage() {
                   <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                </button>
-              </div>
-              {/* Action buttons */}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => { setSelectedItem(detailItem); setShowStockModal(true); }}
-                  className="flex-1 px-3 py-2 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl text-sm font-semibold hover:from-teal-600 hover:to-cyan-700 transition-all shadow-sm"
-                >
-                  Update Stock
-                </button>
-                <button
-                  onClick={() => { setEditForm({ ...detailItem }); setShowEditModal(true); }}
-                  className="px-3 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => { setDeleteItem(detailItem); setShowDeleteConfirm(true); }}
-                  className="px-3 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 transition-colors"
-                >
-                  Discontinue
                 </button>
               </div>
             </div>
@@ -1182,659 +1773,434 @@ export default function FrontdeskPharmacyPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Purchases Summary */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Purchase History</h4>
+                  {(() => {
+                    const purchaseTxns = detailTransactions.filter(t => t.referenceType === "purchase");
+                    if (purchaseTxns.length === 0) return <div className="p-4 text-center bg-gray-50 rounded-xl"><p className="text-sm text-gray-400">No purchases recorded</p></div>;
+                    const totalPurchased = purchaseTxns.reduce((s, t) => s + t.quantity, 0);
+                    return (
+                      <div>
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                            <p className="text-xs text-gray-500 font-medium">Total Purchased</p>
+                            <p className="text-xl font-bold text-emerald-700 mt-1">{totalPurchased}</p>
+                            <p className="text-xs text-gray-400">{detailItem.unit}</p>
+                          </div>
+                          <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                            <p className="text-xs text-gray-500 font-medium">No. of Orders</p>
+                            <p className="text-xl font-bold text-emerald-700 mt-1">{purchaseTxns.length}</p>
+                            <p className="text-xs text-gray-400">purchases</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {purchaseTxns.slice(0, 5).map((txn) => (
+                            <div key={txn._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl text-sm">
+                              <div>
+                                <p className="font-medium text-gray-900 text-xs">+{txn.quantity} {detailItem.unit}</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5 truncate">{txn.reason}</p>
+                              </div>
+                              <p className="text-xs text-gray-400 flex-shrink-0">{formatTimeAgo(txn.createdAt)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Sales Summary */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sales Summary</h4>
+                  {(() => {
+                    const saleTxns = detailTransactions.filter(t => t.referenceType === "sale");
+                    if (saleTxns.length === 0) return <div className="p-4 text-center bg-gray-50 rounded-xl"><p className="text-sm text-gray-400">No sales recorded</p></div>;
+                    const totalSold = saleTxns.reduce((s, t) => s + t.quantity, 0);
+                    return (
+                      <div>
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div className="bg-blue-50 rounded-xl p-3 text-center">
+                            <p className="text-xs text-gray-500 font-medium">Total Sold</p>
+                            <p className="text-xl font-bold text-blue-700 mt-1">{totalSold}</p>
+                            <p className="text-xs text-gray-400">{detailItem.unit}</p>
+                          </div>
+                          <div className="bg-blue-50 rounded-xl p-3 text-center">
+                            <p className="text-xs text-gray-500 font-medium">No. of Sales</p>
+                            <p className="text-xl font-bold text-blue-700 mt-1">{saleTxns.length}</p>
+                            <p className="text-xs text-gray-400">transactions</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {saleTxns.slice(0, 5).map((txn) => (
+                            <div key={txn._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl text-sm">
+                              <div>
+                                <p className="font-medium text-gray-900 text-xs">−{txn.quantity} {detailItem.unit}</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5 truncate">{txn.reason}</p>
+                              </div>
+                              <p className="text-xs text-gray-400 flex-shrink-0">{formatTimeAgo(txn.createdAt)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Add New Item Modal */}
-      {showAddItemModal && (
+
+      {/* Sale Detail Modal */}
+      {selectedSale && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-md shadow-teal-500/20">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Add New Item</h2>
-                    <p className="text-sm text-gray-500 mt-0.5">Add a product to your pharmacy inventory</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowAddItemModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Sale Details</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{selectedSale.invoiceNumber || selectedSale.saleId}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => printSaleBill(selectedSale)} className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                  Print Bill
+                </button>
+                <button onClick={() => setSelectedSale(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
             </div>
-
-            <form onSubmit={handleAddNewItem} className="p-6 space-y-5">
-              {/* Item Name & Generic Name */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                  Item Name <span className="text-red-400 normal-case">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={addItemForm.name}
-                  onChange={(e) => setAddItemForm({ ...addItemForm, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50 placeholder:text-gray-400"
-                  placeholder="e.g., Betnovate-C Cream"
-                  required
-                  autoFocus
-                />
+            <div className="p-5 space-y-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[
+                  { label: "Party", value: selectedSale.patientName },
+                  { label: "Doctor", value: selectedSale.doctorName || "—" },
+                  { label: "Phone", value: selectedSale.patientPhone || "—" },
+                  { label: "City", value: selectedSale.city || "—" },
+                  { label: "Invoice No", value: selectedSale.invoiceNumber || selectedSale.saleId || "—" },
+                  { label: "Date", value: new Date(selectedSale.createdAt).toLocaleDateString("en-IN") },
+                  { label: "Mode", value: selectedSale.paymentMethod?.toUpperCase() || "—" },
+                  { label: "Type", value: selectedSale.isInterstate ? "Interstate (IGST)" : "Intrastate (CGST+SGST)" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+                    <p className="text-sm font-semibold text-gray-800 mt-0.5 truncate">{value}</p>
+                  </div>
+                ))}
               </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                  Generic Name <span className="text-gray-400 font-normal normal-case tracking-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={addItemForm.genericName}
-                  onChange={(e) => setAddItemForm({ ...addItemForm, genericName: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50 placeholder:text-gray-400"
-                  placeholder="e.g., Betamethasone + Clioquinol"
-                />
-              </div>
-
-              {/* Category - visual grid */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                  Category <span className="text-red-400 normal-case">*</span>
-                </label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[
-                    { value: "medicine", label: "Medicine", gradient: "from-blue-400 to-blue-500", bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-700" },
-                    { value: "cream", label: "Cream", gradient: "from-pink-400 to-rose-500", bg: "bg-pink-50", border: "border-pink-300", text: "text-pink-700" },
-                    { value: "lotion", label: "Lotion", gradient: "from-purple-400 to-violet-500", bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-700" },
-                    { value: "supplement", label: "Supplement", gradient: "from-emerald-400 to-green-500", bg: "bg-emerald-50", border: "border-emerald-300", text: "text-emerald-700" },
-                    { value: "equipment", label: "Equipment", gradient: "from-amber-400 to-orange-500", bg: "bg-amber-50", border: "border-amber-300", text: "text-amber-700" },
-                    { value: "consumable", label: "Consumable", gradient: "from-cyan-400 to-teal-500", bg: "bg-cyan-50", border: "border-cyan-300", text: "text-cyan-700" },
-                    { value: "other", label: "Other", gradient: "from-gray-400 to-gray-500", bg: "bg-gray-50", border: "border-gray-300", text: "text-gray-700" },
-                  ].map((cat) => (
-                    <button
-                      key={cat.value}
-                      type="button"
-                      onClick={() => setAddItemForm({ ...addItemForm, category: cat.value })}
-                      className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl text-center transition-all border-2 ${
-                        addItemForm.category === cat.value
-                          ? `${cat.bg} ${cat.border} ${cat.text} shadow-sm`
-                          : "border-transparent bg-gray-50 text-gray-500 hover:bg-gray-100"
-                      }`}
-                    >
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                        addItemForm.category === cat.value
-                          ? `bg-gradient-to-br ${cat.gradient} shadow-sm`
-                          : "bg-gray-200"
-                      }`}>
-                        <svg className={`w-3.5 h-3.5 ${addItemForm.category === cat.value ? "text-white" : "text-gray-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={getCategoryIcon(cat.value)} />
-                        </svg>
+              {selectedSale.items?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Items</p>
+                  <div className="space-y-2">
+                    {selectedSale.items.map((item: any, i: number) => (
+                      <div key={i} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-semibold text-gray-800 text-sm">{item.itemName}</p>
+                          <span className="text-xs font-bold text-teal-700">₹{(item.total || 0).toFixed(2)}</span>
+                        </div>
+                        {(item.hsnCode || item.packing || item.manufacturer || item.batchNo) && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-2">
+                            {item.hsnCode && <div><p className="text-[10px] text-gray-400 font-medium">HSN</p><p className="font-medium text-gray-600">{item.hsnCode}</p></div>}
+                            {item.packing && <div><p className="text-[10px] text-gray-400 font-medium">Packing</p><p className="font-medium text-gray-600">{item.packing}</p></div>}
+                            {item.manufacturer && <div><p className="text-[10px] text-gray-400 font-medium">Mfg</p><p className="font-medium text-gray-600">{item.manufacturer}</p></div>}
+                            {item.batchNo && <div><p className="text-[10px] text-gray-400 font-medium">Batch</p><p className="font-medium text-gray-600">{item.batchNo}</p></div>}
+                          </div>
+                        )}
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs">
+                          {[
+                            { label: "Qty", value: item.quantity },
+                            { label: "MRP ₹", value: `₹${(item.unitPrice || 0).toFixed(2)}` },
+                            { label: "Discount", value: `₹${(item.discount || 0).toFixed(2)}` },
+                            { label: "GST%", value: `${item.gstRate || 0}%` },
+                            ...(item.expiryDate ? [{ label: "Expiry", value: new Date(item.expiryDate).toLocaleDateString("en-IN", { month: "2-digit", year: "2-digit" }) }] : []),
+                          ].map(({ label, value }) => (
+                            <div key={label}>
+                              <p className="text-[10px] text-gray-400 font-medium">{label}</p>
+                              <p className="font-semibold text-gray-700">{value}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <span className="text-[10px] font-semibold leading-tight">{cat.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Type - OTC / Rx */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: "otc", label: "OTC", desc: "Over the counter" },
-                    { value: "prescription", label: "Rx", desc: "Prescription only" },
-                  ].map((t) => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => setAddItemForm({ ...addItemForm, type: t.value })}
-                      className={`py-2.5 px-3 rounded-xl text-left transition-all border-2 flex items-center gap-2.5 ${
-                        addItemForm.type === t.value
-                          ? "bg-teal-50 text-teal-700 border-teal-400 shadow-sm"
-                          : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100 hover:border-gray-300"
-                      }`}
-                    >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${
-                        addItemForm.type === t.value ? "bg-teal-500 text-white" : "bg-gray-200 text-gray-500"
-                      }`}>
-                        {t.label}
-                      </div>
-                      <span className="text-xs font-semibold">{t.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Unit - visual pills */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Unit</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {["units", "tablets", "capsules", "tubes", "bottles", "ml", "grams", "pieces"].map((u) => (
-                    <button
-                      key={u}
-                      type="button"
-                      onClick={() => setAddItemForm({ ...addItemForm, unit: u })}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                        addItemForm.unit === u
-                          ? "bg-teal-500 text-white border-teal-500 shadow-sm shadow-teal-500/20"
-                          : "bg-white text-gray-500 border-gray-200 hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50"
-                      }`}
-                    >
-                      {u.charAt(0).toUpperCase() + u.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Stock */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Initial Stock</label>
-                  <input
-                    type="number"
-                    value={addItemForm.currentStock}
-                    onChange={(e) => setAddItemForm({ ...addItemForm, currentStock: parseInt(e.target.value) || 0 })}
-                    min={0}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Min Level</label>
-                  <input
-                    type="number"
-                    value={addItemForm.minStockLevel}
-                    onChange={(e) => setAddItemForm({ ...addItemForm, minStockLevel: parseInt(e.target.value) || 0 })}
-                    min={0}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  />
-                </div>
-              </div>
-
-              {/* Pricing */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                    Cost Price ({"\u20B9"}) <span className="text-red-400 normal-case">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 font-medium">{"\u20B9"}</span>
-                    <input
-                      type="number"
-                      value={addItemForm.costPrice}
-                      onChange={(e) => setAddItemForm({ ...addItemForm, costPrice: parseFloat(e.target.value) || 0 })}
-                      min={0}
-                      step="0.01"
-                      className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                      required
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                    Selling Price ({"\u20B9"}) <span className="text-red-400 normal-case">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 font-medium">{"\u20B9"}</span>
-                    <input
-                      type="number"
-                      value={addItemForm.sellingPrice}
-                      onChange={(e) => setAddItemForm({ ...addItemForm, sellingPrice: parseFloat(e.target.value) || 0 })}
-                      min={0}
-                      step="0.01"
-                      className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Optional fields */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                    Manufacturer <span className="text-gray-400 font-normal normal-case tracking-normal">(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={addItemForm.manufacturer}
-                    onChange={(e) => setAddItemForm({ ...addItemForm, manufacturer: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50 placeholder:text-gray-400"
-                    placeholder="e.g., Cipla"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                    Batch Number <span className="text-gray-400 font-normal normal-case tracking-normal">(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={addItemForm.batchNumber}
-                    onChange={(e) => setAddItemForm({ ...addItemForm, batchNumber: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50 placeholder:text-gray-400"
-                    placeholder="e.g., BN-2026-001"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                    Expiry Date <span className="text-gray-400 font-normal normal-case tracking-normal">(Optional)</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={addItemForm.expiryDate}
-                    onChange={(e) => setAddItemForm({ ...addItemForm, expiryDate: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                    Location <span className="text-gray-400 font-normal normal-case tracking-normal">(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={addItemForm.location}
-                    onChange={(e) => setAddItemForm({ ...addItemForm, location: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50 placeholder:text-gray-400"
-                    placeholder="e.g., Shelf A, Rack 3"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                  Description <span className="text-gray-400 font-normal normal-case tracking-normal">(Optional)</span>
-                </label>
-                <textarea
-                  value={addItemForm.description}
-                  onChange={(e) => setAddItemForm({ ...addItemForm, description: e.target.value })}
-                  rows={2}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none resize-none text-base bg-gray-50 placeholder:text-gray-400"
-                  placeholder="Brief description..."
-                />
-              </div>
-
-              {/* Submit */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddItemModal(false)}
-                  className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={addItemSubmitting}
-                  className="flex-[2] py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 transition-all font-semibold text-base disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-teal-500/20 disabled:shadow-none"
-                >
-                  {addItemSubmitting ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Adding...
-                    </span>
-                  ) : (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Add Item
-                    </span>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Item Modal */}
-      {showEditModal && editForm && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-md shadow-amber-500/20">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Edit Item</h2>
-                    <p className="text-sm text-gray-500 mt-0.5">{editForm.itemCode}</p>
-                  </div>
-                </div>
-                <button onClick={() => setShowEditModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <form onSubmit={handleEditItem} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Name</label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Generic Name</label>
-                <input
-                  type="text"
-                  value={editForm.genericName || ""}
-                  onChange={(e) => setEditForm({ ...editForm, genericName: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Min Stock Level</label>
-                  <input
-                    type="number"
-                    value={editForm.minStockLevel}
-                    onChange={(e) => setEditForm({ ...editForm, minStockLevel: parseInt(e.target.value) || 0 })}
-                    min={0}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Unit</label>
-                  <div className="flex flex-wrap gap-1">
-                    {["units", "tablets", "capsules", "tubes", "bottles", "ml", "grams", "pieces"].map((u) => (
-                      <button
-                        key={u}
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, unit: u })}
-                        className={`px-2 py-1 rounded text-[10px] font-semibold transition-all border ${
-                          editForm.unit === u
-                            ? "bg-teal-500 text-white border-teal-500"
-                            : "bg-white text-gray-500 border-gray-200 hover:border-teal-300"
-                        }`}
-                      >
-                        {u.charAt(0).toUpperCase() + u.slice(1)}
-                      </button>
                     ))}
                   </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Cost Price ({"\u20B9"})</label>
-                  <input
-                    type="number"
-                    value={editForm.costPrice}
-                    onChange={(e) => setEditForm({ ...editForm, costPrice: parseFloat(e.target.value) || 0 })}
-                    min={0}
-                    step="0.01"
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Selling Price ({"\u20B9"})</label>
-                  <input
-                    type="number"
-                    value={editForm.sellingPrice}
-                    onChange={(e) => setEditForm({ ...editForm, sellingPrice: parseFloat(e.target.value) || 0 })}
-                    min={0}
-                    step="0.01"
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Manufacturer</label>
-                  <input
-                    type="text"
-                    value={editForm.manufacturer || ""}
-                    onChange={(e) => setEditForm({ ...editForm, manufacturer: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Location</label>
-                  <input
-                    type="text"
-                    value={editForm.location || ""}
-                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={editSubmitting}
-                  className="flex-[2] py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:from-amber-600 hover:to-orange-700 transition-all font-semibold text-base disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-amber-500/20"
-                >
-                  {editSubmitting ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Saving...
-                    </span>
-                  ) : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Update Stock Modal */}
-      {showStockModal && selectedItem && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 bg-gradient-to-br ${getCategoryColor(selectedItem.category)} rounded-xl flex items-center justify-center shadow-sm`}>
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={getCategoryIcon(selectedItem.category)} />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Update Stock</h2>
-                    <p className="text-sm text-gray-500 mt-0.5">{selectedItem.name} &middot; {selectedItem.currentStock} {selectedItem.unit}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowStockModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <form onSubmit={handleAddStock} className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Transaction Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: "stock-in", label: "Stock In", icon: "M12 6v6m0 0v6m0-6h6m-6 0H6" },
-                    { value: "stock-out", label: "Stock Out", icon: "M20 12H4" },
-                  ].map((t) => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => setStockForm({ ...stockForm, type: t.value })}
-                      className={`py-2.5 px-2 rounded-xl text-xs font-semibold transition-all border flex flex-col items-center gap-1.5 ${
-                        stockForm.type === t.value
-                          ? t.value === "stock-in" ? "bg-emerald-50 text-emerald-700 border-emerald-300" :
-                            "bg-red-50 text-red-700 border-red-300"
-                          : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                      }`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={t.icon} />
-                      </svg>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Quantity</label>
-                <input
-                  type="number"
-                  value={stockForm.quantity}
-                  onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 0 })}
-                  min={1}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  required
-                />
-                <p className="text-sm text-gray-400 mt-1.5">
-                  New stock will be: <span className="font-semibold text-gray-600">
-                    {stockForm.type === "stock-in"
-                      ? selectedItem.currentStock + (stockForm.quantity || 0)
-                      : Math.max(0, selectedItem.currentStock - (stockForm.quantity || 0))
-                    } {selectedItem.unit}
-                  </span>
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                  Reason <span className="text-red-400 normal-case">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={stockForm.reason}
-                  onChange={(e) => setStockForm({ ...stockForm, reason: e.target.value })}
-                  placeholder={stockForm.type === "stock-in" ? "e.g., New purchase from supplier" : "e.g., Dispensed to patient"}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50 placeholder:text-gray-400"
-                  required
-                />
-              </div>
-
-              {stockForm.type === "stock-in" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                      Batch No. <span className="text-gray-400 font-normal normal-case tracking-normal">(Opt.)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={stockForm.batchNumber}
-                      onChange={(e) => setStockForm({ ...stockForm, batchNumber: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                      Expiry <span className="text-gray-400 font-normal normal-case tracking-normal">(Opt.)</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={stockForm.expiryDate}
-                      onChange={(e) => setStockForm({ ...stockForm, expiryDate: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                    />
-                  </div>
-                </div>
               )}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                {[
+                  { label: "Gross Value", value: `₹${(selectedSale.grossValue || selectedSale.subtotal || 0).toFixed(2)}` },
+                  { label: "CGST", value: `₹${((selectedSale.gst0?.cgst || 0) + (selectedSale.gst5?.cgst || 0) + (selectedSale.gst12?.cgst || 0) + (selectedSale.gst18?.cgst || 0) + (selectedSale.gst28?.cgst || 0)).toFixed(2)}` },
+                  { label: "SGST", value: `₹${((selectedSale.gst0?.sgst || 0) + (selectedSale.gst5?.sgst || 0) + (selectedSale.gst12?.sgst || 0) + (selectedSale.gst18?.sgst || 0) + (selectedSale.gst28?.sgst || 0)).toFixed(2)}` },
+                  { label: "Total GST", value: `₹${(selectedSale.totalGst || selectedSale.taxAmount || 0).toFixed(2)}` },
+                  ...(selectedSale.roundingAmount ? [{ label: "Rounding", value: `₹${selectedSale.roundingAmount.toFixed(2)}` }] : []),
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex justify-between text-sm">
+                    <span className="text-gray-500">{label}</span>
+                    <span className="font-medium text-gray-700">{value}</span>
+                  </div>
+                ))}
+                <div className="border-t border-gray-200 pt-2 flex justify-between">
+                  <span className="font-bold text-gray-900">Net Amount</span>
+                  <span className="text-lg font-bold text-teal-700">₹{(selectedSale.totalAmount || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowStockModal(false)}
-                  className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
-                >
-                  Cancel
+      {/* Add Sale Modal */}
+      {showAddSaleModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">New Sale</h2>
+                  <p className="text-xs text-gray-400">Record an OTC or prescription sale</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddSaleModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleAddSale} className="p-5 space-y-5">
+              {/* Bill Header Info */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Bill Info</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Patient Name <span className="text-red-400">*</span></label>
+                    <input type="text" required placeholder="Patient / customer name" value={saleForm.patientName}
+                      onChange={(e) => setSaleForm(f => ({ ...f, patientName: e.target.value }))}
+                      className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Doctor Name</label>
+                    <input type="text" placeholder="Optional" value={saleForm.doctorName}
+                      onChange={(e) => setSaleForm(f => ({ ...f, doctorName: e.target.value }))}
+                      className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Phone</label>
+                    <input type="tel" placeholder="Optional" value={saleForm.patientPhone}
+                      onChange={(e) => setSaleForm(f => ({ ...f, patientPhone: e.target.value }))}
+                      className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">City</label>
+                    <input type="text" placeholder="City" value={saleForm.city}
+                      onChange={(e) => setSaleForm(f => ({ ...f, city: e.target.value }))}
+                      className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Payment Mode <span className="text-red-400">*</span></label>
+                    <select required value={saleForm.modeOfPayment} onChange={(e) => setSaleForm(f => ({ ...f, modeOfPayment: e.target.value }))}
+                      className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none">
+                      {["cash", "card", "upi", "credit"].map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox" checked={saleForm.isInterstate} onChange={(e) => setSaleForm(f => ({ ...f, isInterstate: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-teal-600" />
+                      <span className="text-sm text-gray-600">Interstate sale <span className="text-xs text-gray-400">(IGST instead of CGST+SGST)</span></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Items</p>
+                <datalist id="sale-inv-list-fd">
+                  {invSuggestions.map((inv) => <option key={inv._id} value={inv.name} />)}
+                </datalist>
+                <div className="space-y-3">
+                  {saleForm.items.map((item, i) => {
+                    const ic = "w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none";
+                    const matchedInv = invSuggestions.find(inv => inv.name.toLowerCase() === item.itemName.toLowerCase());
+                    return (
+                      <div key={i} className="border border-gray-200 rounded-xl p-3 bg-white shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Item {i + 1}</span>
+                          {saleForm.items.length > 1 && (
+                            <button type="button" onClick={() => setSaleForm(f => ({ ...f, items: f.items.filter((_, j) => j !== i) }))}
+                              className="w-5 h-5 rounded-full bg-red-100 text-red-500 hover:bg-red-200 text-xs flex items-center justify-center font-bold transition-colors">×</button>
+                          )}
+                        </div>
+                        <div className="mb-2">
+                          <label className="block text-[10px] text-gray-400 mb-0.5">Product Name <span className="text-red-400">*</span></label>
+                          <input list="sale-inv-list-fd" placeholder="Type to search inventory..." value={item.itemName}
+                            onChange={(e) => {
+                              const name = e.target.value;
+                              const match = invSuggestions.find(inv => inv.name.toLowerCase() === name.toLowerCase());
+                              setSaleForm(f => ({
+                                ...f,
+                                items: f.items.map((it, j) => j !== i ? it : {
+                                  ...it,
+                                  itemName: name,
+                                  itemId: match?._id || "",
+                                  mrp: match?.sellingPrice ?? it.mrp,
+                                  gstRate: match?.gstRate ?? it.gstRate,
+                                  manufacturer: match?.manufacturer || it.manufacturer,
+                                  batchNo: match?.batchNumber || it.batchNo,
+                                  expiryDate: match?.expiryDate ? new Date(match.expiryDate).toISOString().split("T")[0] : it.expiryDate,
+                                  hsnCode: match?.hsnCode || it.hsnCode,
+                                  packing: match?.packing || it.packing,
+                                  total: +((it.qty * (match?.sellingPrice ?? it.mrp)) - it.discount).toFixed(2),
+                                }),
+                              }));
+                            }}
+                            className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none"
+                            required />
+                          {item.itemName && !matchedInv && (
+                            <p className="text-[10px] text-amber-600 mt-0.5 px-0.5">⚠ Item not found in inventory — will fail on save</p>
+                          )}
+                          {matchedInv && (
+                            <p className="text-[10px] text-emerald-600 mt-0.5 px-0.5">✓ Stock: {matchedInv.currentStock} {matchedInv.unit}</p>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">HSN Code</label>
+                            <input type="text" placeholder="e.g. 30049099" value={item.hsnCode}
+                              onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, hsnCode: e.target.value }) }))}
+                              className={ic} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Packing</label>
+                            <input type="text" placeholder="e.g. 10×10" value={item.packing}
+                              onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, packing: e.target.value }) }))}
+                              className={ic} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Manufacturer</label>
+                            <input type="text" placeholder="Mfg name" value={item.manufacturer}
+                              onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, manufacturer: e.target.value }) }))}
+                              className={ic} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Batch No</label>
+                            <input type="text" placeholder="Batch" value={item.batchNo}
+                              onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, batchNo: e.target.value }) }))}
+                              className={ic} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Expiry</label>
+                            <input type="date" value={item.expiryDate}
+                              onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, expiryDate: e.target.value }) }))}
+                              className={ic} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">MRP ₹ <span className="text-red-400">*</span></label>
+                            <input type="number" min={0} step="0.01" value={item.mrp}
+                              onChange={(e) => {
+                                const mrp = Number(e.target.value) || 0;
+                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, mrp, total: +(it.qty * mrp - it.discount).toFixed(2) }) }));
+                              }}
+                              className={ic} required />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label>
+                            <input type="number" min={1} value={item.qty}
+                              onChange={(e) => {
+                                const qty = Number(e.target.value) || 0;
+                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, qty, total: +(qty * it.mrp - it.discount).toFixed(2) }) }));
+                              }}
+                              className={ic} required />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Disc ₹</label>
+                            <input type="number" min={0} step="0.01" value={item.discount}
+                              onChange={(e) => {
+                                const discount = Number(e.target.value) || 0;
+                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, discount, total: +(it.qty * it.mrp - discount).toFixed(2) }) }));
+                              }}
+                              className={ic} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">GST%</label>
+                            <select value={item.gstRate} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, gstRate: Number(e.target.value) }) }))}
+                              className={ic}>
+                              {[0, 5, 12, 18, 28].map(r => <option key={r} value={r}>{r}%</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Total ₹</label>
+                            <input type="number" value={item.total} readOnly
+                              className="w-full border border-teal-200 bg-teal-50 text-teal-700 rounded-lg px-2 py-1.5 text-xs font-bold outline-none cursor-default" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button type="button" onClick={() => setSaleForm(f => ({ ...f, items: [...f.items, { ...EMPTY_SALE_ITEM }] }))}
+                  className="mt-2 w-full py-2 border-2 border-dashed border-gray-200 text-gray-400 rounded-xl text-xs font-semibold hover:border-teal-300 hover:text-teal-500 transition-colors">
+                  + Add Another Item
                 </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className={`flex-[2] py-3 text-white rounded-xl transition-all font-semibold text-base disabled:opacity-40 disabled:cursor-not-allowed shadow-md disabled:shadow-none ${
-                    stockForm.type === "stock-in"
-                      ? "bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-emerald-500/20"
-                      : "bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-red-500/20"
-                  }`}
-                >
-                  {submitting ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Updating...
-                    </span>
-                  ) : (
-                    stockForm.type === "stock-in" ? "Add Stock" : "Remove Stock"
-                  )}
-                </button>
+              </div>
+
+              {/* GST Summary */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                {(() => {
+                  const gross = saleForm.items.reduce((s, it) => s + it.total, 0);
+                  let cgst = 0, sgst = 0, igst = 0;
+                  saleForm.items.forEach(it => {
+                    const r = it.gstRate;
+                    if (r > 0) {
+                      const taxable = it.total / (1 + r / 100);
+                      if (saleForm.isInterstate) igst += taxable * r / 100;
+                      else { cgst += taxable * r / 200; sgst += taxable * r / 200; }
+                    }
+                  });
+                  const totalGst = saleForm.isInterstate ? +igst.toFixed(2) : +(cgst + sgst).toFixed(2);
+                  const net = +(gross + saleForm.roundingAmount).toFixed(2);
+                  return (
+                    <>
+                      <div className="flex justify-between"><span className="text-gray-500">Gross Value (incl. GST)</span><span className="font-medium">₹{gross.toFixed(2)}</span></div>
+                      {saleForm.isInterstate
+                        ? <div className="flex justify-between"><span className="text-gray-500">IGST (incl.)</span><span className="font-medium text-blue-600">₹{igst.toFixed(2)}</span></div>
+                        : <>
+                            <div className="flex justify-between"><span className="text-gray-500">CGST (incl.)</span><span className="font-medium text-blue-600">₹{cgst.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">SGST (incl.)</span><span className="font-medium text-blue-600">₹{sgst.toFixed(2)}</span></div>
+                          </>
+                      }
+                      <div className="flex justify-between"><span className="text-gray-500">Total GST</span><span className="font-medium text-blue-600">₹{totalGst.toFixed(2)}</span></div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500">Rounding</span>
+                        <input type="number" step="0.01" value={saleForm.roundingAmount}
+                          onChange={(e) => setSaleForm(f => ({ ...f, roundingAmount: Number(e.target.value) || 0 }))}
+                          className="w-24 border border-gray-200 bg-white rounded-lg px-2 py-1 text-xs text-right outline-none focus:border-teal-400" />
+                      </div>
+                      <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-base">
+                        <span>Net Amount</span>
+                        <span className="text-teal-700">₹{net.toFixed(2)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowAddSaleModal(false)} className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="submit" disabled={saleSubmitting} className="flex-[2] px-8 py-3 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60 transition-colors">{saleSubmitting ? "Saving..." : "Save Sale"}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && deleteItem && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center border border-red-100">
-                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Discontinue Item</h3>
-                <p className="text-sm text-gray-500">This action can be undone later</p>
-              </div>
-            </div>
-            <p className="text-base text-gray-600 mb-6">
-              Are you sure you want to discontinue <span className="font-semibold text-gray-900">{deleteItem.name}</span>? It will be marked as discontinued and hidden from active inventory.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setShowDeleteConfirm(false); setDeleteItem(null); }}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteItem}
-                disabled={deleteSubmitting}
-                className="flex-1 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl hover:from-red-600 hover:to-rose-700 transition-all font-semibold text-base disabled:opacity-40 shadow-md shadow-red-500/20"
-              >
-                {deleteSubmitting ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  </span>
-                ) : "Discontinue"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

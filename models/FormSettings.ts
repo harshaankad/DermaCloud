@@ -4,12 +4,13 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export interface IFormField {
   fieldName: string;
   label: string;
-  type: "text" | "textarea" | "number" | "select" | "date" | "checkbox";
+  type: "text" | "textarea" | "number" | "select" | "date" | "checkbox" | "prescription";
   required: boolean;
   enabled: boolean;
   options?: string[]; // For select fields
   placeholder?: string;
   order: number; // For custom ordering
+  custom?: boolean; // User-added custom field
 }
 
 // Form Section Interface
@@ -36,7 +37,7 @@ const FormFieldSchema = new Schema<IFormField>(
     label: { type: String, required: true },
     type: {
       type: String,
-      enum: ["text", "textarea", "number", "select", "date", "checkbox"],
+      enum: ["text", "textarea", "number", "select", "date", "checkbox", "prescription"],
       required: true,
     },
     required: { type: Boolean, default: false },
@@ -44,6 +45,7 @@ const FormFieldSchema = new Schema<IFormField>(
     options: [String],
     placeholder: String,
     order: { type: Number, default: 0 },
+    custom: { type: Boolean, default: false },
   },
   { _id: false }
 );

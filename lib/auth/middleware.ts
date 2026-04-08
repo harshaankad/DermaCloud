@@ -58,7 +58,7 @@ export async function authMiddleware(
  */
 export async function requireTier(
   request: NextRequest,
-  requiredTier: "tier1" | "tier2"
+  requiredTier: "tier2"
 ): Promise<{ user: JWTPayload } | NextResponse> {
   const authResult = await authMiddleware(request);
 

@@ -31,12 +31,6 @@ export type { ITemplateCosmetology } from "./TemplateCosmetology";
 export { default as OTP } from "./OTP";
 export type { IOTP } from "./OTP";
 
-export { default as Tier1Scan } from "./Tier1Scan";
-export type { ITier1Scan } from "./Tier1Scan";
-
-export { default as UsageTracking } from "./UsageTracking";
-export type { IUsageTracking } from "./UsageTracking";
-
 // Frontdesk Add-on Kit Models
 export { default as FrontdeskStaff } from "./FrontdeskStaff";
 export type { IFrontdeskStaff } from "./FrontdeskStaff";
@@ -51,4 +45,13 @@ export { default as InventoryTransaction } from "./InventoryTransaction";
 export type { IInventoryTransaction } from "./InventoryTransaction";
 
 export { default as Sale } from "./Sale";
-export type { ISale, ISaleItem } from "./Sale";
+export type { ISale, ISaleItem, IGstBreakdown as ISaleGstBreakdown } from "./Sale";
+
+export { default as Purchase } from "./Purchase";
+export type { IPurchase, IPurchaseItem, IGstBreakdown } from "./Purchase";
+
+export { default as PurchaseReturn } from "./PurchaseReturn";
+export type { IPurchaseReturn, IPurchaseReturnItem } from "./PurchaseReturn";
+
+export { default as SalesReturn } from "./SalesReturn";
+export type { ISalesReturn, ISalesReturnItem } from "./SalesReturn";

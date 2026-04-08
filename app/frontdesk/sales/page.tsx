@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { printSaleBill } from "@/lib/printBill";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -10,22 +11,6 @@ interface Toast {
   message: string;
 }
 
-interface InventoryItem {
-  _id: string;
-  itemCode: string;
-  name: string;
-  genericName?: string;
-  currentStock: number;
-  sellingPrice: number;
-  unit: string;
-  category?: string;
-}
-
-interface CartItem extends InventoryItem {
-  quantity: number;
-  discount: number;
-}
-
 interface SaleItem {
   itemId: string;
   itemCode: string;
@@ -33,6 +18,7 @@ interface SaleItem {
   quantity: number;
   unitPrice: number;
   discount: number;
+  gstRate: number;
   total: number;
 }
 
@@ -84,18 +70,16 @@ export default function FrontdeskSalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const EMPTY_SALE_ITEM = { itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, gstRate: 0, total: 0 };
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchingInventory, setSearchingInventory] = useState(false);
+  const [invSuggestions, setInvSuggestions] = useState<any[]>([]);
   const [saleForm, setSaleForm] = useState({
-    patientName: "",
-    patientPhone: "",
-    paymentMethod: "cash",
-    discountPercentage: 0,
+    patientName: "", patientPhone: "", doctorName: "", city: "",
+    modeOfPayment: "cash", isInterstate: false, roundingAmount: 0,
+    items: [{ itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, gstRate: 0, total: 0 }],
   });
   const [submitting, setSubmitting] = useState(false);
+  const [lastSale, setLastSale] = useState<any>(null);
   const [todayStats, setTodayStats] = useState<any>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [filter, setFilter] = useState<"all" | "paid" | "pending" | "partial">("all");
@@ -104,10 +88,31 @@ export default function FrontdeskSalesPage() {
   const [loadingSaleDetail, setLoadingSaleDetail] = useState(false);
   const [collectingPayment, setCollectingPayment] = useState(false);
   const [collectAmount, setCollectAmount] = useState("");
-  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [prescription, setPrescription] = useState<PrescriptionData | null>(null);
   const [loadingPrescription, setLoadingPrescription] = useState(false);
   const [prescriptionChecked, setPrescriptionChecked] = useState(false);
+  const [linkedAppointmentId, setLinkedAppointmentId] = useState<string | undefined>(undefined);
+  const [salesTab, setSalesTab] = useState<"sales" | "returns">("sales");
+  const [salesReturns, setSalesReturns] = useState<any[]>([]);
+  const [loadingSalesReturns, setLoadingSalesReturns] = useState(false);
+  const [loadingMoreSR, setLoadingMoreSR] = useState(false);
+  const [srPage, setSrPage] = useState(1);
+  const [srHasMore, setSrHasMore] = useState(false);
+  const [srFrom, setSrFrom] = useState("");
+  const [srTo, setSrTo] = useState("");
+  const [selectedSalesReturn, setSelectedSalesReturn] = useState<any>(null);
+  const [reportFrom, setReportFrom] = useState("");
+  const [reportTo, setReportTo] = useState("");
+  const [showAddSrModal, setShowAddSrModal] = useState(false);
+  const [srSubmitting, setSrSubmitting] = useState(false);
+  const EMPTY_SR_ITEM = { itemId: "", itemName: "", quantity: 1, unitPrice: 0, discount: 0, gstRate: 0, total: 0, restock: true };
+  const [srForm, setSrForm] = useState({
+    invoiceNo: "", invoiceDate: "", modeOfPayment: "cash", partyName: "", city: "",
+    isInterstate: false,
+    grossValue: 0, discount: 0, roundingAmount: 0, netAmount: 0, reason: "",
+    items: [{ itemId: "", itemName: "", quantity: 1, unitPrice: 0, discount: 0, gstRate: 0, total: 0, restock: true }],
+  });
 
   const showToast = useCallback((type: "success" | "error" | "info", message: string) => {
     const id = Date.now();
@@ -117,13 +122,95 @@ export default function FrontdeskSalesPage() {
     }, 4000);
   }, []);
 
-  const fetchPrescription = async (patientId: string, date?: string) => {
+  const getFrontdeskToken = () => localStorage.getItem("frontdeskToken");
+
+  const fetchSalesReturns = useCallback(async (from?: string, to?: string, page = 1) => {
+    const token = getFrontdeskToken(); if (!token) return;
+    if (page === 1) setLoadingSalesReturns(true); else setLoadingMoreSR(true);
+    try {
+      let url = `/api/tier2/sales-returns?limit=20&page=${page}`;
+      if (from) url += `&from=${from}`;
+      if (to) url += `&to=${to}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) {
+        const items = data.data.returns || [];
+        setSalesReturns(prev => page === 1 ? items : [...prev, ...items]);
+        setSrPage(page);
+        setSrHasMore(data.data.pagination.page < data.data.pagination.pages);
+      }
+    } catch { showToast("error", "Failed to load sales returns"); }
+    finally { setLoadingSalesReturns(false); setLoadingMoreSR(false); }
+  }, [showToast]);
+
+  const downloadReport = async (url: string, filename: string) => {
+    const token = getFrontdeskToken(); if (!token) return;
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { showToast("error", "Failed to download"); return; }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch { showToast("error", "Download failed"); }
+  };
+
+  const computeGstBreakdowns = (items: any[]) => {
+    const empty = () => ({ taxable: 0, cgst: 0, sgst: 0, igst: 0 });
+    const gst: Record<number, any> = { 0: empty(), 5: empty(), 12: empty(), 18: empty(), 28: empty() };
+    for (const item of items) {
+      const rate = item.gstRate || 0;
+      const taxable = item.total || 0;
+      const half = parseFloat(((taxable * rate) / 200).toFixed(2));
+      if (!gst[rate]) gst[rate] = empty();
+      gst[rate].taxable += taxable; gst[rate].cgst += half; gst[rate].sgst += half;
+    }
+    const totalGst = Object.values(gst).reduce((s: number, g: any) => s + g.cgst + g.sgst + g.igst, 0);
+    return { gst0: gst[0], gst5: gst[5], gst12: gst[12], gst18: gst[18], gst28: gst[28], totalGst };
+  };
+
+  const recomputeSrTotals = (items: typeof srForm.items, discount: number, roundingAmount: number) => {
+    const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2);
+    const totalGst = +items.reduce((s, it) => s + it.total * (it.gstRate || 0) / 100, 0).toFixed(2);
+    const net = +(gross + totalGst - discount + roundingAmount).toFixed(2);
+    return { grossValue: gross, netAmount: net };
+  };
+
+  const handleAddSalesReturn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (srSubmitting) return;
+    const token = getFrontdeskToken(); if (!token) return;
+    setSrSubmitting(true);
+    try {
+      const { gst0, gst5, gst12, gst18, gst28, totalGst } = computeGstBreakdowns(srForm.items);
+      const body = { ...srForm, gst0, gst5, gst12, gst18, gst28, totalGst };
+      const res = await fetch("/api/tier2/sales-returns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { showToast("error", `Server error (${res.status}): ${text.slice(0, 200)}`); return; }
+      if (data.success) {
+        showToast("success", "Sales return recorded");
+        setShowAddSrModal(false);
+        setSrForm({ invoiceNo: "", invoiceDate: "", modeOfPayment: "cash", partyName: "", city: "", isInterstate: false, grossValue: 0, discount: 0, roundingAmount: 0, netAmount: 0, reason: "", items: [{ itemId: "", itemName: "", quantity: 1, unitPrice: 0, discount: 0, gstRate: 0, total: 0, restock: true }] });
+        fetchSalesReturns(srFrom, srTo);
+      } else { showToast("error", data.message || "Failed"); }
+    } catch (err: any) { showToast("error", err?.message || "Failed to save"); }
+    finally { setSrSubmitting(false); }
+  };
+
+  const fetchPrescription = async (patientId: string, date?: string, appointmentId?: string) => {
     setLoadingPrescription(true);
     setPrescription(null);
     setPrescriptionChecked(false);
     const token = localStorage.getItem("frontdeskToken");
     try {
-      const url = `/api/tier2/sales/prescription?patientId=${patientId}${date ? `&date=${date}` : ""}`;
+      const url = `/api/tier2/sales/prescription?patientId=${patientId}${date ? `&date=${date}` : ""}${appointmentId ? `&appointmentId=${appointmentId}` : ""}`;
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -169,12 +256,14 @@ export default function FrontdeskSalesPage() {
       const pname = params.get("patientName") || "";
       const pphone = params.get("patientPhone") || "";
       const aptDate = params.get("aptDate") || undefined;
+      const aptId = params.get("appointmentId") || undefined;
+      if (aptId) setLinkedAppointmentId(aptId);
       setSaleForm((prev) => ({
         ...prev,
         patientName: pname,
         patientPhone: pphone,
       }));
-      fetchPrescription(pid, aptDate);
+      fetchPrescription(pid, aptDate, aptId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -182,13 +271,17 @@ export default function FrontdeskSalesPage() {
   const fetchSales = async (token: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/tier2/sales?date=${selectedDate}`, {
+      const response = await fetch(`/api/tier2/sales?startDate=${selectedDate}&endDate=${selectedDate}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       if (data.success) {
-        setSales(data.data.sales || []);
-        setTodayStats(data.data.todayStats);
+        const salesList = data.data.sales || [];
+        setSales(salesList);
+        setTodayStats({
+          totalSales: salesList.length,
+          totalRevenue: salesList.reduce((s: number, sale: any) => s + (sale.totalAmount || 0), 0),
+        });
       }
     } catch (error) {
       console.error("Error fetching sales:", error);
@@ -197,150 +290,55 @@ export default function FrontdeskSalesPage() {
     }
   };
 
-  const searchInventory = async (query: string) => {
-    if (query.length < 2) {
-      setInventory([]);
-      return;
-    }
-    setSearchingInventory(true);
-    const token = localStorage.getItem("frontdeskToken");
-    try {
-      const response = await fetch(`/api/tier2/inventory?search=${encodeURIComponent(query)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      if (data.success) {
-        setInventory(data.data.items || []);
-      }
-    } catch (error) {
-      console.error("Error searching inventory:", error);
-    } finally {
-      setSearchingInventory(false);
-    }
-  };
 
-  // Debounced inventory search
   useEffect(() => {
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    if (searchQuery.length >= 2) {
-      searchTimerRef.current = setTimeout(() => {
-        searchInventory(searchQuery);
-      }, 400);
-    } else {
-      setInventory([]);
-    }
-    return () => {
-      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    };
-  }, [searchQuery]);
+    if (salesTab === "returns") fetchSalesReturns();
+  }, [salesTab, fetchSalesReturns]);
 
-  const addToCart = (item: InventoryItem) => {
-    const existingIndex = cart.findIndex((c) => c._id === item._id);
-    if (existingIndex >= 0) {
-      const newCart = [...cart];
-      if (newCart[existingIndex].quantity < item.currentStock) {
-        newCart[existingIndex].quantity += 1;
-        setCart(newCart);
-      }
-    } else {
-      setCart([...cart, { ...item, quantity: 1, discount: 0 }]);
-    }
-    setSearchQuery("");
-    setInventory([]);
-  };
+  const fetchInvSuggestions = useCallback(async () => {
+    const token = localStorage.getItem("frontdeskToken"); if (!token) return;
+    try {
+      const res = await fetch("/api/tier2/inventory?limit=500", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setInvSuggestions(data.data.items || []);
+    } catch { /* silent */ }
+  }, []);
 
-  const updateCartQuantity = (index: number, delta: number) => {
-    const newCart = [...cart];
-    const newQty = newCart[index].quantity + delta;
-    if (newQty >= 1 && newQty <= newCart[index].currentStock) {
-      newCart[index].quantity = newQty;
-      setCart(newCart);
-    }
-  };
-
-  const updateCartDiscount = (index: number, discount: number) => {
-    const newCart = [...cart];
-    newCart[index].discount = Math.max(0, discount);
-    setCart(newCart);
-  };
-
-  const removeFromCart = (index: number) => {
-    setCart(cart.filter((_, i) => i !== index));
-  };
-
-  const calculateTotals = () => {
-    const subtotal = cart.reduce((sum, item) => {
-      return sum + item.sellingPrice * item.quantity - item.discount;
-    }, 0);
-    const discountAmount = subtotal * (saleForm.discountPercentage / 100);
-    const total = subtotal - discountAmount;
-    return { subtotal, discountAmount, total };
-  };
+  useEffect(() => {
+    if (showNewSaleModal || showAddSrModal) fetchInvSuggestions();
+  }, [showNewSaleModal, showAddSrModal, fetchInvSuggestions]);
 
   const handleCreateSale = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cart.length === 0) {
-      showToast("error", "Please add items to the cart");
-      return;
-    }
-    if (!saleForm.patientName.trim()) {
-      showToast("error", "Please enter customer name");
-      return;
-    }
-
+    const token = localStorage.getItem("frontdeskToken"); if (!token) return;
     setSubmitting(true);
-    const token = localStorage.getItem("frontdeskToken");
-    const totals = calculateTotals();
-
     try {
-      const response = await fetch("/api/tier2/sales", {
+      const res = await fetch("/api/tier2/sales", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          patientName: saleForm.patientName,
-          patientPhone: saleForm.patientPhone,
-          items: cart.map((item) => ({
-            itemId: item._id,
-            quantity: item.quantity,
-            discount: item.discount,
-          })),
-          discountPercentage: saleForm.discountPercentage,
-          paymentMethod: saleForm.paymentMethod,
-          amountPaid: totals.total,
-        }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...saleForm, ...(linkedAppointmentId && { appointmentId: linkedAppointmentId }) }),
       });
-
-      const data = await response.json();
+      const data = await res.json();
       if (data.success) {
-        showToast("success", `Sale completed! Invoice: ${data.data.invoiceNumber || data.data.saleId}`);
+        showToast("success", `Sale saved — ${data.data.invoiceNumber || data.data.saleId}`);
         setShowNewSaleModal(false);
+        setLastSale(data.data);
         resetSaleForm();
-        fetchSales(token!);
+        fetchSales(token);
       } else {
-        showToast("error", data.message || "Failed to create sale");
+        showToast("error", data.message || "Failed to save sale");
       }
-    } catch (error) {
-      showToast("error", "Error creating sale");
+    } catch {
+      showToast("error", "Error saving sale");
     } finally {
       setSubmitting(false);
     }
   };
 
   const resetSaleForm = () => {
-    setCart([]);
-    setSearchQuery("");
-    setInventory([]);
     setPrescription(null);
     setPrescriptionChecked(false);
-    setSaleForm({
-      patientName: "",
-      patientPhone: "",
-      paymentMethod: "cash",
-      discountPercentage: 0,
-    });
+    setSaleForm({ patientName: "", patientPhone: "", doctorName: "", city: "", modeOfPayment: "cash", isInterstate: false, roundingAmount: 0, items: [{ ...EMPTY_SALE_ITEM }] });
   };
 
   const openSaleDetail = async (sale: Sale) => {
@@ -399,8 +397,6 @@ export default function FrontdeskSalesPage() {
       setCollectingPayment(false);
     }
   };
-
-  const totals = calculateTotals();
 
   const isToday = selectedDate === new Date().toISOString().split("T")[0];
 
@@ -518,16 +514,6 @@ export default function FrontdeskSalesPage() {
                 <p className="text-base text-gray-500 hidden sm:block">Manage transactions and billing</p>
               </div>
             </div>
-            <button
-              onClick={() => setShowNewSaleModal(true)}
-              className="px-4 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 transition-all shadow-md shadow-teal-500/20 flex items-center gap-2 font-medium text-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              <span className="hidden sm:inline text-base">New Sale</span>
-              <span className="sm:hidden text-base">Sale</span>
-            </button>
           </div>
         </div>
       </header>
@@ -647,6 +633,127 @@ export default function FrontdeskSalesPage() {
           </div>
         </div>
 
+        {/* Reports Download */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-5">
+          <p className="text-sm font-semibold text-gray-700 mb-3">Download Reports</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+            <span className="text-gray-400 text-sm">to</span>
+            <input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+            <button
+              onClick={() => { const qs = reportFrom && reportTo ? `?from=${reportFrom}&to=${reportTo}` : ""; downloadReport(`/api/tier2/sales/report${qs}`, "SalesRegister.xlsx"); }}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              Sales Register
+            </button>
+            <button
+              onClick={() => { const qs = reportFrom && reportTo ? `?from=${reportFrom}&to=${reportTo}` : ""; downloadReport(`/api/tier2/sales-returns/report${qs}`, "SalesReturnRegister.xlsx"); }}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg text-sm font-semibold hover:bg-slate-700 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              Sales Return Register
+            </button>
+          </div>
+        </div>
+
+        {/* Print Bill Banner */}
+        {lastSale && (
+          <div className="bg-teal-50 border border-teal-200 rounded-xl px-4 py-3 flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-teal-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-teal-800">Sale saved — <span className="font-semibold">{lastSale.invoiceNumber || lastSale.saleId}</span> for {lastSale.patientName}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => printSaleBill(lastSale)} className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                Print Bill
+              </button>
+              <button onClick={() => setLastSale(null)} className="text-teal-500 hover:text-teal-700 text-lg leading-none px-1">×</button>
+            </div>
+          </div>
+        )}
+
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-1 mb-5 bg-gray-100 rounded-xl p-1 w-fit">
+          {([{ key: "sales", label: "Sales" }, { key: "returns", label: "Sales Returns" }] as const).map((tab) => (
+            <button key={tab.key} onClick={() => setSalesTab(tab.key)} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${salesTab === tab.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>{tab.label}</button>
+          ))}
+        </div>
+
+        {salesTab === "returns" ? (
+          /* ── Sales Returns Tab ── */
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <input type="date" value={srFrom} onChange={(e) => setSrFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+                <span className="text-gray-400 text-sm">to</span>
+                <input type="date" value={srTo} onChange={(e) => setSrTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+                <button onClick={() => fetchSalesReturns(srFrom, srTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
+              </div>
+              <button onClick={() => setShowAddSrModal(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add Return
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {loadingSalesReturns ? (
+                <div className="p-10 text-center text-gray-400 text-sm">Loading...</div>
+              ) : salesReturns.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-gray-100">
+                    <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                  </div>
+                  <p className="text-gray-500 font-medium">No sales returns yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Click &quot;Add Return&quot; to log a sales return</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>{["Invoice No", "Date", "Party Name", "City", "Mode", "Gross Value", "Discount", "Total GST", "Net Amount", "Reason"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}</tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {salesReturns.map((s: any) => (
+                        <tr key={s._id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelectedSalesReturn(s)}>
+                          <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{s.invoiceNo}</td>
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{new Date(s.invoiceDate).toLocaleDateString("en-IN")}</td>
+                          <td className="px-4 py-3 text-gray-700">{s.partyName}</td>
+                          <td className="px-4 py-3 text-gray-500">{s.city || "—"}</td>
+                          <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium uppercase">{s.modeOfPayment}</span></td>
+                          <td className="px-4 py-3 text-gray-700">₹{(s.grossValue || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-red-600">₹{(s.discount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-blue-600">₹{(s.totalGst || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 font-semibold text-gray-900">₹{(s.netAmount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-gray-500 text-xs">{s.reason || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 border-t border-gray-200">
+                      <tr>
+                        <td colSpan={5} className="px-4 py-3 text-sm font-semibold text-gray-700">Totals</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">₹{salesReturns.reduce((s: number, r: any) => s + (r.grossValue || 0), 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold text-red-600">₹{salesReturns.reduce((s: number, r: any) => s + (r.discount || 0), 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold text-blue-600">₹{salesReturns.reduce((s: number, r: any) => s + (r.totalGst || 0), 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">₹{salesReturns.reduce((s: number, r: any) => s + (r.netAmount || 0), 0).toFixed(2)}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                  {srHasMore && (
+                    <div className="px-5 py-4 text-center border-t border-gray-100">
+                      <button onClick={() => fetchSalesReturns(srFrom, srTo, srPage + 1)} disabled={loadingMoreSR} className="text-sm font-semibold text-teal-600 hover:text-teal-700 transition-colors disabled:opacity-40">
+                        {loadingMoreSR ? "Loading..." : "Load more"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (<>
+
         {/* Search & Filter */}
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
           <div className="relative flex-1">
@@ -663,7 +770,7 @@ export default function FrontdeskSalesPage() {
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-sm text-gray-900 bg-white placeholder:text-gray-400"
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="flex items-center gap-2 overflow-x-auto">
             {(["all", "paid", "pending", "partial"] as const).map((f) => (
               <button
                 key={f}
@@ -686,6 +793,13 @@ export default function FrontdeskSalesPage() {
                 </span>
               </button>
             ))}
+            <button
+              onClick={() => setShowNewSaleModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors whitespace-nowrap ml-auto"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              New Sale
+            </button>
           </div>
         </div>
 
@@ -787,29 +901,248 @@ export default function FrontdeskSalesPage() {
             </div>
           )}
         </div>
+        </>)}
       </main>
 
-      {/* Sale Detail Drawer */}
+      {/* Sales Return Detail Modal */}
+      {selectedSalesReturn && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Sales Return Details</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{selectedSalesReturn.invoiceNo}</p>
+              </div>
+              <button onClick={() => setSelectedSalesReturn(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[
+                  { label: "Invoice No", value: selectedSalesReturn.invoiceNo || "—" },
+                  { label: "Date", value: selectedSalesReturn.invoiceDate ? new Date(selectedSalesReturn.invoiceDate).toLocaleDateString("en-IN") : "—" },
+                  { label: "Party Name", value: selectedSalesReturn.partyName || "—" },
+                  { label: "City", value: selectedSalesReturn.city || "—" },
+                  { label: "Mode", value: (selectedSalesReturn.modeOfPayment || "—").toUpperCase() },
+                  { label: "Reason", value: selectedSalesReturn.reason || "—" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+                    <p className="text-sm font-semibold text-gray-800 mt-0.5 truncate">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {selectedSalesReturn.items?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Items</p>
+                  <div className="space-y-2">
+                    {selectedSalesReturn.items.map((item: any, i: number) => (
+                      <div key={i} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-semibold text-gray-800 text-sm">{item.itemName}</p>
+                          <span className="text-xs font-bold text-orange-700">₹{(item.total || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-xs">
+                          {[
+                            { label: "Qty", value: item.quantity },
+                            { label: "Unit Price", value: `₹${(item.unitPrice || 0).toFixed(2)}` },
+                            { label: "Discount", value: `₹${(item.discount || 0).toFixed(2)}` },
+                            { label: "GST%", value: `${item.gstRate || 0}%` },
+                            { label: "Restock", value: item.restock ? "Yes" : "No" },
+                          ].map(({ label, value }) => (
+                            <div key={label}>
+                              <p className="text-[10px] text-gray-400 font-medium">{label}</p>
+                              <p className="font-semibold text-gray-700">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                {[
+                  { label: "Gross Value", value: `₹${(selectedSalesReturn.grossValue || 0).toFixed(2)}` },
+                  { label: "Discount", value: `−₹${(selectedSalesReturn.discount || 0).toFixed(2)}`, red: true },
+                  { label: "CGST", value: `₹${((selectedSalesReturn.gst0?.cgst || 0) + (selectedSalesReturn.gst5?.cgst || 0) + (selectedSalesReturn.gst12?.cgst || 0) + (selectedSalesReturn.gst18?.cgst || 0) + (selectedSalesReturn.gst28?.cgst || 0)).toFixed(2)}` },
+                  { label: "SGST", value: `₹${((selectedSalesReturn.gst0?.sgst || 0) + (selectedSalesReturn.gst5?.sgst || 0) + (selectedSalesReturn.gst12?.sgst || 0) + (selectedSalesReturn.gst18?.sgst || 0) + (selectedSalesReturn.gst28?.sgst || 0)).toFixed(2)}` },
+                  { label: "IGST", value: `₹${((selectedSalesReturn.gst0?.igst || 0) + (selectedSalesReturn.gst5?.igst || 0) + (selectedSalesReturn.gst12?.igst || 0) + (selectedSalesReturn.gst18?.igst || 0) + (selectedSalesReturn.gst28?.igst || 0)).toFixed(2)}` },
+                  { label: "Total GST", value: `₹${(selectedSalesReturn.totalGst || 0).toFixed(2)}` },
+                  ...(selectedSalesReturn.roundingAmount ? [{ label: "Rounding", value: `₹${selectedSalesReturn.roundingAmount.toFixed(2)}` }] : []),
+                ].map(({ label, value, red }: any) => (
+                  <div key={label} className="flex justify-between text-sm">
+                    <span className="text-gray-500">{label}</span>
+                    <span className={`font-medium ${red ? "text-red-600" : "text-gray-700"}`}>{value}</span>
+                  </div>
+                ))}
+                <div className="border-t border-gray-200 pt-2 flex justify-between">
+                  <span className="font-bold text-gray-900">Net Amount</span>
+                  <span className="text-lg font-bold text-orange-700">₹{(selectedSalesReturn.netAmount || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Sales Return Modal */}
+      {showAddSrModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="flex-none px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Sales Return</h3>
+              <button onClick={() => setShowAddSrModal(false)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+            <form onSubmit={handleAddSalesReturn} className="flex-1 overflow-y-auto min-h-0 p-6 space-y-5">
+              {/* Header info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-semibold text-gray-500 mb-1">Invoice No <span className="text-red-400">*</span></label><input required value={srForm.invoiceNo} onChange={(e) => setSrForm(f => ({ ...f, invoiceNo: e.target.value }))} placeholder="Original sale invoice no" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" /></div>
+                <div><label className="block text-xs font-semibold text-gray-500 mb-1">Invoice Date <span className="text-red-400">*</span></label><input required type="date" value={srForm.invoiceDate} onChange={(e) => setSrForm(f => ({ ...f, invoiceDate: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" /></div>
+                <div><label className="block text-xs font-semibold text-gray-500 mb-1">Party Name <span className="text-red-400">*</span></label><input required value={srForm.partyName} onChange={(e) => setSrForm(f => ({ ...f, partyName: e.target.value }))} placeholder="Customer name" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" /></div>
+                <div><label className="block text-xs font-semibold text-gray-500 mb-1">City</label><input value={srForm.city} onChange={(e) => setSrForm(f => ({ ...f, city: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" /></div>
+                <div><label className="block text-xs font-semibold text-gray-500 mb-1">Mode of Payment <span className="text-red-400">*</span></label><select value={srForm.modeOfPayment} onChange={(e) => setSrForm(f => ({ ...f, modeOfPayment: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"><option value="cash">Cash</option><option value="card">Card</option><option value="upi">UPI</option><option value="credit">Credit</option></select></div>
+                <div><label className="block text-xs font-semibold text-gray-500 mb-1">Reason</label><input value={srForm.reason} onChange={(e) => setSrForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Wrong item, Damaged" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" /></div>
+                <div className="col-span-2 flex items-center gap-3 pt-1">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" checked={srForm.isInterstate} onChange={(e) => setSrForm(f => ({ ...f, isInterstate: e.target.checked }))} className="sr-only peer" />
+                    <div className="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500"></div>
+                  </label>
+                  <span className="text-xs font-semibold text-gray-600">Interstate (IGST)</span>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div>
+                <datalist id="sr-inv-list">
+                  {invSuggestions.map((inv) => <option key={inv._id} value={inv.name} />)}
+                </datalist>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Items <span className="text-red-400">*</span></p>
+                  <button type="button" onClick={() => setSrForm(f => ({ ...f, items: [...f.items, { ...EMPTY_SR_ITEM }] }))} className="text-xs text-teal-600 font-semibold hover:text-teal-700">+ Add Item</button>
+                </div>
+                <div className="space-y-3">
+                  {srForm.items.map((item, i) => {
+                    const ic = "w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none";
+                    const matchedInv = invSuggestions.find(inv => inv.name.toLowerCase() === item.itemName.toLowerCase());
+                    return (
+                      <div key={i} className="bg-gray-50 rounded-xl border border-gray-100 p-3">
+                        <div className="flex items-start gap-2 mb-2">
+                          <div className="flex-1">
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Product Name <span className="text-red-400">*</span></label>
+                            <input list="sr-inv-list" placeholder="Type to search inventory..." required value={item.itemName}
+                              onChange={(e) => {
+                                const name = e.target.value;
+                                const match = invSuggestions.find(inv => inv.name.toLowerCase() === name.toLowerCase());
+                                const items = [...srForm.items];
+                                items[i] = { ...items[i], itemName: name, itemId: match?._id || "", unitPrice: match?.sellingPrice ?? items[i].unitPrice, gstRate: match?.gstRate ?? items[i].gstRate };
+                                items[i].total = +(items[i].unitPrice * items[i].quantity - items[i].discount).toFixed(2);
+                                setSrForm(f => ({ ...f, items, ...recomputeSrTotals(items, f.discount, f.roundingAmount) }));
+                              }}
+                              className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none"
+                            />
+                            {matchedInv && <p className="text-[10px] text-emerald-600 mt-0.5">✓ Stock: {matchedInv.currentStock} {matchedInv.unit}</p>}
+                          </div>
+                          {srForm.items.length > 1 && (
+                            <button type="button" onClick={() => { const items = srForm.items.filter((_, j) => j !== i); setSrForm(f => ({ ...f, items, ...recomputeSrTotals(items, f.discount, f.roundingAmount) })); }} className="mt-4 text-red-400 hover:text-red-600 p-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 mb-2">
+                          <div><label className="block text-[10px] text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="number" min={1} required value={item.quantity} onChange={(e) => { const items = [...srForm.items]; items[i].quantity = +e.target.value; items[i].total = +(items[i].unitPrice * +e.target.value - items[i].discount).toFixed(2); setSrForm(f => ({ ...f, items, ...recomputeSrTotals(items, f.discount, f.roundingAmount) })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] text-gray-400 mb-0.5">MRP ₹ <span className="text-red-400">*</span></label><input type="number" min={0} step="0.01" required value={item.unitPrice} onChange={(e) => { const items = [...srForm.items]; items[i].unitPrice = +e.target.value; items[i].total = +(+e.target.value * items[i].quantity - items[i].discount).toFixed(2); setSrForm(f => ({ ...f, items, ...recomputeSrTotals(items, f.discount, f.roundingAmount) })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] text-gray-400 mb-0.5">Disc ₹</label><input type="number" min={0} step="0.01" value={item.discount} onChange={(e) => { const items = [...srForm.items]; items[i].discount = +e.target.value; items[i].total = +(items[i].unitPrice * items[i].quantity - +e.target.value).toFixed(2); setSrForm(f => ({ ...f, items, ...recomputeSrTotals(items, f.discount, f.roundingAmount) })); }} className={ic} /></div>
+                          <div><label className="block text-[10px] text-gray-400 mb-0.5">GST%</label><input type="number" min={0} max={100} step="0.01" value={item.gstRate} onChange={(e) => { const items = [...srForm.items]; items[i].gstRate = +e.target.value || 0; setSrForm(f => ({ ...f, items, ...recomputeSrTotals(items, f.discount, f.roundingAmount) })); }} className={ic} /></div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input type="checkbox" checked={item.restock} onChange={(e) => { const items = [...srForm.items]; items[i].restock = e.target.checked; setSrForm(f => ({ ...f, items })); }} className="sr-only peer" />
+                              <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500"></div>
+                            </label>
+                            <span className="text-xs text-gray-600">{item.restock ? <span className="text-teal-600 font-semibold">Restock inventory</span> : <span className="text-gray-400">Do not restock</span>}</span>
+                          </div>
+                          <div className="text-sm font-bold text-teal-700">₹{item.total.toFixed(2)}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Totals */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                {(() => {
+                  let cgst = 0, sgst = 0, igst = 0;
+                  srForm.items.forEach(it => {
+                    const r = it.gstRate || 0;
+                    if (r > 0) {
+                      if (srForm.isInterstate) igst += it.total * r / 100;
+                      else { cgst += it.total * r / 200; sgst += it.total * r / 200; }
+                    }
+                  });
+                  const totalGst = srForm.isInterstate ? +igst.toFixed(2) : +(cgst + sgst).toFixed(2);
+                  return <>
+                    <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span className="font-medium">₹{srForm.grossValue.toFixed(2)}</span></div>
+                    {srForm.isInterstate
+                      ? <div className="flex justify-between"><span className="text-gray-500">IGST</span><span className="font-medium text-blue-600">₹{igst.toFixed(2)}</span></div>
+                      : <><div className="flex justify-between"><span className="text-gray-500">CGST</span><span className="font-medium text-blue-600">₹{cgst.toFixed(2)}</span></div><div className="flex justify-between"><span className="text-gray-500">SGST</span><span className="font-medium text-blue-600">₹{sgst.toFixed(2)}</span></div></>
+                    }
+                    <div className="flex justify-between"><span className="text-gray-500">Total GST</span><span className="font-medium text-blue-600">₹{totalGst.toFixed(2)}</span></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500">Discount</span>
+                      <input type="number" min={0} step="0.01" value={srForm.discount} onChange={(e) => setSrForm(f => { const discount = +e.target.value; return { ...f, discount, ...recomputeSrTotals(f.items, discount, f.roundingAmount) }; })} className="w-24 border border-gray-200 bg-white rounded-lg px-2 py-1 text-xs text-right outline-none focus:border-teal-400" />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500">Rounding</span>
+                      <input type="number" step="0.01" value={srForm.roundingAmount} onChange={(e) => setSrForm(f => { const roundingAmount = +e.target.value; return { ...f, roundingAmount, ...recomputeSrTotals(f.items, f.discount, roundingAmount) }; })} className="w-24 border border-gray-200 bg-white rounded-lg px-2 py-1 text-xs text-right outline-none focus:border-teal-400" />
+                    </div>
+                    <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-base">
+                      <span>Net Amount</span><span className="text-teal-700">₹{srForm.netAmount.toFixed(2)}</span>
+                    </div>
+                  </>;
+                })()}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowAddSrModal(false)} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl font-semibold text-sm hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={srSubmitting} className="flex-1 px-4 py-2.5 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60">{srSubmitting ? "Saving..." : "Save Return"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Sale Detail Modal */}
       {selectedSale && (
-        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setSelectedSale(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setSelectedSale(null)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div
-            className="relative w-full max-w-md bg-white shadow-2xl flex flex-col animate-slide-in-right"
-            style={{ height: "100vh" }}
+            className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Sticky Header */}
-            <div className="flex-none sticky top-0 bg-white border-b border-gray-100 px-5 py-4 z-10">
+            {/* Header */}
+            <div className="flex-none bg-white border-b border-gray-100 px-5 py-4 rounded-t-2xl">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Invoice</p>
                   <p className="text-base font-bold text-gray-900 font-mono">{selectedSale.invoiceNumber || selectedSale.saleId}</p>
                 </div>
-                <button onClick={() => setSelectedSale(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => printSaleBill(selectedSale)} className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                    Print
+                  </button>
+                  <button onClick={() => setSelectedSale(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -818,7 +1151,7 @@ export default function FrontdeskSalesPage() {
                 <div className="w-7 h-7 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto min-h-0">
                 {/* Customer hero */}
                 <div className="px-5 py-5 border-b border-gray-100 flex items-center gap-4">
                   <div className="w-12 h-12 bg-gradient-to-br from-teal-400 to-cyan-500 rounded-2xl flex items-center justify-center shadow-md shadow-teal-500/20 flex-shrink-0">
@@ -877,6 +1210,15 @@ export default function FrontdeskSalesPage() {
                       <span className="text-gray-500">Subtotal</span>
                       <span className="font-medium text-gray-800">₹{(selectedSale.subtotal || 0).toLocaleString()}</span>
                     </div>
+                    {(() => {
+                      const gstAmount = selectedSale.items.reduce((sum, it) => sum + (it.total * (it.gstRate || 0) / 100), 0);
+                      return gstAmount > 0 ? (
+                        <div className="flex justify-between items-center px-4 py-3 text-sm">
+                          <span className="text-gray-500">GST</span>
+                          <span className="font-medium text-blue-600">₹{Math.round(gstAmount).toLocaleString()}</span>
+                        </div>
+                      ) : null;
+                    })()}
                     {selectedSale.discountAmount > 0 && (
                       <div className="flex justify-between items-center px-4 py-3 text-sm">
                         <span className="text-gray-500">Discount ({selectedSale.discountPercentage}%)</span>
@@ -942,357 +1284,331 @@ export default function FrontdeskSalesPage() {
       {/* New Sale Modal */}
       {showNewSaleModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <form
-            onSubmit={handleCreateSale}
-            className={`bg-white rounded-2xl shadow-2xl w-full overflow-hidden flex flex-col ${
-              (prescription || loadingPrescription || prescriptionChecked) ? "max-w-5xl" : "max-w-xl"
-            }`}
-            style={{ height: "90vh" }}
-          >
-            {/* ── Header ── */}
-            <div className="flex-none flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">New Sale</h2>
-                {saleForm.patientName && <p className="text-xs text-gray-400 mt-0.5">{saleForm.patientName}</p>}
-              </div>
-              <button
-                type="button"
-                onClick={() => { setShowNewSaleModal(false); resetSaleForm(); }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition-colors text-lg leading-none"
-              >
-                ✕
-              </button>
-            </div>
+          <div className="bg-white rounded-2xl shadow-2xl w-full overflow-hidden flex flex-col max-w-5xl" style={{ maxHeight: "92vh" }}>
 
-            {/* ── Body: left prescription pane + right actions pane ── */}
-            {/*
-                KEY APPROACH:
-                - Body uses flex-1 to fill space between header and footer.
-                - Left pane: fixed width + overflow-y-auto. Its height comes from
-                  align-items:stretch (default flex), so it matches the body height.
-                - Right pane: flex-1 flex-col. Cart section gets flex-1 min-h-0
-                  overflow-y-auto. Payment section is flex-none (pinned).
-                  This works because right pane height = body height = definite.
-            */}
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-
-              {/* LEFT: Doctor's Prescription */}
-              {(prescription || loadingPrescription || prescriptionChecked) && (
-                <div className="w-64 flex-shrink-0 border-r border-gray-100 overflow-y-auto bg-amber-50/30">
-                  <div className="p-4">
-                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Prescription
-                    </p>
-
-                    {loadingPrescription && (
-                      <div className="flex items-center gap-2 py-4 text-xs text-amber-700">
-                        <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                        Loading...
-                      </div>
-                    )}
-
-                    {!loadingPrescription && prescriptionChecked && !prescription && (
-                      <div className="text-center py-8 px-2">
-                        <p className="text-xs text-gray-400 leading-relaxed">No consultation recorded for this date</p>
-                      </div>
-                    )}
-
-                    {prescription && (() => {
-                      const renderDermFields = (fd: Record<string, any>, structuredMeds?: { name: string; dosage: string; frequency: string; duration: string }[]) => {
-                        const meds = structuredMeds ?? (Array.isArray(fd.medications) ? fd.medications : []);
-                        return (
-                          <div className="space-y-3">
-                            {meds.length > 0 && (
-                              <div>
-                                <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1.5">Medications</p>
-                                <ul className="space-y-1.5">
-                                  {meds.map((med: any, i: number) => (
-                                    <li key={i} className="bg-white rounded-lg p-2 border border-amber-100 text-xs">
-                                      <p className="font-semibold text-gray-800">{med.name}</p>
-                                      {(med.dosage || med.frequency || med.duration) && (
-                                        <p className="text-gray-400 mt-0.5">{[med.dosage, med.frequency, med.duration].filter(Boolean).join(" · ")}</p>
-                                      )}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            {fd.topicals && <div><p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1">Topical</p><p className="text-xs text-gray-700 bg-white rounded-lg p-2 border border-amber-100">{fd.topicals}</p></div>}
-                            {fd.orals && <div><p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1">Oral</p><p className="text-xs text-gray-700 bg-white rounded-lg p-2 border border-amber-100">{fd.orals}</p></div>}
-                            {fd.investigations && <div><p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1">Investigations</p><p className="text-xs text-gray-700 bg-white rounded-lg p-2 border border-amber-100">{fd.investigations}</p></div>}
-                            {fd.lifestyleChanges && <div><p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1">Lifestyle</p><p className="text-xs text-gray-700 bg-white rounded-lg p-2 border border-amber-100">{fd.lifestyleChanges}</p></div>}
-                            {meds.length === 0 && !fd.topicals && !fd.orals && !fd.investigations && !fd.lifestyleChanges && (
-                              <p className="text-xs text-gray-400 italic">No treatment recorded</p>
-                            )}
-                          </div>
-                        );
-                      };
-
-                      const renderCosmoFields = (fd: Record<string, any>, proc?: typeof prescription.consultation.procedure, ac?: typeof prescription.consultation.aftercare) => {
-                        const name = proc?.name ?? fd.name;
-                        const products = proc?.productsAndParameters ?? fd.productsAndParameters;
-                        const homeProducts = ac?.homeProducts ?? fd.homeProducts;
-                        const instructions = ac?.instructions ?? fd.instructions;
-                        return (
-                          <div className="space-y-3">
-                            {name && <div><p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1">Procedure</p><p className="text-xs font-semibold text-gray-800 bg-white rounded-lg p-2 border border-amber-100">{name}</p></div>}
-                            {products && <div><p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1">Products</p><p className="text-xs text-gray-700 bg-white rounded-lg p-2 border border-amber-100">{products}</p></div>}
-                            {homeProducts && <div><p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1">Home Care</p><p className="text-xs text-gray-700 bg-white rounded-lg p-2 border border-amber-100">{homeProducts}</p></div>}
-                            {instructions && <div><p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1">Aftercare</p><p className="text-xs text-gray-700 bg-white rounded-lg p-2 border border-amber-100">{instructions}</p></div>}
-                            {!name && !products && !homeProducts && !instructions && (
-                              <p className="text-xs text-gray-400 italic">No treatment recorded</p>
-                            )}
-                          </div>
-                        );
-                      };
-
-                      const cf = prescription.consultation.customFields;
-                      const isMulti = cf?._multiIssue === true && Array.isArray(cf._issues) && cf._issues.length > 1;
-
-                      if (prescription.type === "dermatology") {
-                        const tp = prescription.consultation.treatmentPlan;
-                        if (isMulti) {
-                          return cf._issues.map((issue: any, idx: number) => (
-                            <div key={idx} className={idx > 0 ? "pt-3 mt-3 border-t border-amber-200" : ""}>
-                              <p className="text-[10px] font-bold text-amber-700 mb-2">{issue.label || `Issue ${idx + 1}`}</p>
-                              {renderDermFields(issue.formData || {}, idx === 0 ? tp?.medications : undefined)}
-                            </div>
-                          ));
-                        }
-                        return renderDermFields(
-                          { topicals: tp?.topicals, orals: tp?.orals, investigations: tp?.investigations, lifestyleChanges: tp?.lifestyleChanges },
-                          tp?.medications
-                        );
-                      }
-
-                      // cosmetology
-                      const proc = prescription.consultation.procedure;
-                      const ac = prescription.consultation.aftercare;
-                      if (isMulti) {
-                        return cf._issues.map((issue: any, idx: number) => (
-                          <div key={idx} className={idx > 0 ? "pt-3 mt-3 border-t border-amber-200" : ""}>
-                            <p className="text-[10px] font-bold text-amber-700 mb-2">{issue.label || `Issue ${idx + 1}`}</p>
-                            {renderCosmoFields(issue.formData || {}, idx === 0 ? proc : undefined, idx === 0 ? ac : undefined)}
-                          </div>
-                        ));
-                      }
-                      return renderCosmoFields({}, proc, ac);
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {/* RIGHT: single scrollable column — everything stacks naturally */}
-              <div className="flex-1 overflow-y-auto min-w-0 px-5 py-5 space-y-5">
-
-                {/* Customer fields */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Customer Name *</label>
-                    <input
-                      type="text"
-                      value={saleForm.patientName}
-                      onChange={(e) => setSaleForm({ ...saleForm, patientName: e.target.value })}
-                      placeholder="Enter name"
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-sm text-gray-900 bg-gray-50"
-                      required
-                      autoFocus
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Phone <span className="text-gray-300 font-normal normal-case">(optional)</span></label>
-                    <input
-                      type="tel"
-                      value={saleForm.patientPhone}
-                      onChange={(e) => setSaleForm({ ...saleForm, patientPhone: e.target.value })}
-                      placeholder="Phone number"
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-sm text-gray-900 bg-gray-50"
-                    />
-                  </div>
-                </div>
-
-                {/* Search — absolute dropdown so it floats over cart below */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Search & Add Items</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    </div>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Type medicine name or code..."
-                      className="w-full pl-9 pr-9 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-sm text-gray-900 bg-gray-50"
-                    />
-                    {searchingInventory && (
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                        <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-                    {inventory.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                        <div className="px-3 py-1.5 bg-gray-50 border-b text-[10px] text-gray-400 font-semibold uppercase tracking-wide">
-                          {inventory.length} result{inventory.length !== 1 ? "s" : ""}
-                        </div>
-                        <div className="max-h-52 overflow-y-auto">
-                          {inventory.map((item) => (
-                            <button
-                              key={item._id}
-                              type="button"
-                              onClick={() => addToCart(item)}
-                              disabled={item.currentStock === 0}
-                              className="w-full px-4 py-2.5 text-left hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-b-0 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-between"
-                            >
-                              <div>
-                                <p className="font-semibold text-gray-900 text-sm">{item.name}</p>
-                                <p className="text-[11px] text-gray-400">
-                                  {item.itemCode}
-                                  {item.currentStock <= 5 && item.currentStock > 0 && <span className="ml-1.5 text-amber-600 font-semibold">· Low: {item.currentStock}</span>}
-                                  {item.currentStock === 0 && <span className="ml-1.5 text-red-500 font-semibold">· Out of stock</span>}
-                                </p>
-                              </div>
-                              <div className="text-right ml-3 flex-shrink-0">
-                                <p className="font-bold text-gray-900 text-sm">₹{item.sellingPrice}</p>
-                                <p className="text-[11px] text-gray-400">{item.currentStock} {item.unit}</p>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Cart items — grows naturally, no height cap */}
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    Cart{cart.length > 0 ? ` · ${cart.length} item${cart.length !== 1 ? "s" : ""}` : ""}
+            {/* TOP: Prescription pane — fixed */}
+            {(prescription || loadingPrescription || prescriptionChecked) && (
+              <div className="flex-shrink-0 border-b border-gray-200 bg-amber-50/30 max-h-[40vh] overflow-y-auto">
+                <div className="px-5 py-3">
+                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Prescription
                   </p>
-                  {cart.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                      <svg className="w-8 h-8 text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      <p className="text-sm text-gray-400">Cart is empty</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {cart.map((item, index) => (
-                        <div key={item._id} className="bg-white rounded-xl border border-gray-200 px-3 py-2.5 flex items-center gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-gray-900 text-sm truncate">{item.name}</p>
-                            <p className="text-[11px] text-gray-400">₹{item.sellingPrice} / {item.unit}</p>
-                          </div>
-                          <input
-                            type="number"
-                            value={item.quantity === 0 ? "" : item.quantity}
-                            min={0}
-                            max={item.currentStock}
-                            onChange={(e) => {
-                              const newCart = [...cart];
-                              newCart[index].quantity = e.target.value === "" ? 0 : parseInt(e.target.value) || 0;
-                              setCart(newCart);
-                            }}
-                            onBlur={(e) => {
-                              const val = parseInt(e.target.value) || 0;
-                              const clamped = Math.min(Math.max(val, 1), item.currentStock);
-                              const newCart = [...cart];
-                              newCart[index].quantity = clamped;
-                              setCart(newCart);
-                            }}
-                            className="w-14 text-center font-bold text-sm border border-gray-200 rounded-lg py-1.5 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white flex-shrink-0"
-                          />
-                          <p className="font-bold text-gray-900 text-sm w-16 text-right flex-shrink-0">₹{(item.sellingPrice * item.quantity - item.discount).toLocaleString()}</p>
-                          <button type="button" onClick={() => removeFromCart(index)}
-                            className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
+                  {loadingPrescription && (
+                    <div className="flex items-center gap-2 py-3 text-xs text-amber-700">
+                      <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />Loading...
                     </div>
                   )}
-                </div>
+                  {!loadingPrescription && prescriptionChecked && !prescription && (
+                    <p className="text-xs text-gray-400 text-center py-3">No consultation recorded for this date</p>
+                  )}
+                  {prescription && (() => {
+                    const cf = prescription.consultation.customFields;
+                    const isMulti = cf?._multiIssue === true && Array.isArray(cf._issues) && cf._issues.length > 0;
+                    const fd = isMulti ? (cf._issues[0]?.formData || {}) : (cf?._issues?.[0]?.formData || cf || {});
 
-                {/* Payment summary */}
-                <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Subtotal</span>
-                    <span className="font-medium text-gray-800">₹{totals.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500">Discount %</span>
-                    <input
-                      type="number"
-                      value={saleForm.discountPercentage}
-                      onChange={(e) => setSaleForm({ ...saleForm, discountPercentage: parseFloat(e.target.value) || 0 })}
-                      min={0} max={100}
-                      className="w-20 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-right focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white font-bold"
-                    />
-                  </div>
-                  {totals.discountAmount > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Discount</span>
-                      <span className="text-red-500 font-medium">-₹{totals.discountAmount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200">
-                    <span className="text-gray-800">Total</span>
-                    <span className="text-teal-600">₹{totals.total.toFixed(2)}</span>
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    {[{ value: "cash", label: "Cash" }, { value: "card", label: "Card" }, { value: "upi", label: "UPI" }].map((m) => (
-                      <button key={m.value} type="button"
-                        onClick={() => setSaleForm({ ...saleForm, paymentMethod: m.value })}
-                        className={`flex-1 py-2 rounded-lg border-2 text-xs font-bold transition-all ${
-                          saleForm.paymentMethod === m.value
-                            ? "border-teal-500 bg-teal-50 text-teal-700"
-                            : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
-                        }`}
-                      >{m.label}</button>
-                    ))}
-                  </div>
+                    // Collect prescription meds
+                    const allRx: { label?: string; meds: any[] }[] = [];
+                    if (isMulti) {
+                      cf._issues.forEach((issue: any, idx: number) => {
+                        const rx = issue.formData?.prescription;
+                        if (Array.isArray(rx) && rx.some((m: any) => m.name?.trim())) {
+                          allRx.push({ label: issue.label || `Issue ${idx + 1}`, meds: rx.filter((m: any) => m.name?.trim()) });
+                        }
+                      });
+                    } else {
+                      const rx = cf?._issues?.[0]?.formData?.prescription || cf?.prescription;
+                      if (Array.isArray(rx) && rx.some((m: any) => m.name?.trim())) {
+                        allRx.push({ meds: rx.filter((m: any) => m.name?.trim()) });
+                      }
+                    }
+
+                    // Lifestyle & Investigations from customFields or treatmentPlan
+                    const tp = prescription.consultation.treatmentPlan;
+                    const lifestyle = fd.lifestyleChanges || tp?.lifestyleChanges;
+                    const investigations = fd.investigations || tp?.investigations;
+
+                    // Legacy fields
+                    const legacyTopicals = tp?.topicals;
+                    const legacyOrals = tp?.orals;
+
+                    // Cosmetology fields
+                    const proc = prescription.consultation.procedure;
+                    const ac = prescription.consultation.aftercare;
+                    const cosmoFields: { label: string; value: string; color: string; bg: string; border: string }[] = [];
+                    if (proc?.name) cosmoFields.push({ label: "Procedure", value: proc.name, color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-100" });
+                    if (proc?.productsAndParameters) cosmoFields.push({ label: "Products", value: proc.productsAndParameters, color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-100" });
+                    if (ac?.homeProducts) cosmoFields.push({ label: "Home Care", value: ac.homeProducts, color: "text-pink-600", bg: "bg-pink-50", border: "border-pink-100" });
+                    if (ac?.instructions) cosmoFields.push({ label: "Aftercare", value: ac.instructions, color: "text-pink-600", bg: "bg-pink-50", border: "border-pink-100" });
+
+                    const hasAnything = allRx.length > 0 || lifestyle || investigations || legacyTopicals || legacyOrals || cosmoFields.length > 0;
+                    if (!hasAnything) {
+                      return <p className="text-xs text-gray-400 text-center py-4">No prescription data found</p>;
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                        {/* Prescription table — teal */}
+                        {allRx.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+                              Prescription
+                            </p>
+                            {allRx.map((group, gi) => (
+                              <div key={gi} className={gi > 0 ? "mt-2" : ""}>
+                                {group.label && <p className="text-[10px] font-semibold text-teal-600 mb-1">{group.label}</p>}
+                                <div className="overflow-x-auto rounded-lg border border-teal-100">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="bg-teal-50">
+                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">#</th>
+                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Medicine</th>
+                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Dosage</th>
+                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Route</th>
+                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Freq</th>
+                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Duration</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {group.meds.map((med: any, mi: number) => (
+                                        <tr key={mi} className="border-t border-teal-50 bg-white">
+                                          <td className="px-2.5 py-1.5 text-teal-600 font-bold">{mi + 1}</td>
+                                          <td className="px-2.5 py-1.5 font-semibold text-gray-800">{med.name}</td>
+                                          <td className="px-2.5 py-1.5 text-gray-600">{med.dosage || "—"}</td>
+                                          <td className="px-2.5 py-1.5 text-gray-600">{med.route || "—"}</td>
+                                          <td className="px-2.5 py-1.5 text-gray-600">{med.frequency || "—"}</td>
+                                          <td className="px-2.5 py-1.5 text-gray-600">{med.duration || "—"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Legacy topicals/orals — blue */}
+                        {(legacyTopicals || legacyOrals) && (
+                          <div>
+                            <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                              Medications
+                            </p>
+                            <div className="space-y-1.5">
+                              {legacyTopicals && <p className="text-xs text-gray-700 bg-blue-50 rounded-lg p-2 border border-blue-100"><span className="font-semibold text-blue-700">Topicals:</span> {legacyTopicals}</p>}
+                              {legacyOrals && <p className="text-xs text-gray-700 bg-blue-50 rounded-lg p-2 border border-blue-100"><span className="font-semibold text-blue-700">Orals:</span> {legacyOrals}</p>}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Lifestyle — orange */}
+                        {lifestyle && (
+                          <div>
+                            <p className="text-[10px] font-bold text-orange-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                              Lifestyle Changes
+                            </p>
+                            <p className="text-xs text-gray-700 bg-orange-50 rounded-lg p-2 border border-orange-100">{lifestyle}</p>
+                          </div>
+                        )}
+
+                        {/* Investigations — purple */}
+                        {investigations && (
+                          <div>
+                            <p className="text-[10px] font-bold text-purple-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                              Investigations
+                            </p>
+                            <p className="text-xs text-gray-700 bg-purple-50 rounded-lg p-2 border border-purple-100">{investigations}</p>
+                          </div>
+                        )}
+
+                        {/* Cosmetology fields — violet/pink */}
+                        {cosmoFields.map((f, i) => (
+                          <div key={i}>
+                            <p className={`text-[10px] font-bold ${f.color} uppercase tracking-widest mb-2 flex items-center gap-1.5`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${f.bg.replace("bg-", "bg-").replace("/50", "-500")}`}></span>
+                              {f.label}
+                            </p>
+                            <p className={`text-xs text-gray-700 ${f.bg} rounded-lg p-2 border ${f.border}`}>{f.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* ── Footer ── */}
-            <div className="flex-none flex gap-3 px-6 py-4 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={() => { setShowNewSaleModal(false); resetSaleForm(); }}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting || cart.length === 0 || !saleForm.patientName.trim()}
-                className="flex-[2] py-2.5 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 transition-all font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-teal-500/20 disabled:shadow-none"
-              >
-                {submitting ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Processing...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Complete Sale · ₹{totals.total.toFixed(2)}
-                  </span>
-                )}
-              </button>
-            </div>
-          </form>
+            {/* BELOW: New Bill Form — scrollable */}
+            <form onSubmit={handleCreateSale} className="flex-1 flex flex-col min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">New Sale</h2>
+                    <p className="text-xs text-gray-400">Record a prescription or OTC sale</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => { setShowNewSaleModal(false); resetSaleForm(); }} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                {/* Bill Info */}
+                <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Bill Info</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Patient Name <span className="text-red-400">*</span></label>
+                      <input type="text" required placeholder="Patient / customer name" value={saleForm.patientName}
+                        onChange={(e) => setSaleForm(f => ({ ...f, patientName: e.target.value }))}
+                        className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Doctor Name</label>
+                      <input type="text" placeholder="Optional" value={saleForm.doctorName}
+                        onChange={(e) => setSaleForm(f => ({ ...f, doctorName: e.target.value }))}
+                        className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Phone</label>
+                      <input type="tel" placeholder="Optional" value={saleForm.patientPhone}
+                        onChange={(e) => setSaleForm(f => ({ ...f, patientPhone: e.target.value }))}
+                        className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">City</label>
+                      <input type="text" placeholder="City" value={saleForm.city}
+                        onChange={(e) => setSaleForm(f => ({ ...f, city: e.target.value }))}
+                        className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Payment Mode <span className="text-red-400">*</span></label>
+                      <select required value={saleForm.modeOfPayment} onChange={(e) => setSaleForm(f => ({ ...f, modeOfPayment: e.target.value }))}
+                        className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none">
+                        {["cash", "card", "upi", "credit"].map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-end pb-1">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" checked={saleForm.isInterstate} onChange={(e) => setSaleForm(f => ({ ...f, isInterstate: e.target.checked }))}
+                          className="w-4 h-4 rounded accent-teal-600" />
+                        <span className="text-sm text-gray-600">Interstate <span className="text-xs text-gray-400">(IGST)</span></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Items</p>
+                  <datalist id="sale-inv-list-fds">
+                    {invSuggestions.map((inv) => <option key={inv._id} value={inv.name} />)}
+                  </datalist>
+                  <div className="space-y-3">
+                    {saleForm.items.map((item, i) => {
+                      const ic = "w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none";
+                      const matchedInv = invSuggestions.find(inv => inv.name.toLowerCase() === item.itemName.toLowerCase());
+                      return (
+                        <div key={i} className="border border-gray-200 rounded-xl p-3 bg-white shadow-sm">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Item {i + 1}</span>
+                            {saleForm.items.length > 1 && (
+                              <button type="button" onClick={() => setSaleForm(f => ({ ...f, items: f.items.filter((_, j) => j !== i) }))}
+                                className="w-5 h-5 rounded-full bg-red-100 text-red-500 hover:bg-red-200 text-xs flex items-center justify-center font-bold transition-colors">×</button>
+                            )}
+                          </div>
+                          <div className="mb-2">
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Product Name <span className="text-red-400">*</span></label>
+                            <input list="sale-inv-list-fds" placeholder="Type to search inventory..." value={item.itemName}
+                              onChange={(e) => {
+                                const name = e.target.value;
+                                const match = invSuggestions.find(inv => inv.name.toLowerCase() === name.toLowerCase());
+                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : {
+                                  ...it, itemName: name, itemId: match?._id || "",
+                                  mrp: match?.sellingPrice ?? it.mrp, gstRate: match?.gstRate ?? it.gstRate,
+                                  manufacturer: match?.manufacturer || it.manufacturer,
+                                  batchNo: match?.batchNumber || it.batchNo,
+                                  expiryDate: match?.expiryDate ? new Date(match.expiryDate).toISOString().split("T")[0] : it.expiryDate,
+                                  hsnCode: match?.hsnCode || it.hsnCode,
+                                  packing: match?.packing || it.packing,
+                                  total: +((it.qty * (match?.sellingPrice ?? it.mrp)) - it.discount).toFixed(2),
+                                })}));
+                              }}
+                              className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none"
+                              required />
+                            {item.itemName && !matchedInv && <p className="text-[10px] text-amber-600 mt-0.5 px-0.5">⚠ Item not found in inventory — will fail on save</p>}
+                            {matchedInv && <p className="text-[10px] text-emerald-600 mt-0.5 px-0.5">✓ Stock: {matchedInv.currentStock} {matchedInv.unit}</p>}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 mb-2">
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">HSN</label><input type="text" placeholder="e.g. 30049099" value={item.hsnCode} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, hsnCode: e.target.value }) }))} className={ic} /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Packing</label><input type="text" placeholder="e.g. 10×10" value={item.packing} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, packing: e.target.value }) }))} className={ic} /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Manufacturer</label><input type="text" placeholder="Mfg" value={item.manufacturer} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, manufacturer: e.target.value }) }))} className={ic} /></div>
+                          </div>
+                          <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Batch</label><input type="text" value={item.batchNo} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, batchNo: e.target.value }) }))} className={ic} /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Expiry</label><input type="date" value={item.expiryDate} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, expiryDate: e.target.value }) }))} className={ic} /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">MRP ₹ <span className="text-red-400">*</span></label><input type="number" min={0} step="0.01" value={item.mrp} onChange={(e) => { const mrp = Number(e.target.value) || 0; setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, mrp, total: +(it.qty * mrp - it.discount).toFixed(2) }) })); }} className={ic} required /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="number" min={1} value={item.qty} onChange={(e) => { const qty = Number(e.target.value) || 0; setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, qty, total: +(qty * it.mrp - it.discount).toFixed(2) }) })); }} className={ic} required /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Disc ₹</label><input type="number" min={0} step="0.01" value={item.discount} onChange={(e) => { const discount = Number(e.target.value) || 0; setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, discount, total: +(it.qty * it.mrp - discount).toFixed(2) }) })); }} className={ic} /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">GST%</label><input type="number" min={0} max={100} step="0.01" value={item.gstRate} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, gstRate: Number(e.target.value) || 0 }) }))} className={ic} /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Total ₹</label><input type="number" value={item.total} readOnly className="w-full border border-teal-200 bg-teal-50 text-teal-700 rounded-lg px-2 py-1.5 text-xs font-bold outline-none cursor-default" /></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button type="button" onClick={() => setSaleForm(f => ({ ...f, items: [...f.items, { ...EMPTY_SALE_ITEM }] }))}
+                    className="mt-2 w-full py-2 border-2 border-dashed border-gray-200 text-gray-400 rounded-xl text-xs font-semibold hover:border-teal-300 hover:text-teal-500 transition-colors">
+                    + Add Another Item
+                  </button>
+                </div>
+
+                {/* GST Summary */}
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                  {(() => {
+                    const gross = saleForm.items.reduce((s, it) => s + it.total, 0);
+                    let cgst = 0, sgst = 0, igst = 0;
+                    saleForm.items.forEach(it => {
+                      const r = it.gstRate;
+                      if (r > 0) { if (saleForm.isInterstate) igst += it.total * r / 100; else { cgst += it.total * r / 200; sgst += it.total * r / 200; } }
+                    });
+                    const totalGst = saleForm.isInterstate ? +igst.toFixed(2) : +(cgst + sgst).toFixed(2);
+                    const net = +(gross + totalGst + saleForm.roundingAmount).toFixed(2);
+                    return <>
+                      <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span className="font-medium">₹{gross.toFixed(2)}</span></div>
+                      {saleForm.isInterstate
+                        ? <div className="flex justify-between"><span className="text-gray-500">IGST</span><span className="font-medium text-blue-600">₹{igst.toFixed(2)}</span></div>
+                        : <><div className="flex justify-between"><span className="text-gray-500">CGST</span><span className="font-medium text-blue-600">₹{cgst.toFixed(2)}</span></div><div className="flex justify-between"><span className="text-gray-500">SGST</span><span className="font-medium text-blue-600">₹{sgst.toFixed(2)}</span></div></>
+                      }
+                      <div className="flex justify-between"><span className="text-gray-500">Total GST</span><span className="font-medium text-blue-600">₹{totalGst.toFixed(2)}</span></div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500">Rounding</span>
+                        <input type="number" step="0.01" value={saleForm.roundingAmount} onChange={(e) => setSaleForm(f => ({ ...f, roundingAmount: Number(e.target.value) || 0 }))}
+                          className="w-24 border border-gray-200 bg-white rounded-lg px-2 py-1 text-xs text-right outline-none focus:border-teal-400" />
+                      </div>
+                      <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-base">
+                        <span>Net Amount</span><span className="text-teal-700">₹{net.toFixed(2)}</span>
+                      </div>
+                    </>;
+                  })()}
+                </div>
+              </div>
+
+              <div className="flex gap-3 px-5 py-4 border-t border-gray-100 flex-shrink-0">
+                <button type="button" onClick={() => { setShowNewSaleModal(false); resetSaleForm(); }} className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="submit" disabled={submitting} className="flex-[2] px-8 py-3 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60 transition-colors">{submitting ? "Saving..." : "Save Sale"}</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

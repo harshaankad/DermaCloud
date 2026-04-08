@@ -1,5 +1,12 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+export interface IGstBreakdown {
+  taxable: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+}
+
 export interface ISaleItem {
   itemId: mongoose.Types.ObjectId;
   itemCode: string;
@@ -7,7 +14,13 @@ export interface ISaleItem {
   quantity: number;
   unitPrice: number;
   discount: number;
+  gstRate: 0 | 5 | 12 | 18 | 28;
   total: number;
+  hsnCode?: string;
+  packing?: string;
+  manufacturer?: string;
+  batchNo?: string;
+  expiryDate?: Date;
 }
 
 export interface ISale extends Document {
@@ -36,6 +49,21 @@ export interface ISale extends Document {
   };
   notes?: string;
   invoiceNumber?: string;
+  city?: string;
+  grossValue: number;
+  gst0: IGstBreakdown;
+  gst5: IGstBreakdown;
+  gst12: IGstBreakdown;
+  gst18: IGstBreakdown;
+  gst28: IGstBreakdown;
+  totalGst: number;
+  roundingAmount: number;
+  doctorName?: string;
+  invoiceDate?: Date;
+  isInterstate: boolean;
+  igst: number;
+  clinicAddress?: string;
+  clinicPhone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,11 +98,31 @@ const SaleItemSchema = new Schema<ISaleItem>(
       default: 0,
       min: [0, "Discount cannot be negative"],
     },
+    gstRate: {
+      type: Number,
+      enum: [0, 5, 12, 18, 28],
+      default: 0,
+    },
     total: {
       type: Number,
       required: true,
       min: [0, "Total cannot be negative"],
     },
+    hsnCode: { type: String, trim: true },
+    packing: { type: String, trim: true },
+    manufacturer: { type: String, trim: true },
+    batchNo: { type: String, trim: true },
+    expiryDate: { type: Date },
+  },
+  { _id: false }
+);
+
+const GstBreakdownSchema = new Schema<IGstBreakdown>(
+  {
+    taxable: { type: Number, default: 0 },
+    cgst: { type: Number, default: 0 },
+    sgst: { type: Number, default: 0 },
+    igst: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -196,6 +244,21 @@ const SaleSchema = new Schema<ISale>(
       unique: true,
       sparse: true,
     },
+    city: { type: String, trim: true },
+    grossValue: { type: Number, default: 0, min: 0 },
+    gst0: { type: GstBreakdownSchema, default: () => ({}) },
+    gst5: { type: GstBreakdownSchema, default: () => ({}) },
+    gst12: { type: GstBreakdownSchema, default: () => ({}) },
+    gst18: { type: GstBreakdownSchema, default: () => ({}) },
+    gst28: { type: GstBreakdownSchema, default: () => ({}) },
+    totalGst: { type: Number, default: 0 },
+    roundingAmount: { type: Number, default: 0 },
+    doctorName: { type: String, trim: true },
+    invoiceDate: { type: Date },
+    isInterstate: { type: Boolean, default: false },
+    igst: { type: Number, default: 0 },
+    clinicAddress: { type: String, trim: true },
+    clinicPhone: { type: String, trim: true },
   },
   {
     timestamps: true,

@@ -4,7 +4,7 @@ export interface IUser extends Document {
   email: string;
   password: string;
   name: string;
-  tier: "tier1" | "tier2";
+  tier: "tier2";
   phone?: string;
   clinicId?: mongoose.Types.ObjectId;
   isVerified: boolean;
@@ -46,7 +46,7 @@ const UserSchema = new Schema<IUser>(
     },
     tier: {
       type: String,
-      enum: ["tier1", "tier2"],
+      enum: ["tier2"],
       required: [true, "Tier is required"],
     },
     phone: {

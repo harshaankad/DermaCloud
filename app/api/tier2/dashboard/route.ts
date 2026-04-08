@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
 
     const clinicId = auth.clinicId;
     const doctorId = auth.doctorId;
+    const { searchParams } = new URL(request.url);
+    const lite = searchParams.get("lite") === "true";
 
     // Date helpers
     const today = new Date();
@@ -45,29 +47,16 @@ export async function GET(request: NextRequest) {
 
     const clinicObjectId = new mongoose.Types.ObjectId(clinicId);
 
-    // Fetch all data in parallel
+    // Live data — always fetched (appointments, today's visits, today's sales)
     const [
-      // Consultation counts
       dailyDermCount,
       dailyCosmoCount,
-      monthlyDermCount,
-      monthlyCosmoCount,
-      totalDermCount,
-      totalCosmoCount,
-      totalPatients,
       todayDermVisits,
       todayCosmoVisits,
-      // Appointments
       todayAppointments,
       appointmentStats,
-      // Inventory
-      inventoryStats,
-      lowStockItems,
-      expiringCount,
-      // Sales
       todaySalesStats,
     ] = await Promise.all([
-      // Daily consultation counts
       ConsultationDermatology.countDocuments({
         doctorId,
         consultationDate: { $gte: today },
@@ -76,23 +65,6 @@ export async function GET(request: NextRequest) {
         doctorId,
         consultationDate: { $gte: today },
       }),
-
-      // Monthly consultation counts
-      ConsultationDermatology.countDocuments({
-        doctorId,
-        consultationDate: { $gte: firstDayOfMonth },
-      }),
-      ConsultationCosmetology.countDocuments({
-        doctorId,
-        consultationDate: { $gte: firstDayOfMonth },
-      }),
-
-      // Total consultation counts
-      ConsultationDermatology.countDocuments({ doctorId }),
-      ConsultationCosmetology.countDocuments({ doctorId }),
-
-      // Total patients
-      Patient.countDocuments({ clinicId: clinicObjectId }),
 
       // Today's dermatology visits
       ConsultationDermatology.find({
@@ -101,7 +73,8 @@ export async function GET(request: NextRequest) {
       })
         .select("patientInfo consultationDate status")
         .sort({ consultationDate: -1 })
-        .limit(10),
+        .limit(10)
+        .lean(),
 
       // Today's cosmetology visits
       ConsultationCosmetology.find({
@@ -110,7 +83,8 @@ export async function GET(request: NextRequest) {
       })
         .select("patientInfo consultationDate status")
         .sort({ consultationDate: -1 })
-        .limit(10),
+        .limit(10)
+        .lean(),
 
       // Today's appointments
       Appointment.find({
@@ -118,7 +92,8 @@ export async function GET(request: NextRequest) {
         appointmentDate: { $gte: today, $lt: tomorrow },
       })
         .populate("patientId", "name patientId phone age gender")
-        .sort({ appointmentTime: 1 }),
+        .sort({ appointmentTime: 1 })
+        .lean(),
 
       // Appointment stats for today
       Appointment.aggregate([
@@ -135,43 +110,6 @@ export async function GET(request: NextRequest) {
           },
         },
       ]),
-
-      // Inventory stats
-      InventoryItem.aggregate([
-        { $match: { clinicId: clinicId } },
-        {
-          $group: {
-            _id: null,
-            totalItems: { $sum: 1 },
-            totalValue: { $sum: { $multiply: ["$currentStock", "$costPrice"] } },
-            lowStockCount: {
-              $sum: {
-                $cond: [{ $lte: ["$currentStock", "$minStockLevel"] }, 1, 0],
-              },
-            },
-            outOfStockCount: {
-              $sum: {
-                $cond: [{ $eq: ["$currentStock", 0] }, 1, 0],
-              },
-            },
-          },
-        },
-      ]),
-
-      // Low stock items (top 5)
-      InventoryItem.find({
-        clinicId: clinicId,
-        $expr: { $lte: ["$currentStock", "$minStockLevel"] },
-      })
-        .select("name itemCode currentStock minStockLevel unit status")
-        .sort({ currentStock: 1 })
-        .limit(5),
-
-      // Expiring items count (within 30 days)
-      InventoryItem.countDocuments({
-        clinicId: clinicId,
-        expiryDate: { $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), $gte: new Date() },
-      }),
 
       // Today's sales stats
       Sale.aggregate([
@@ -192,6 +130,64 @@ export async function GET(request: NextRequest) {
         },
       ]),
     ]);
+
+    // Heavy data — only fetched on full load (not during polling)
+    let monthlyDermCount = 0, monthlyCosmoCount = 0;
+    let totalDermCount = 0, totalCosmoCount = 0;
+    let totalPatients = 0;
+    let inventoryStats: any[] = [], lowStockItems: any[] = [], expiringCount = 0;
+
+    if (!lite) {
+      const [
+        _monthlyDerm,
+        _monthlyCosmo,
+        _totalDerm,
+        _totalCosmo,
+        _totalPatients,
+        _inventoryStats,
+        _lowStockItems,
+        _expiringCount,
+      ] = await Promise.all([
+        ConsultationDermatology.countDocuments({ doctorId, consultationDate: { $gte: firstDayOfMonth } }),
+        ConsultationCosmetology.countDocuments({ doctorId, consultationDate: { $gte: firstDayOfMonth } }),
+        ConsultationDermatology.countDocuments({ doctorId }),
+        ConsultationCosmetology.countDocuments({ doctorId }),
+        Patient.countDocuments({ clinicId: clinicObjectId }),
+        InventoryItem.aggregate([
+          { $match: { clinicId: clinicId } },
+          {
+            $group: {
+              _id: null,
+              totalItems: { $sum: 1 },
+              totalValue: { $sum: { $multiply: ["$currentStock", "$costPrice"] } },
+              lowStockCount: { $sum: { $cond: [{ $lte: ["$currentStock", "$minStockLevel"] }, 1, 0] } },
+              outOfStockCount: { $sum: { $cond: [{ $eq: ["$currentStock", 0] }, 1, 0] } },
+            },
+          },
+        ]),
+        InventoryItem.find({
+          clinicId: clinicId,
+          $expr: { $lte: ["$currentStock", "$minStockLevel"] },
+        })
+          .select("name itemCode currentStock minStockLevel unit status")
+          .sort({ currentStock: 1 })
+          .limit(5)
+          .lean(),
+        InventoryItem.countDocuments({
+          clinicId: clinicId,
+          expiryDate: { $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), $gte: new Date() },
+        }),
+      ]);
+
+      monthlyDermCount = _monthlyDerm;
+      monthlyCosmoCount = _monthlyCosmo;
+      totalDermCount = _totalDerm;
+      totalCosmoCount = _totalCosmo;
+      totalPatients = _totalPatients;
+      inventoryStats = _inventoryStats;
+      lowStockItems = _lowStockItems;
+      expiringCount = _expiringCount;
+    }
 
     // Process consultation data
     const dailyUsed = dailyDermCount + dailyCosmoCount;

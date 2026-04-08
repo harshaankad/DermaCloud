@@ -381,39 +381,43 @@ Strict rules:
       $inc: { [`aiPatientSummaries.${_ym}`]: 1 },
     }).catch(() => {});
 
-    // Call Claude with up to 2 retries on 529 overload
-    let aiText = "";
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, 3000));
-      try {
-        const aiResponse = await anthropic.messages.create({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 2000,
-          messages: [{ role: "user", content: prompt }],
-        });
-        aiText =
-          aiResponse.content[0]?.type === "text"
-            ? aiResponse.content[0].text
-            : "";
-        break; // success
-      } catch (e: any) {
-        if (attempt < 1 && (e?.status === 529 || e?.message?.includes("overloaded"))) {
-          continue; // retry once
-        }
-        if (e?.status === 529 || e?.message?.includes("overloaded")) {
-          return NextResponse.json(
-            { success: false, message: "AI service is currently busy. Please try again in a moment." },
-            { status: 503 }
-          );
-        }
-        throw e;
-      }
-    }
+    // Stream from Anthropic progressively
+    const anthropicStream = anthropic.messages.stream({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 2000,
+      messages: [{ role: "user", content: prompt }],
+    });
 
-    return new Response(aiText, {
+    const encoder = new TextEncoder();
+
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of anthropicStream) {
+            if (
+              chunk.type === "content_block_delta" &&
+              chunk.delta.type === "text_delta"
+            ) {
+              controller.enqueue(encoder.encode(chunk.delta.text));
+            }
+          }
+          controller.close();
+        } catch (err: any) {
+          if (err?.status === 529 || err?.message?.includes("overloaded")) {
+            controller.enqueue(encoder.encode("\n\n[AI service is currently busy. Please try again in a moment.]"));
+            controller.close();
+          } else {
+            controller.error(err);
+          }
+        }
+      },
+    });
+
+    return new Response(readableStream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
         "X-Visit-Count": String(totalVisits),
         "X-Last-Visit": lastVisitDate ? new Date(lastVisitDate).toISOString() : "",
         "X-Patient-Name": patientData.name,

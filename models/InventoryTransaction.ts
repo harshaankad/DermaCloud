@@ -9,7 +9,7 @@ export interface IInventoryTransaction extends Document {
   previousStock: number;
   newStock: number;
   reason: string;
-  referenceType?: "sale" | "purchase" | "manual";
+  referenceType?: "sale" | "purchase" | "purchase-return" | "sales-return" | "manual";
   referenceId?: mongoose.Types.ObjectId;
   batchNumber?: string;
   expiryDate?: Date;
@@ -62,7 +62,7 @@ const InventoryTransactionSchema = new Schema<IInventoryTransaction>(
     },
     referenceType: {
       type: String,
-      enum: ["sale", "purchase", "manual"],
+      enum: ["sale", "purchase", "purchase-return", "sales-return", "manual"],
     },
     referenceId: {
       type: Schema.Types.ObjectId,

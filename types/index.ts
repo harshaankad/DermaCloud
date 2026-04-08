@@ -1,5 +1,5 @@
 // User & Auth Types
-export type UserTier = "tier1" | "tier2";
+export type UserTier = "tier2";
 
 export interface User {
   _id: string;
@@ -19,14 +19,6 @@ export interface AuthPayload {
   tier: UserTier;
 }
 
-// Tier 1 Types
-export interface Tier1Usage {
-  userId: string;
-  date: string; // YYYY-MM-DD
-  dailyScans: number;
-  monthlyScans: number;
-}
-
 export interface AIResult {
   predictions: {
     condition: string;
@@ -35,14 +27,6 @@ export interface AIResult {
   topPrediction: string;
   confidence: number;
   timestamp: Date;
-}
-
-export interface Tier1Scan {
-  _id: string;
-  userId: string;
-  imageUrl: string;
-  aiResult: AIResult;
-  createdAt: Date;
 }
 
 // Tier 2 Types

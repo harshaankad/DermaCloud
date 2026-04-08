@@ -18,7 +18,7 @@ const signupSchema = z.object({
     .regex(/[0-9]/, "Password must contain at least one number")
     .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
   name: z.string().min(2, "Name must be at least 2 characters"),
-  tier: z.enum(["tier1", "tier2"], { required_error: "Tier is required" }),
+  tier: z.enum(["tier2"], { required_error: "Tier is required" }),
   phone: z.string().optional(),
   clinicName: z.string().optional(),
 });

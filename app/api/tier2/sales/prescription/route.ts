@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request } from "@/lib/auth/verify-request";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 import ConsultationCosmetology from "@/models/ConsultationCosmetology";
+import Appointment from "@/models/Appointment";
 
 // GET - Fetch consultation prescription for a patient on a given date (defaults to today)
 export async function GET(request: NextRequest) {
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get("patientId");
+    const appointmentId = searchParams.get("appointmentId");
 
     if (!patientId) {
       return NextResponse.json(
@@ -27,7 +29,30 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    // Use the date from the appointment (YYYY-MM-DD) or fall back to today
+    // If appointmentId is provided, look up the linked consultation directly
+    if (appointmentId) {
+      const appointment = await Appointment.findById(appointmentId).select("consultationId").lean();
+      if (appointment?.consultationId) {
+        const consultationId = appointment.consultationId;
+        // Try both consultation types
+        const [dermConsultation, cosmoConsultation] = await Promise.all([
+          ConsultationDermatology.findById(consultationId)
+            .select("treatmentPlan customFields patientInfo")
+            .lean(),
+          ConsultationCosmetology.findById(consultationId)
+            .select("procedure aftercare customFields patientInfo")
+            .lean(),
+        ]);
+        if (dermConsultation) {
+          return NextResponse.json({ success: true, data: { type: "dermatology", consultation: dermConsultation } });
+        }
+        if (cosmoConsultation) {
+          return NextResponse.json({ success: true, data: { type: "cosmetology", consultation: cosmoConsultation } });
+        }
+      }
+    }
+
+    // Fallback: search by patient + date
     const dateParam = searchParams.get("date");
     const targetDate = dateParam ? new Date(dateParam) : new Date();
     targetDate.setHours(0, 0, 0, 0);
@@ -59,7 +84,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: null });
     }
 
-    // Prefer dermatology if both exist on the same day
+    // Prefer dermatology if both exist on the same day (fallback only)
     const type = dermConsultation ? "dermatology" : "cosmetology";
     const consultation = dermConsultation || cosmoConsultation;
 

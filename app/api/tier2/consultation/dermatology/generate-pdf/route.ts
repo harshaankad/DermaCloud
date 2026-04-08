@@ -255,6 +255,70 @@ function simpleBox(doc: PDFKit.PDFDocument, text: string) {
   doc.y = y + h + 12;  // consistent spacing after box
 }
 
+// ── Prescription table (horizontal format like a real Rx pad) ──────────────────
+function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
+  const cols = [
+    { label: "#",            w: 25  },
+    { label: "Medicine",     w: 120 },
+    { label: "Dosage",       w: 60  },
+    { label: "Route",        w: 55  },
+    { label: "Frequency",    w: 75  },
+    { label: "Duration",     w: 60  },
+    { label: "Instructions", w: CW - 25 - 120 - 60 - 55 - 75 - 60 },
+  ];
+  const rowH = 22;
+  const headerH = 20;
+  const pad = 6;
+
+  // Section sub-header: ℞ Prescription
+  ensureSpace(doc, headerH + rowH * (meds.length + 1) + 10);
+  const startY = doc.y;
+
+  // Header row
+  let x = ML;
+  fillRect(doc, ML, startY, CW, headerH, C.navyLight);
+  for (const col of cols) {
+    doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(7.5)
+       .text(col.label.toUpperCase(), x + pad, startY + 6, { width: col.w - pad * 2, lineBreak: false });
+    x += col.w;
+  }
+  doc.save().rect(ML, startY, CW, headerH).strokeColor(C.border).lineWidth(0.5).stroke().restore();
+  doc.y = startY + headerH;
+
+  // Data rows
+  meds.forEach((med: any, idx: number) => {
+    ensureSpace(doc, rowH + 2);
+    const y = doc.y;
+    const bg = idx % 2 === 0 ? C.white : C.rowAlt;
+    fillRect(doc, ML, y, CW, rowH, bg);
+
+    x = ML;
+    const vals = [
+      String(idx + 1),
+      med.name || "—",
+      med.dosage || "—",
+      med.route || "—",
+      med.frequency || "—",
+      med.duration || "—",
+      med.instructions || "—",
+    ];
+    vals.forEach((val, ci) => {
+      const isFirst = ci === 0;
+      const isName = ci === 1;
+      doc.fillColor(isFirst ? C.blue : C.body)
+         .font(isName ? "Helvetica-Bold" : "Helvetica").fontSize(8.5)
+         .text(val, x + pad, y + 6, { width: cols[ci].w - pad * 2, lineBreak: false });
+      x += cols[ci].w;
+    });
+
+    // Row border
+    doc.save().rect(ML, y, CW, rowH).strokeColor(C.border).lineWidth(0.3).stroke().restore();
+    doc.y = y + rowH;
+  });
+
+  doc.y += 8;
+}
+
 // ── Main PDF builder ───────────────────────────────────────────────────────────
 function buildPdf(
   doc: PDFKit.PDFDocument,
@@ -380,54 +444,145 @@ function buildPdf(
 
       sectionHeader(doc, title);
 
-      const rows: { label: string; value: string }[] = [
-        ...(fd.complaint || fd.chiefComplaint           ? [{ label: "Chief Complaint",      value: fd.complaint || fd.chiefComplaint }] : []),
-        ...(fd.duration                                  ? [{ label: "Duration",             value: fd.duration }] : []),
-        ...(fd.lesionSite                                ? [{ label: "Lesion Site",          value: fd.lesionSite }] : []),
-        ...(fd.morphology                                ? [{ label: "Morphology",           value: fd.morphology }] : []),
-        ...(fd.distribution                              ? [{ label: "Distribution",         value: fd.distribution }] : []),
-        ...(fd.severity                                  ? [{ label: "Severity",             value: fd.severity }] : []),
-        ...(fd.finalInterpretation || fd.dermoscopicFindings
-                                                         ? [{ label: "Dermoscopic Findings", value: fd.finalInterpretation || fd.dermoscopicFindings }] : []),
-        ...(diagnosis                                    ? [{ label: "Diagnosis",            value: diagnosis }] : []),
-        ...(fd.differentials || fd.differentialDiagnosis ? [{ label: "Differentials",        value: fd.differentials || fd.differentialDiagnosis }] : []),
-        ...(fd.topicals || fd.topicalMedications         ? [{ label: "Topical Medications",  value: fd.topicals || fd.topicalMedications }] : []),
-        ...(fd.orals    || fd.oralMedications            ? [{ label: "Oral Medications",     value: fd.orals    || fd.oralMedications }] : []),
-        ...(fd.lifestyleChanges || fd.lifestyleAdvice    ? [{ label: "Lifestyle Advice",     value: fd.lifestyleChanges || fd.lifestyleAdvice }] : []),
-        ...(fd.investigations                            ? [{ label: "Investigations",       value: fd.investigations }] : []),
+      // Known fields rendered first in a logical order
+      const knownOrder: { key: string; label: string; alts?: string[] }[] = [
+        { key: "complaint", label: "Chief Complaint", alts: ["chiefComplaint"] },
+        { key: "duration", label: "Duration" },
+        { key: "previousTreatment", label: "Previous Treatment" },
+        { key: "lesionSite", label: "Lesion Site" },
+        { key: "morphology", label: "Morphology" },
+        { key: "distribution", label: "Distribution" },
+        { key: "severity", label: "Severity" },
+        { key: "finalInterpretation", label: "Dermoscopic Findings", alts: ["dermoscopicFindings", "patterns"] },
+        { key: "provisional", label: "Diagnosis", alts: ["provisionalDiagnosis"] },
+        { key: "differentials", label: "Differentials", alts: ["differentialDiagnosis"] },
+        { key: "topicals", label: "Topical Medications", alts: ["topicalMedications"] },
+        { key: "orals", label: "Oral Medications", alts: ["oralMedications"] },
+        { key: "lifestyleChanges", label: "Lifestyle Advice", alts: ["lifestyleAdvice"] },
+        { key: "investigations", label: "Investigations" },
+        { key: "date", label: "Follow-up Date" },
+        { key: "reason", label: "Follow-up Reason" },
       ];
+      const renderedKeys = new Set(["prescription", "_multiIssue", "_issues"]);
+      const rows: { label: string; value: string }[] = [];
+
+      for (const item of knownOrder) {
+        const val = fd[item.key] || (item.alts ? item.alts.map((a) => fd[a]).find(Boolean) : undefined);
+        if (val) {
+          rows.push({ label: item.label, value: String(val) });
+        }
+        renderedKeys.add(item.key);
+        if (item.alts) item.alts.forEach((a) => renderedKeys.add(a));
+      }
+
+      // Custom/extra fields not in the known list
+      for (const [key, val] of Object.entries(fd)) {
+        if (renderedKeys.has(key) || !val) continue;
+        if (typeof val === "string" && !val.trim()) continue;
+        if (Array.isArray(val) || typeof val === "object") continue;
+        const label = key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
+        rows.push({ label, value: String(val) });
+      }
+
       if (rows.length > 0) infoTable(doc, rows);
+
+      // Prescription table (structured Rx data)
+      const rxMeds = Array.isArray(fd.prescription) ? fd.prescription.filter((m: any) => m.name?.trim()) : [];
+      if (rxMeds.length > 0) {
+        sectionHeader(doc, "Prescription (Rx)");
+        prescriptionTable(doc, rxMeds);
+      }
     });
   } else {
-    // ── Single-issue (original behaviour) ──────────────────────────────────────
-    if (exam.lesionSite || exam.morphology || exam.distribution || exam.severity) {
+    // ── Single-issue ──────────────────────────────────────────────────────────
+    // Get all form data from customFields
+    const cf = consultation.customFields || {};
+    const fd = cf._issues?.[0]?.formData || cf;
+    const singleRenderedKeys = new Set(["_multiIssue", "_issues", "prescription"]);
+
+    // Clinical Examination — from structured fields + customFields
+    const examRows: { label: string; value: string }[] = [];
+    const examFields: { key: string; label: string; source?: any }[] = [
+      { key: "lesionSite", label: "Lesion Site", source: exam.lesionSite || fd.lesionSite },
+      { key: "morphology", label: "Morphology", source: exam.morphology || fd.morphology },
+      { key: "distribution", label: "Distribution", source: exam.distribution || fd.distribution },
+      { key: "severity", label: "Severity", source: exam.severity || fd.severity },
+    ];
+    for (const f of examFields) {
+      if (f.source) examRows.push({ label: f.label, value: String(f.source) });
+      singleRenderedKeys.add(f.key);
+    }
+    if (examRows.length > 0) {
       sectionHeader(doc, "Clinical Examination");
-      infoTable(doc, [
-        ...(exam.lesionSite   ? [{ label: "Lesion Site",   value: exam.lesionSite }] : []),
-        ...(exam.morphology   ? [{ label: "Morphology",    value: exam.morphology }] : []),
-        ...(exam.distribution ? [{ label: "Distribution",  value: exam.distribution }] : []),
-        ...(exam.severity     ? [{ label: "Severity",      value: exam.severity }] : []),
-      ]);
+      infoTable(doc, examRows);
     }
-    if (dermo.finalInterpretation) {
+
+    // Dermoscopic Findings
+    const dermoText = dermo.finalInterpretation || fd.finalInterpretation || fd.patterns;
+    if (dermoText) {
       sectionHeader(doc, "Dermoscopic Findings");
-      simpleBox(doc, dermo.finalInterpretation);
+      simpleBox(doc, dermoText);
     }
-    if (diag.provisional || (diag.differentials && diag.differentials.length > 0)) {
+    singleRenderedKeys.add("finalInterpretation");
+    singleRenderedKeys.add("patterns");
+
+    // Diagnosis
+    const diagProv = diag.provisional || fd.provisional;
+    const diagDiff = diag.differentials?.length ? diag.differentials.join(", ") : (fd.differentials || "");
+    if (diagProv || diagDiff) {
       sectionHeader(doc, "Diagnosis");
       infoTable(doc, [
-        ...(diag.provisional          ? [{ label: "Provisional",   value: diag.provisional }] : []),
-        ...(diag.differentials?.length ? [{ label: "Differentials", value: diag.differentials.join(", ") }] : []),
+        ...(diagProv ? [{ label: "Provisional", value: String(diagProv) }] : []),
+        ...(diagDiff ? [{ label: "Differentials", value: String(diagDiff) }] : []),
       ]);
     }
-    if (tx.topicals || tx.orals || tx.lifestyleChanges || tx.investigations) {
+    singleRenderedKeys.add("provisional");
+    singleRenderedKeys.add("differentials");
+
+    // Prescription table
+    const singleRxData = fd.prescription || cf.prescription;
+    const singleRxMeds = Array.isArray(singleRxData) ? singleRxData.filter((m: any) => m.name?.trim()) : [];
+    if (singleRxMeds.length > 0) {
+      sectionHeader(doc, "Prescription (Rx)");
+      prescriptionTable(doc, singleRxMeds);
+    }
+
+    // Treatment Plan
+    const txLifestyle = tx.lifestyleChanges || fd.lifestyleChanges;
+    const txInvestigations = tx.investigations || fd.investigations;
+    const txTopicals = tx.topicals || fd.topicals;
+    const txOrals = tx.orals || fd.orals;
+    if (txTopicals || txOrals || txLifestyle || txInvestigations) {
       sectionHeader(doc, "Treatment Plan");
       infoTable(doc, [
-        ...(tx.topicals         ? [{ label: "Topical Medications", value: tx.topicals }] : []),
-        ...(tx.orals            ? [{ label: "Oral Medications",    value: tx.orals }] : []),
-        ...(tx.lifestyleChanges ? [{ label: "Lifestyle Advice",    value: tx.lifestyleChanges }] : []),
-        ...(tx.investigations   ? [{ label: "Investigations",      value: tx.investigations }] : []),
+        ...(txTopicals       ? [{ label: "Topical Medications", value: String(txTopicals) }] : []),
+        ...(txOrals          ? [{ label: "Oral Medications", value: String(txOrals) }] : []),
+        ...(txLifestyle      ? [{ label: "Lifestyle Advice", value: String(txLifestyle) }] : []),
+        ...(txInvestigations ? [{ label: "Investigations", value: String(txInvestigations) }] : []),
       ]);
+    }
+    singleRenderedKeys.add("complaint");
+    singleRenderedKeys.add("duration");
+    singleRenderedKeys.add("previousTreatment");
+    singleRenderedKeys.add("lifestyleChanges");
+    singleRenderedKeys.add("investigations");
+    singleRenderedKeys.add("topicals");
+    singleRenderedKeys.add("orals");
+    singleRenderedKeys.add("date");
+    singleRenderedKeys.add("reason");
+
+    // Custom / additional fields not yet rendered
+    const extraRows: { label: string; value: string }[] = [];
+    for (const [key, val] of Object.entries(fd)) {
+      if (singleRenderedKeys.has(key) || !val) continue;
+      if (typeof val === "string" && !val.trim()) continue;
+      if (Array.isArray(val) || typeof val === "object") continue;
+      const label = key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
+      extraRows.push({ label, value: String(val) });
+    }
+    if (extraRows.length > 0) {
+      sectionHeader(doc, "Additional Details");
+      infoTable(doc, extraRows);
     }
   }
 

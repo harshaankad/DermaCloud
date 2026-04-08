@@ -34,6 +34,7 @@ interface Appointment {
   checkedInAt?: string;
   startedAt?: string;
   completedAt?: string;
+  dispensed?: boolean;
 }
 
 interface TimeSlot {
@@ -1042,16 +1043,25 @@ function FrontdeskAppointmentsPageInner() {
                             </button>
                           )}
                           {apt.status === "completed" && canSell && (
-                            <button
-                              onClick={() => router.push(`/frontdesk/sales?action=new&patientId=${apt.patientId?._id}&patientName=${encodeURIComponent(apt.patientId?.name || "")}&patientPhone=${encodeURIComponent(apt.patientId?.phone || "")}&aptDate=${selectedDate}`)}
-                              className="px-3 py-1.5 bg-teal-500 text-white rounded-lg text-xs font-semibold hover:bg-teal-600 transition-colors shadow-sm ml-1 flex items-center gap-1"
-                              title="Dispense medicines"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                              </svg>
-                              Dispense
-                            </button>
+                            apt.dispensed ? (
+                              <span className="px-3 py-1.5 bg-gray-100 text-gray-400 rounded-lg text-xs font-semibold ml-1 flex items-center gap-1 cursor-not-allowed select-none opacity-60" title="Already dispensed">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Dispensed
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => router.push(`/frontdesk/sales?action=new&patientId=${apt.patientId?._id}&patientName=${encodeURIComponent(apt.patientId?.name || "")}&patientPhone=${encodeURIComponent(apt.patientId?.phone || "")}&aptDate=${selectedDate}&appointmentId=${apt._id}`)}
+                                className="px-3 py-1.5 bg-teal-500 text-white rounded-lg text-xs font-semibold hover:bg-teal-600 transition-colors shadow-sm ml-1 flex items-center gap-1"
+                                title="Dispense medicines"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                </svg>
+                                Dispense
+                              </button>
+                            )
                           )}
                         </>
                       )}

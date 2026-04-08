@@ -21,8 +21,7 @@ export default function DashboardPage() {
     const parsedUser = JSON.parse(userData);
     setUser(parsedUser);
 
-    // Redirect to tier2 dashboard (tier1 has been removed)
-    router.push("/tier2/dashboard");
+    router.push("/clinic/dashboard");
     return;
 
     setLoading(false);

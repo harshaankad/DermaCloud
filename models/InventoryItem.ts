@@ -15,6 +15,9 @@ export interface IInventoryItem extends Document {
   sellingPrice: number;
   manufacturer?: string;
   batchNumber?: string;
+  hsnCode?: string;
+  packing?: string;
+  gstRate?: 0 | 5 | 12 | 18 | 28;
   expiryDate?: Date;
   location?: string; // shelf/rack
   description?: string;
@@ -91,6 +94,9 @@ const InventoryItemSchema = new Schema<IInventoryItem>(
       type: String,
       trim: true,
     },
+    hsnCode: { type: String, trim: true },
+    packing: { type: String, trim: true },
+    gstRate: { type: Number, enum: [0, 5, 12, 18, 28], default: 0 },
     expiryDate: {
       type: Date,
     },
