@@ -3,6 +3,9 @@
 *.onnx
 *.onnx.data
 
+# AI microservice — lives in its own private repo (harshaankad/dermacloud-ai-service)
+/ai-service/
+
 # dependencies
 /node_modules
 /.pnp
