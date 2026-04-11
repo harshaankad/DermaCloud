@@ -1083,7 +1083,7 @@ function DermatologyVisitPageInner() {
                       </div>
                       <span className="text-sm font-bold text-slate-900 tabular-nums flex-shrink-0 ml-2">{pct}%</span>
                     </div>
-                    <div className="w-full h-1.5 bg-white rounded-full overflow-hidden ml-7">
+                    <div className="w-full h-1.5 bg-white rounded-full overflow-hidden">
                       <div
                         className={`h-full ${s.bar} rounded-full transition-all duration-500`}
                         style={{ width: `${p.probability * 100}%` }}
