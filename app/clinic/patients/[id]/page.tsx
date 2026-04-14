@@ -25,6 +25,8 @@ interface Visit {
   status: "draft" | "completed";
   diagnosis?: string;
   assessment?: string;
+  procedureName?: string;
+  procedureTotal?: number;
 }
 
 function PatientProfilePageInner() {
@@ -541,6 +543,14 @@ function PatientProfilePageInner() {
                           )}
                           {visit.assessment && (
                             <p className="text-xs text-gray-400 mt-0.5">Assessment: {visit.assessment}</p>
+                          )}
+                          {visit.procedureName && (
+                            <p className="text-xs text-purple-600 mt-0.5 font-medium">
+                              {visit.procedureName}
+                              {visit.procedureTotal != null && visit.procedureTotal > 0 && (
+                                <span className="text-purple-500"> · ₹{Number(visit.procedureTotal).toLocaleString("en-IN")}</span>
+                              )}
+                            </p>
                           )}
                         </div>
                       </div>

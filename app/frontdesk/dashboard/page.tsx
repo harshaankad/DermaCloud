@@ -29,7 +29,8 @@ interface DashboardStats {
   };
   todaySales: {
     totalSales: number;
-    totalRevenue: number;
+    paidCount: number;
+    pendingCount: number;
   };
   inventory: {
     lowStockCount: number;
@@ -75,7 +76,7 @@ export default function FrontdeskDashboardPage() {
         fetch("/api/tier2/inventory?lowStock=true", {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`/api/tier2/sales?date=${today}`, {
+        fetch(`/api/tier2/sales?startDate=${today}&endDate=${today}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -95,10 +96,14 @@ export default function FrontdeskDashboardPage() {
           completed: appointmentsData.data?.todayStats?.completed || 0,
           total: appointmentsData.data?.pagination?.total || 0,
         },
-        todaySales: {
-          totalSales: salesData.data?.todayStats?.totalSales || 0,
-          totalRevenue: salesData.data?.todayStats?.totalRevenue || 0,
-        },
+        todaySales: (() => {
+          const salesList: any[] = salesData.data?.sales || [];
+          return {
+            totalSales: salesList.length,
+            paidCount: salesList.filter((s: any) => s.paymentStatus === "paid").length,
+            pendingCount: salesList.filter((s: any) => s.paymentStatus === "pending" || s.paymentStatus === "partial").length,
+          };
+        })(),
         inventory: {
           lowStockCount: inventoryData.data?.stats?.lowStockCount || 0,
           outOfStockCount: inventoryData.data?.stats?.outOfStockCount || 0,
@@ -270,18 +275,27 @@ export default function FrontdeskDashboardPage() {
             </div>
           </div>
 
-          {/* Today's Sales */}
+          {/* Today's Sales Count */}
           <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100 border-l-4 border-l-green-500">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-gray-500 text-xs font-semibold uppercase tracking-wide">Revenue</h3>
+              <h3 className="text-gray-500 text-xs font-semibold uppercase tracking-wide">Sales</h3>
               <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center">
                 <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{"\u20B9"}{(stats?.todaySales.totalRevenue || 0).toLocaleString("en-IN")}</p>
-            <p className="mt-2 text-xs text-gray-500">{stats?.todaySales.totalSales || 0} transactions today</p>
+            <p className="text-3xl font-bold text-gray-900">{stats?.todaySales.totalSales || 0}</p>
+            <div className="mt-2 flex items-center gap-2 text-xs">
+              <span className="flex items-center gap-1 text-green-600">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                {stats?.todaySales.paidCount || 0} paid
+              </span>
+              <span className="flex items-center gap-1 text-orange-600">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                {stats?.todaySales.pendingCount || 0} pending
+              </span>
+            </div>
           </div>
 
           {/* Inventory Alerts */}

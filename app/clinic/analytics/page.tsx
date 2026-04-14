@@ -25,6 +25,11 @@ interface AnalyticsData {
   trend: TrendDay[];
   specialtySplit: { derm: number; cos: number };
   topConditions: { condition: string; count: number }[];
+  cosmetologyProcedures: {
+    top: { name: string; count: number; revenue: number; gstCollected: number }[];
+    thisMonth: { totalBase: number; totalGst: number; totalRevenue: number; count: number };
+    allTime: { totalRevenue: number; totalGst: number };
+  };
   demographics: {
     gender: Record<string, number>;
     ageGroups: { label: string; count: number }[];
@@ -569,6 +574,75 @@ export default function AnalyticsPage() {
                 )}
               </div>
             </div>
+
+            {/* ── Cosmetology Procedures ── */}
+            {data!.cosmetologyProcedures && (data!.cosmetologyProcedures.top.length > 0 || data!.cosmetologyProcedures.thisMonth.totalRevenue > 0) && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 mb-0.5">Cosmetology Procedures</h3>
+                    <p className="text-xs text-gray-400">Procedure breakdown · Revenue & GST</p>
+                  </div>
+                  <Link href="/clinic/templates" className="text-xs font-semibold text-purple-600 hover:text-purple-700">Manage →</Link>
+                </div>
+
+                {/* Revenue summary cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                  <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-100">
+                    <p className="text-[11px] text-purple-600 font-semibold uppercase tracking-wide mb-1">This Month Revenue</p>
+                    <p className="text-xl font-bold text-purple-900">{formatINR(data!.cosmetologyProcedures.thisMonth.totalRevenue)}</p>
+                    <p className="text-[10px] text-purple-500 mt-0.5">{data!.cosmetologyProcedures.thisMonth.count} procedure{data!.cosmetologyProcedures.thisMonth.count !== 1 ? "s" : ""}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                    <p className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide mb-1">Base (This Month)</p>
+                    <p className="text-xl font-bold text-gray-900">{formatINR(data!.cosmetologyProcedures.thisMonth.totalBase)}</p>
+                  </div>
+                  <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                    <p className="text-[11px] text-amber-600 font-semibold uppercase tracking-wide mb-1">GST Collected (Month)</p>
+                    <p className="text-xl font-bold text-amber-900">{formatINR(data!.cosmetologyProcedures.thisMonth.totalGst)}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                    <p className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide mb-1">All-Time Revenue</p>
+                    <p className="text-xl font-bold text-gray-900">{formatINR(data!.cosmetologyProcedures.allTime.totalRevenue)}</p>
+                  </div>
+                </div>
+
+                {/* Top procedures list */}
+                {data!.cosmetologyProcedures.top.length > 0 && (
+                  <>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Top Procedures</p>
+                    <div className="space-y-3.5">
+                      {(() => {
+                        const maxProc = Math.max(...data!.cosmetologyProcedures.top.map(p => p.count), 1);
+                        return data!.cosmetologyProcedures.top.map((proc, i) => (
+                          <div key={proc.name}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm text-gray-700 font-medium truncate pr-2">
+                                <span className="text-[11px] text-gray-400 mr-1.5 font-normal">#{i + 1}</span>
+                                {proc.name}
+                              </span>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">{formatINR(proc.revenue)}</span>
+                                <span className="text-[11px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{proc.count}×</span>
+                              </div>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-700"
+                                style={{
+                                  width: `${(proc.count / maxProc) * 100}%`,
+                                  background: "linear-gradient(90deg, #a855f7, #7c3aed)",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* ── Block 4+5: Top Conditions + Demographics ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

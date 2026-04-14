@@ -59,8 +59,6 @@ export function printSaleBill(sale: any) {
     <tr>
       <td class="tc">${it.hsnCode}</td>
       <td>${it.itemName}</td>
-      <td class="tc">${it.packing}</td>
-      <td class="tc">${it.manufacturer}</td>
       <td class="tc">${it.batchNo}</td>
       <td class="tr">${fmt(it.mrp, 3)}</td>
       <td class="tc">${fmtExp(it.expiryDate)}</td>
@@ -76,7 +74,7 @@ export function printSaleBill(sale: any) {
     ? `<td></td><td class="tr bld">${fmt(totIgst, 3)}</td>`
     : `<td></td><td class="tr bld">${fmt(totCgst, 3)}</td><td></td><td class="tr bld">${fmt(totSgst, 3)}</td>`;
 
-  const colCount = isInterstate ? 11 : 13;
+  const colCount = isInterstate ? 9 : 11;
 
   const html = `<!DOCTYPE html>
 <html><head>
@@ -84,23 +82,24 @@ export function printSaleBill(sale: any) {
 <title>${sale.invoiceNumber || sale.saleId || "Bill"}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:Arial,sans-serif;font-size:8.5px;padding:6mm}
+  body{font-family:Arial,sans-serif;font-size:8.5px;padding:6mm;max-width:100%}
   h1{font-size:13px;text-align:center;text-transform:uppercase;letter-spacing:1px}
   .sub{font-size:8px;text-align:center;margin-top:1px}
   hr{border:none;border-top:1px solid #000;margin:3px 0}
   .inv-title{text-align:center;font-weight:bold;font-size:9px;border:1px solid #000;padding:2px 0;margin:3px 0;letter-spacing:2px}
   .bill-info{display:flex;justify-content:space-between;margin:3px 0;gap:8px}
   .bi p{margin:1.5px 0}
-  table{width:100%;border-collapse:collapse;margin:4px 0}
-  th,td{border:1px solid #000;padding:1.5px 3px}
-  th{background:#f0f0f0;font-size:7.5px;text-align:center;font-weight:bold}
-  td{font-size:8px}
+  table{width:100%;border-collapse:collapse;margin:4px 0;table-layout:fixed}
+  th,td{border:1px solid #000;padding:1.5px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  th{background:#f0f0f0;font-size:7px;text-align:center;font-weight:bold}
+  td{font-size:7.5px}
+  td:nth-child(2){white-space:normal;word-wrap:break-word}
   .tc{text-align:center}
   .tr{text-align:right}
   .bld{font-weight:bold}
   .net{text-align:right;font-size:11px;font-weight:bold;margin:4px 0;border-top:1px solid #000;padding-top:3px}
   .footer{display:flex;justify-content:space-between;margin-top:8px;font-size:8px}
-  @media print{body{padding:3mm}@page{margin:5mm;size:A4}}
+  @media print{body{padding:3mm}@page{margin:5mm;size:A4 landscape}}
 </style>
 </head><body>
 
@@ -127,7 +126,7 @@ ${clinicPhone ? `<p class="sub">Phone: ${clinicPhone}</p>` : ""}
 <table>
   <thead>
     <tr>
-      <th>HSN</th><th>Product Name</th><th>Packing</th><th>Mfg</th>
+      <th>HSN</th><th>Product Name</th>
       <th>Batch</th><th>MRP</th><th>Exp</th><th>Qty</th><th>Amount</th>
       ${gstCols}
     </tr>
@@ -135,7 +134,7 @@ ${clinicPhone ? `<p class="sub">Phone: ${clinicPhone}</p>` : ""}
   <tbody>${itemRows}</tbody>
   <tfoot>
     <tr>
-      <td colspan="8" class="tr bld">Total</td>
+      <td colspan="6" class="tr bld">Total</td>
       <td class="tr bld">${fmt(totTaxable, 3)}</td>
       ${totCols}
     </tr>

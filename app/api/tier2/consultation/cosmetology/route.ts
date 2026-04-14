@@ -194,16 +194,27 @@ export async function POST(request: NextRequest) {
           baselineEvaluation: formData.baselineEvaluation,
           contraindicationsCheck: formData.contraindicationsCheck,
         },
-        procedure: {
-          name: formData.procedureName || formData.name,
-          goals: formData.goals,
-          sessionNumber: formData.sessionNumber && !isNaN(parseInt(formData.sessionNumber))
-            ? parseInt(formData.sessionNumber)
-            : undefined,
-          package: formData.package,
-          productsAndParameters: formData.productsAndParameters,
-          immediateOutcome: formData.immediateOutcome,
-        },
+        procedure: (() => {
+          const basePrice = formData.basePrice != null && formData.basePrice !== "" ? Number(formData.basePrice) : undefined;
+          const gstRate = formData.gstRate != null && formData.gstRate !== "" ? Number(formData.gstRate) : undefined;
+          const gstAmount = basePrice != null && gstRate != null ? (basePrice * gstRate) / 100 : undefined;
+          const totalAmount = basePrice != null ? basePrice + (gstAmount || 0) : undefined;
+          return {
+            name: formData.procedureName || formData.name,
+            goals: formData.goals,
+            sessionNumber: formData.sessionNumber && !isNaN(parseInt(formData.sessionNumber))
+              ? parseInt(formData.sessionNumber)
+              : undefined,
+            package: formData.package,
+            productsAndParameters: formData.productsAndParameters,
+            immediateOutcome: formData.immediateOutcome,
+            procedureId: formData.procedureId && isValidObjectId(formData.procedureId) ? formData.procedureId : undefined,
+            basePrice,
+            gstRate,
+            gstAmount,
+            totalAmount,
+          };
+        })(),
         images,
         aftercare: {
           instructions: formData.instructions,

@@ -59,7 +59,7 @@ export async function GET(
         .select("consultationDate status diagnosis")
         .sort({ consultationDate: -1 }),
       ConsultationCosmetology.find({ patientId: patientId })
-        .select("consultationDate status assessment")
+        .select("consultationDate status assessment procedure")
         .sort({ consultationDate: -1 }),
     ]);
 
@@ -78,6 +78,8 @@ export async function GET(
         consultationDate: v.consultationDate,
         status: v.status,
         assessment: v.assessment?.diagnosis,
+        procedureName: v.procedure?.name,
+        procedureTotal: v.procedure?.totalAmount,
       })),
     ].sort((a, b) => new Date(b.consultationDate).getTime() - new Date(a.consultationDate).getTime());
 

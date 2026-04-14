@@ -235,6 +235,9 @@ function buildPdf(doc: PDFKit.PDFDocument, consultation: any, includeExplanation
       ...(proc.goals                 ? [{ label: "Treatment Goals",       value: proc.goals }] : []),
       ...(proc.productsAndParameters ? [{ label: "Products & Parameters", value: proc.productsAndParameters }] : []),
       ...(proc.immediateOutcome      ? [{ label: "Immediate Outcome",     value: proc.immediateOutcome }] : []),
+      ...(proc.basePrice != null && proc.basePrice > 0  ? [{ label: "Base Price",   value: `Rs. ${Number(proc.basePrice).toLocaleString("en-IN")}` }] : []),
+      ...(proc.gstRate != null && proc.gstRate > 0      ? [{ label: "GST",          value: `${proc.gstRate}% (Rs. ${Number(proc.gstAmount || 0).toLocaleString("en-IN")})` }] : []),
+      ...(proc.totalAmount != null && proc.totalAmount > 0 ? [{ label: "Total",     value: `Rs. ${Number(proc.totalAmount).toLocaleString("en-IN")}` }] : []),
     ]);
   }
 
@@ -332,11 +335,13 @@ export async function POST(request: NextRequest) {
         const range = doc.bufferedPageRange();
         for (let i = range.start; i < range.start + range.count; i++) {
           doc.switchToPage(i);
+          // Drop bottom margin so pdfkit doesn't auto-paginate while writing the footer
+          (doc.page as any).margins.bottom = 0;
           hLine(doc, ML, ML + CW, PH - 45, C.border, 0.5);
           doc.fillColor(C.muted).font("Helvetica-Oblique").fontSize(7.5)
-             .text(footerText, ML, PH - 36, { width: CW - 60, align: "left" });
+             .text(footerText, ML, PH - 36, { width: CW - 60, align: "left", lineBreak: false });
           doc.fillColor(C.muted).font("Helvetica").fontSize(7.5)
-             .text(`Page ${i - range.start + 1} of ${range.count}`, ML, PH - 36, { width: CW, align: "right" });
+             .text(`Page ${i - range.start + 1} of ${range.count}`, ML, PH - 36, { width: CW, align: "right", lineBreak: false });
         }
         doc.flushPages();
       } catch (e) { reject(e); }

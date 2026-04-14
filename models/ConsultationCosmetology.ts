@@ -41,6 +41,11 @@ export interface IConsultationCosmetology extends Document {
     package?: string;
     productsAndParameters?: string;
     immediateOutcome?: string;
+    procedureId?: mongoose.Types.ObjectId;
+    basePrice?: number;
+    gstRate?: number;
+    gstAmount?: number;
+    totalAmount?: number;
   };
 
   // Images - Visit photos for cross-visit comparison
@@ -161,6 +166,11 @@ const ConsultationCosmetologySchema = new Schema<IConsultationCosmetology>(
       package: String,
       productsAndParameters: String,
       immediateOutcome: String,
+      procedureId: { type: Schema.Types.ObjectId, ref: "CosmetologyProcedure" },
+      basePrice: { type: Number, min: 0 },
+      gstRate: { type: Number, enum: [0, 5, 12, 18, 28] },
+      gstAmount: { type: Number, min: 0 },
+      totalAmount: { type: Number, min: 0 },
     },
 
     // Images

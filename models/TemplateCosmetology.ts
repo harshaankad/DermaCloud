@@ -23,6 +23,9 @@ export interface ITemplateCosmetology extends Document {
       package?: string;
       productsAndParameters?: string;
       immediateOutcome?: string;
+      procedureId?: string;
+      basePrice?: number;
+      gstRate?: number;
     };
     aftercare?: {
       instructions?: string;
@@ -81,6 +84,9 @@ const TemplateCosmetologySchema = new Schema<ITemplateCosmetology>(
         package: String,
         productsAndParameters: String,
         immediateOutcome: String,
+        procedureId: String,
+        basePrice: Number,
+        gstRate: { type: Number, enum: [0, 5, 12, 18, 28] },
       },
       aftercare: {
         instructions: String,

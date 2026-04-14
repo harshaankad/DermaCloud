@@ -126,6 +126,8 @@ export async function GET(request: NextRequest) {
             totalRevenue: { $sum: "$totalAmount" },
             totalPaid: { $sum: "$amountPaid" },
             totalDue: { $sum: "$amountDue" },
+            paidCount: { $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, 1, 0] } },
+            pendingCount: { $sum: { $cond: [{ $in: ["$paymentStatus", ["pending", "partial"]] }, 1, 0] } },
           },
         },
       ]),
@@ -263,6 +265,8 @@ export async function GET(request: NextRequest) {
           totalRevenue: 0,
           totalPaid: 0,
           totalDue: 0,
+          paidCount: 0,
+          pendingCount: 0,
         },
       },
     });

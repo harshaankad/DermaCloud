@@ -46,16 +46,32 @@ const C = {
 
 function fillRect(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: number, color: string) {
   doc.save().rect(x, y, w, h).fill(color).restore();
+  markDrawn(doc);
 }
 
 function hLine(doc: PDFKit.PDFDocument, x1: number, x2: number, y: number, color: string, lw = 0.5) {
   doc.save().moveTo(x1, y).lineTo(x2, y).strokeColor(color).lineWidth(lw).stroke().restore();
+  markDrawn(doc);
+}
+
+// Track whether we've drawn anything on the current page since the last addPage.
+// Stored on the doc instance to stay per-request under concurrency.
+// Prevents creating runs of empty pages when ensureSpace is called on a fresh page.
+function isFreshPage(doc: PDFKit.PDFDocument): boolean {
+  return (doc as any).__freshPage === true;
+}
+function markDrawn(doc: PDFKit.PDFDocument) { (doc as any).__freshPage = false; }
+function markFreshPage(doc: PDFKit.PDFDocument) { (doc as any).__freshPage = true; }
+
+function addPageSafe(doc: PDFKit.PDFDocument) {
+  if (isFreshPage(doc)) return; // already on a blank fresh page — reuse it
+  doc.addPage();
+  markFreshPage(doc);
 }
 
 function ensureSpace(doc: PDFKit.PDFDocument, needed: number) {
   if (doc.y + needed > PH - MB) {
-    doc.addPage();
-    doc.y = MT;
+    addPageSafe(doc);
   }
 }
 
@@ -117,10 +133,6 @@ function textBlock(doc: PDFKit.PDFDocument, text: string, titleColor = C.navy, u
   const lineEst  = useIndicFont ? 40 : 16;
   const lineGap  = useIndicFont ? 6  : 2;
 
-  const safePageBreak = () => {
-    if (doc.y > PH - MB) { doc.addPage(); doc.y = MT; }
-  };
-
   const renderLineWithBold = (line: string, x: number, fontSize: number, color: string, maxWidth: number) => {
     if (!line.includes("**")) {
       doc.fillColor(color).font(bodyFont).fontSize(fontSize)
@@ -166,7 +178,6 @@ function textBlock(doc: PDFKit.PDFDocument, text: string, titleColor = C.navy, u
       doc.fillColor(C.body).font(bodyFont).fontSize(9.5)
          .text(plainText, ML + pad, doc.y, { width: w, lineGap });
       doc.y += 2;
-      safePageBreak();
       continue;
     }
 
@@ -177,7 +188,6 @@ function textBlock(doc: PDFKit.PDFDocument, text: string, titleColor = C.navy, u
          .text(line.slice(3), ML + pad, doc.y, { width: w, lineGap });
       hLine(doc, ML + pad, ML + pad + w, doc.y, titleColor, 1.5);
       doc.y += 10;
-      safePageBreak();
       continue;
     }
     if (line.startsWith("### ")) {
@@ -187,20 +197,17 @@ function textBlock(doc: PDFKit.PDFDocument, text: string, titleColor = C.navy, u
          .text(line.slice(4), ML + pad, doc.y, { width: w, lineGap });
       hLine(doc, ML + pad, ML + pad + w, doc.y, C.border, 0.75);
       doc.y += 7;
-      safePageBreak();
       continue;
     }
     if (line.startsWith("• ") || line.startsWith("- ")) {
       ensureSpace(doc, lineEst);
       renderLineWithBold(line, ML + pad + 8, 9.5, C.body, w - 8);
       doc.y += 4;
-      safePageBreak();
       continue;
     }
     ensureSpace(doc, lineEst);
     renderLineWithBold(line, ML + pad, 9.5, C.body, w);
     doc.y += 2;
-    safePageBreak();
   }
 }
 
@@ -221,12 +228,13 @@ function simpleBox(doc: PDFKit.PDFDocument, text: string) {
 function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
   const cols = [
     { label: "#",            w: 25  },
-    { label: "Medicine",     w: 120 },
-    { label: "Dosage",       w: 60  },
-    { label: "Route",        w: 55  },
-    { label: "Frequency",    w: 75  },
-    { label: "Duration",     w: 60  },
-    { label: "Instructions", w: CW - 25 - 120 - 60 - 55 - 75 - 60 },
+    { label: "Medicine",     w: 110 },
+    { label: "Dosage",       w: 55  },
+    { label: "Route",        w: 50  },
+    { label: "Frequency",    w: 65  },
+    { label: "Duration",     w: 55  },
+    { label: "Qty",          w: 40  },
+    { label: "Instructions", w: CW - 25 - 110 - 55 - 50 - 65 - 55 - 40 },
   ];
   const rowH = 22;
   const headerH = 20;
@@ -261,6 +269,7 @@ function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
       med.route || "—",
       med.frequency || "—",
       med.duration || "—",
+      med.quantity || "—",
       med.instructions || "—",
     ];
     vals.forEach((val, ci) => {
@@ -286,6 +295,20 @@ function buildPdf(
   includeExplanation: boolean,
   language: string | null,
 ) {
+  // First page exists but is blank at this point
+  markFreshPage(doc);
+
+  // Flip the "fresh page" flag whenever pdfkit auto-creates or we create a page
+  doc.on("pageAdded", () => { markFreshPage(doc); });
+
+  // Patch doc.text so any text drawing marks the page as non-empty
+  const originalText = doc.text.bind(doc);
+  (doc as any).text = function (...args: any[]) {
+    const result = (originalText as any)(...args);
+    markDrawn(doc);
+    return result;
+  };
+
   // Register Indic fonts (Regular + Bold)
   const indicFontPath     = language === "hindi" ? DEVANAGARI_FONT      : KANNADA_FONT;
   const indicBoldFontPath = language === "hindi" ? DEVANAGARI_BOLD_FONT : KANNADA_BOLD_FONT;
@@ -387,6 +410,10 @@ function buildPdf(
     { key: "package", label: "Package" },
     { key: "productsAndParameters", label: "Products & Parameters" },
     { key: "immediateOutcome", label: "Immediate Outcome" },
+    { key: "basePrice", label: "Procedure Base Price" },
+    { key: "gstRate", label: "GST Rate" },
+    { key: "gstAmount", label: "GST Amount" },
+    { key: "totalAmount", label: "Procedure Total" },
     { key: "instructions", label: "Aftercare Instructions" },
     { key: "homeProducts", label: "Home Products" },
     { key: "expectedResults", label: "Expected Results" },
@@ -398,17 +425,26 @@ function buildPdf(
   const renderIssueData = (fd: Record<string, any>, issueTitle?: string) => {
     if (issueTitle) sectionHeader(doc, issueTitle);
 
-    const renderedKeys = new Set(["prescription", "_multiIssue", "_issues"]);
+    const renderedKeys = new Set(["prescription", "_multiIssue", "_issues", "procedureId"]);
     const rows: { label: string; value: string }[] = [];
 
     for (const item of knownOrder) {
-      let val = fd[item.key] || (item.alts ? item.alts.map((a) => fd[a]).find(Boolean) : undefined);
-      if (val) {
+      let val: any = fd[item.key];
+      if (val == null || val === "") {
+        val = item.alts ? item.alts.map((a) => fd[a]).find(Boolean) : undefined;
+      }
+      if (val != null && val !== "") {
         if (item.key === "followUpDate") {
           try { val = new Date(val).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }); } catch {}
         }
         if (item.key === "consentConfirmed") {
           val = val === true || val === "true" ? "Confirmed" : "Not confirmed";
+        }
+        if (item.key === "basePrice" || item.key === "gstAmount" || item.key === "totalAmount") {
+          val = `Rs. ${Number(val).toLocaleString("en-IN")}`;
+        }
+        if (item.key === "gstRate") {
+          val = `${Number(val)}%`;
         }
         rows.push({ label: item.label, value: String(val) });
       }
@@ -554,11 +590,15 @@ export async function POST(request: NextRequest) {
         const range = doc.bufferedPageRange();
         for (let i = range.start; i < range.start + range.count; i++) {
           doc.switchToPage(i);
+          // Drop bottom margin so pdfkit doesn't auto-paginate when drawing into
+          // the footer zone (y > PH - MB). Without this, each footer text call
+          // spawns a fresh page and we end up with 2× extra blank pages per real page.
+          (doc.page as any).margins.bottom = 0;
           hLine(doc, ML, ML + CW, PH - 45, C.border, 0.5);
           doc.fillColor(C.muted).font("Helvetica-Oblique").fontSize(7.5)
-             .text(footerText, ML, PH - 36, { width: CW - 60, align: "left" });
+             .text(footerText, ML, PH - 36, { width: CW - 60, align: "left", lineBreak: false });
           doc.fillColor(C.muted).font("Helvetica").fontSize(7.5)
-             .text(`Page ${i - range.start + 1} of ${range.count}`, ML, PH - 36, { width: CW, align: "right" });
+             .text(`Page ${i - range.start + 1} of ${range.count}`, ML, PH - 36, { width: CW, align: "right", lineBreak: false });
         }
         doc.flushPages();
       } catch (e) {

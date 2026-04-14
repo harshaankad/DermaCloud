@@ -25,7 +25,17 @@ export function buildExcelResponse(rows: any[][], headers: string[], sheetName: 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
 
   // Auto column widths
-  ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length + 2, 10) }));
+  ws["!cols"] = headers.map((h, i) => {
+    let maxLen = h.length;
+    for (const row of rows) {
+      const cell = row[i];
+      if (cell != null) {
+        const len = String(cell).length;
+        if (len > maxLen) maxLen = len;
+      }
+    }
+    return { wch: Math.min(Math.max(maxLen + 2, 8), 40) };
+  });
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -49,9 +59,30 @@ export function sumGst(field: "cgst" | "sgst" | "igst", gst0: any, gst5: any, gs
   return (gst0?.[field] || 0) + (gst5?.[field] || 0) + (gst12?.[field] || 0) + (gst18?.[field] || 0) + (gst28?.[field] || 0);
 }
 
+// Item-level columns shared across sale/purchase reports
+const SALE_ITEM_COLUMNS = [
+  "Item Code", "Item Name", "HSN", "Batch No", "Expiry", "Manufacturer",
+  "Qty", "Rate", "Item Discount", "GST%", "Item Total",
+];
+
+const PURCHASE_ITEM_COLUMNS = [
+  "Item Name", "HSN", "Pack", "Batch No", "Expiry",
+  "Qty", "Free Qty", "MRP", "Rate", "Item Discount", "GST%", "Item Total",
+];
+
+const SALES_RETURN_ITEM_COLUMNS = [
+  "Item Code", "Item Name", "Qty", "Rate", "Item Discount", "GST%", "Item Total",
+];
+
+const PURCHASE_RETURN_ITEM_COLUMNS = [
+  "Item Name", "HSN", "Pack", "Batch No", "Expiry",
+  "Qty", "Free Qty", "MRP", "Rate", "Item Discount", "GST%", "Item Total",
+];
+
 // Sales Register headers (per-rate GST breakdown)
 export const SALES_REGISTER_HEADERS = [
   "Invoice No", "Invoice Date", "Mode Of Payment", "Party Name", "City",
+  ...SALE_ITEM_COLUMNS,
   "Gross Value", "Discount",
   ...GST_COLUMNS,
   "Total GST", "Rounding Amount", "Net Amount",
@@ -60,15 +91,26 @@ export const SALES_REGISTER_HEADERS = [
 // Purchase Register headers
 export const PURCHASE_REGISTER_HEADERS = [
   "Sup. Inv. No", "GSTN No", "Invoice Date", "Mode Of Payment", "Supplier Name", "City",
+  ...PURCHASE_ITEM_COLUMNS,
   "Gross Value", "Discount",
   "CGST", "SGST", "IGST", "Total GST",
   "Adding", "Less", "Rounding Amount", "Net Amount",
 ];
 
-// Sales Return Register headers (simple CGST/SGST/IGST totals, same as purchase register style)
+// Sales Return Register headers
 export const SALES_RETURN_REGISTER_HEADERS = [
   "Invoice No", "Invoice Date", "Mode Of Payment", "Party Name", "City",
+  ...SALES_RETURN_ITEM_COLUMNS,
   "Gross Value", "Discount",
   "CGST", "SGST", "IGST", "Total GST",
   "Rounding Amount", "Net Amount",
+];
+
+// Purchase Return Register headers
+export const PURCHASE_RETURN_REGISTER_HEADERS = [
+  "Sup. Inv. No", "GSTN No", "Invoice Date", "Mode Of Payment", "Supplier Name", "City",
+  ...PURCHASE_RETURN_ITEM_COLUMNS,
+  "Gross Value", "Discount",
+  "CGST", "SGST", "IGST", "Total GST",
+  "Adding", "Less", "Rounding Amount", "Net Amount",
 ];

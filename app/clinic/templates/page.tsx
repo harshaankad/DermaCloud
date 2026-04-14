@@ -198,6 +198,21 @@ export default function TemplatesPage() {
   const [medSearchActive, setMedSearchActive] = useState<string | null>(null);
   const medSearchTimer = useRef<NodeJS.Timeout | null>(null);
 
+  // Top-level tab
+  const [pageTab, setPageTab] = useState<"templates" | "procedures">("templates");
+
+  // Procedures state
+  const [procedures, setProcedures] = useState<any[]>([]);
+  const [loadingProcedures, setLoadingProcedures] = useState(false);
+  const [showProcedureModal, setShowProcedureModal] = useState(false);
+  const [editingProcedure, setEditingProcedure] = useState<any>(null);
+  const [savingProcedure, setSavingProcedure] = useState(false);
+  const [procedureForm, setProcedureForm] = useState({ name: "", category: "other", basePrice: "", gstRate: "0", description: "" });
+  const [procedureSearch, setProcedureSearch] = useState("");
+  const [tplProcDropdownOpen, setTplProcDropdownOpen] = useState(false);
+  const [tplProcQuery, setTplProcQuery] = useState("");
+  const [procCatDropdownOpen, setProcCatDropdownOpen] = useState(false);
+
   const searchMedicines = useCallback((query: string, key: string) => {
     setMedSearchActive(key);
     if (medSearchTimer.current) clearTimeout(medSearchTimer.current);
@@ -271,6 +286,74 @@ export default function TemplatesPage() {
       // Non-critical; modal will show fallback message
     }
   };
+
+  const fetchProcedures = useCallback(async () => {
+    setLoadingProcedures(true);
+    try {
+      const res = await fetch("/api/tier2/cosmetology-procedures?active=false", { headers: { Authorization: `Bearer ${getToken()}` } });
+      const data = await res.json();
+      if (data.success) setProcedures(data.data);
+    } catch { showToast("error", "Failed to load procedures"); }
+    setLoadingProcedures(false);
+  }, [showToast]);
+
+  useEffect(() => { if (pageTab === "procedures" && procedures.length === 0) fetchProcedures(); }, [pageTab]);
+
+  const openProcedureModal = (proc?: any) => {
+    if (proc) {
+      setEditingProcedure(proc);
+      setProcedureForm({ name: proc.name, category: proc.category, basePrice: String(proc.basePrice), gstRate: String(proc.gstRate), description: proc.description || "" });
+    } else {
+      setEditingProcedure(null);
+      setProcedureForm({ name: "", category: "other", basePrice: "", gstRate: "0", description: "" });
+    }
+    setProcCatDropdownOpen(false);
+    setShowProcedureModal(true);
+  };
+
+  const saveProcedure = async () => {
+    if (!procedureForm.name.trim() || !procedureForm.basePrice) { showToast("error", "Name and price are required"); return; }
+    setSavingProcedure(true);
+    try {
+      const body: any = { name: procedureForm.name.trim(), category: procedureForm.category, basePrice: Number(procedureForm.basePrice), gstRate: Number(procedureForm.gstRate), description: procedureForm.description.trim() };
+      if (editingProcedure) body._id = editingProcedure._id;
+      const res = await fetch("/api/tier2/cosmetology-procedures", {
+        method: editingProcedure ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("success", editingProcedure ? "Procedure updated" : "Procedure created");
+        setShowProcedureModal(false);
+        fetchProcedures();
+      } else { showToast("error", data.message || "Failed to save"); }
+    } catch { showToast("error", "Failed to save procedure"); }
+    setSavingProcedure(false);
+  };
+
+  const toggleProcedureActive = async (proc: any) => {
+    try {
+      const res = await fetch("/api/tier2/cosmetology-procedures", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ _id: proc._id, isActive: !proc.isActive }),
+      });
+      const data = await res.json();
+      if (data.success) { fetchProcedures(); showToast("success", proc.isActive ? "Procedure deactivated" : "Procedure activated"); }
+    } catch { showToast("error", "Failed to update"); }
+  };
+
+  const PROCEDURE_CATEGORIES = [
+    { key: "laser", label: "Laser", icon: "M13 10V3L4 14h7v7l9-11h-7z", gradient: "from-amber-400 to-orange-500", soft: "bg-amber-50 text-amber-700 border-amber-200" },
+    { key: "peel", label: "Peel", icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z", gradient: "from-pink-400 to-rose-500", soft: "bg-pink-50 text-pink-700 border-pink-200" },
+    { key: "injectable", label: "Injectable", icon: "M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z", gradient: "from-violet-500 to-purple-600", soft: "bg-violet-50 text-violet-700 border-violet-200" },
+    { key: "facial", label: "Facial", icon: "M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", gradient: "from-rose-400 to-fuchsia-500", soft: "bg-rose-50 text-rose-700 border-rose-200" },
+    { key: "body", label: "Body", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", gradient: "from-sky-400 to-blue-500", soft: "bg-sky-50 text-sky-700 border-sky-200" },
+    { key: "hair", label: "Hair", icon: "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z", gradient: "from-emerald-400 to-green-500", soft: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    { key: "skin", label: "Skin", icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01", gradient: "from-teal-400 to-cyan-500", soft: "bg-teal-50 text-teal-700 border-teal-200" },
+    { key: "other", label: "Other", icon: "M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z", gradient: "from-slate-400 to-gray-500", soft: "bg-slate-50 text-slate-700 border-slate-200" },
+  ];
 
   const openCreateModal = (type: "dermatology" | "cosmetology") => {
     setEditingTemplate(null);
@@ -377,14 +460,14 @@ export default function TemplatesPage() {
     // Prescription has its own value handling (array, not string)
     if (field.type === "prescription") {
       const isCosmo = formData.templateType === "cosmetology";
-      const meds: Array<{ name: string; dosage: string; route: string; frequency: string; duration: string; instructions: string }> =
+      const meds: Array<{ name: string; dosage: string; route: string; frequency: string; duration: string; instructions: string; quantity: string }> =
         Array.isArray(formData.templateData[field.fieldName]) ? formData.templateData[field.fieldName] : [];
       const updateMed = (idx: number, key: string, val: string) => {
         const updated = [...meds];
         updated[idx] = { ...updated[idx], [key]: val };
         updateTemplateData(field.fieldName, updated);
       };
-      const addMed = () => updateTemplateData(field.fieldName, [...meds, { name: "", dosage: "", route: "", frequency: "", duration: "", instructions: "" }]);
+      const addMed = () => updateTemplateData(field.fieldName, [...meds, { name: "", dosage: "", route: "", frequency: "", duration: "", instructions: "", quantity: "" }]);
       const removeMed = (idx: number) => updateTemplateData(field.fieldName, meds.filter((_, i) => i !== idx));
       const inputClass = isCosmo
         ? "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
@@ -443,7 +526,11 @@ export default function TemplatesPage() {
                   <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Duration</label>
                   <input type="text" value={med.duration} onChange={(e) => updateMed(idx, "duration", e.target.value)} placeholder="e.g. 7 days, 1 month" className={inputClass} />
                 </div>
-                <div className="sm:col-span-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Quantity</label>
+                  <input type="text" value={med.quantity || ""} onChange={(e) => updateMed(idx, "quantity", e.target.value)} placeholder="e.g. 10, 1 strip" className={inputClass} />
+                </div>
+                <div>
                   <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Instructions</label>
                   <input type="text" value={med.instructions} onChange={(e) => updateMed(idx, "instructions", e.target.value)} placeholder="e.g. After food, Apply locally" className={inputClass} />
                 </div>
@@ -454,6 +541,80 @@ export default function TemplatesPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             <span>Add Medicine</span>
           </button>
+        </div>
+      );
+    }
+
+    // Special: Procedure name field with search dropdown for cosmetology templates
+    if (formData.templateType === "cosmetology" && field.fieldName === "name" && field.label?.toLowerCase().includes("procedure")) {
+      const procValue = String(formData.templateData[field.fieldName] ?? "");
+      const activeProcedures = procedures.filter(p => p.isActive !== false);
+      const filtered = tplProcQuery.length >= 1
+        ? activeProcedures.filter(p => p.name.toLowerCase().includes(tplProcQuery.toLowerCase()))
+        : activeProcedures;
+      return (
+        <div className="relative">
+          <input
+            type="text"
+            value={procValue}
+            onChange={(e) => {
+              updateTemplateData(field.fieldName, e.target.value);
+              setTplProcQuery(e.target.value);
+              setTplProcDropdownOpen(true);
+              // Clear pricing if manually typed
+              updateTemplateData("procedureId", "");
+              updateTemplateData("basePrice", "");
+              updateTemplateData("gstRate", "");
+              updateTemplateData("gstAmount", "");
+              updateTemplateData("totalAmount", "");
+            }}
+            onFocus={() => { setTplProcQuery(procValue); setTplProcDropdownOpen(true); }}
+            onBlur={() => setTimeout(() => setTplProcDropdownOpen(false), 200)}
+            placeholder={field.placeholder || "Search or type procedure name..."}
+            className={`${baseClass} focus:ring-2 focus:ring-purple-500`}
+            autoComplete="off"
+          />
+          {tplProcDropdownOpen && filtered.length > 0 && (
+            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+              {filtered.map((proc: any) => {
+                const gstAmt = proc.basePrice * proc.gstRate / 100;
+                const total = proc.basePrice + gstAmt;
+                return (
+                  <button key={proc._id} type="button" className="w-full text-left px-3 py-2.5 hover:bg-purple-50 transition-colors border-b border-gray-50 last:border-0" onClick={() => {
+                    updateTemplateData(field.fieldName, proc.name);
+                    updateTemplateData("procedureId", proc._id);
+                    updateTemplateData("basePrice", proc.basePrice);
+                    updateTemplateData("gstRate", proc.gstRate);
+                    updateTemplateData("gstAmount", gstAmt);
+                    updateTemplateData("totalAmount", total);
+                    setTplProcDropdownOpen(false);
+                  }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900">{proc.name}</span>
+                      <span className="text-sm font-bold text-purple-600">{"\u20B9"}{proc.basePrice.toLocaleString()}{proc.gstRate > 0 ? ` +${proc.gstRate}% GST` : ""}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[11px] text-gray-400 capitalize">{proc.category}</span>
+                      {proc.gstRate > 0 && <span className="text-[11px] text-purple-500">Total: {"\u20B9"}{total.toLocaleString()}</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {formData.templateData.basePrice > 0 && (
+            <div className="mt-2 flex items-center gap-3 text-xs">
+              <span className="bg-purple-50 text-purple-700 px-2 py-1 rounded-lg font-medium">{"\u20B9"}{Number(formData.templateData.basePrice).toLocaleString()}</span>
+              {formData.templateData.gstRate > 0 && (
+                <>
+                  <span className="text-gray-400">+</span>
+                  <span className="bg-purple-50 text-purple-700 px-2 py-1 rounded-lg font-medium">{formData.templateData.gstRate}% GST</span>
+                  <span className="text-gray-400">=</span>
+                  <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-lg font-bold">{"\u20B9"}{(Number(formData.templateData.basePrice) + Number(formData.templateData.basePrice) * Number(formData.templateData.gstRate) / 100).toLocaleString()}</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       );
     }
@@ -608,26 +769,40 @@ export default function TemplatesPage() {
 
             {/* Create Buttons */}
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => openCreateModal("dermatology")}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-teal-600 text-white font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-md text-sm"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="hidden sm:inline">Dermatology</span>
-                <span className="sm:hidden">Derma</span>
-              </button>
-              <button
-                onClick={() => openCreateModal("cosmetology")}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors shadow-md text-sm"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="hidden sm:inline">Cosmetology</span>
-                <span className="sm:hidden">Cosmo</span>
-              </button>
+              {pageTab === "templates" ? (
+                <>
+                  <button
+                    onClick={() => openCreateModal("dermatology")}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-teal-600 text-white font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-md text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="hidden sm:inline">Dermatology</span>
+                    <span className="sm:hidden">Derma</span>
+                  </button>
+                  <button
+                    onClick={() => openCreateModal("cosmetology")}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors shadow-md text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="hidden sm:inline">Cosmetology</span>
+                    <span className="sm:hidden">Cosmo</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => openProcedureModal()}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors shadow-md text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Procedure
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -654,9 +829,136 @@ export default function TemplatesPage() {
         </div>
       </nav>
 
+      {/* Page Tab Switcher */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex gap-1 py-2">
+            {[
+              { key: "templates", label: "Templates", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+              { key: "procedures", label: "Procedures", icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setPageTab(tab.key as typeof pageTab)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  pageTab === tab.key
+                    ? "bg-purple-50 text-purple-700 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
+                </svg>
+                {tab.label}
+                {tab.key === "procedures" && procedures.length > 0 && (
+                  <span className="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">{procedures.filter(p => p.isActive).length}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Main */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {loading ? (
+        {pageTab === "procedures" ? (
+          /* ─── PROCEDURES TAB ─── */
+          loadingProcedures ? (
+            <div className="flex items-center justify-center py-24">
+              <div className="text-center">
+                <div className="w-14 h-14 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-gray-600 font-medium">Loading procedures...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="relative mb-4 group">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </div>
+                <input type="text" placeholder="Search procedures..." value={procedureSearch} onChange={(e) => setProcedureSearch(e.target.value)} className="w-full pl-11 pr-4 py-3 bg-white border-2 border-gray-200 rounded-2xl text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-50 shadow-sm transition-all" />
+              </div>
+
+              {/* Category pills */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                {PROCEDURE_CATEGORIES.map((cat) => {
+                  const count = procedures.filter(p => p.category === cat.key && p.isActive).length;
+                  if (count === 0 && !procedureSearch) return null;
+                  return (
+                    <span key={cat.key} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 capitalize">
+                      <svg className="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={cat.icon} /></svg>
+                      {cat.label} <span className="text-purple-600">{count}</span>
+                    </span>
+                  );
+                })}
+              </div>
+
+              {procedures.filter(p => !procedureSearch || p.name.toLowerCase().includes(procedureSearch.toLowerCase())).length === 0 ? (
+                <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
+                  <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800 mb-2">No procedures yet</h3>
+                  <p className="text-gray-500 mb-4">Create cosmetology procedures with pricing to use in consultations and templates.</p>
+                  <button onClick={() => openProcedureModal()} className="px-5 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors text-sm">
+                    Add First Procedure
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {procedures.filter(p => !procedureSearch || p.name.toLowerCase().includes(procedureSearch.toLowerCase())).map((proc) => {
+                    const gstAmt = proc.basePrice * proc.gstRate / 100;
+                    const total = proc.basePrice + gstAmt;
+                    const catInfo = PROCEDURE_CATEGORIES.find(c => c.key === proc.category) || PROCEDURE_CATEGORIES[7];
+                    return (
+                      <div key={proc._id} className={`bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all ${!proc.isActive ? "opacity-60" : ""}`}>
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-violet-500 rounded-xl flex items-center justify-center shadow-sm">
+                              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={catInfo.icon} /></svg>
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-gray-900 text-sm">{proc.name}</h3>
+                              <p className="text-xs text-purple-500 font-medium capitalize">{proc.category}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => openProcedureModal(proc)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                            <button onClick={() => toggleProcedureActive(proc)} className={`p-1.5 rounded-lg transition-colors ${proc.isActive ? "hover:bg-red-50" : "hover:bg-green-50"}`} title={proc.isActive ? "Deactivate" : "Activate"}>
+                              {proc.isActive ? (
+                                <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                              ) : (
+                                <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        {proc.description && <p className="text-xs text-gray-500 mb-3 line-clamp-2">{proc.description}</p>}
+                        <div className="flex items-end justify-between pt-3 border-t border-gray-100">
+                          <div>
+                            <p className="text-xs text-gray-400">Base Price</p>
+                            <p className="text-lg font-bold text-gray-900">{"\u20B9"}{proc.basePrice.toLocaleString()}</p>
+                          </div>
+                          {proc.gstRate > 0 && (
+                            <div className="text-right">
+                              <p className="text-xs text-gray-400">GST {proc.gstRate}%</p>
+                              <p className="text-sm font-semibold text-purple-600">{"\u20B9"}{total.toLocaleString()}</p>
+                            </div>
+                          )}
+                          {!proc.isActive && (
+                            <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full uppercase">Inactive</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )
+        ) : loading ? (
           <div className="flex items-center justify-center py-24">
             <div className="text-center">
               <div className="w-14 h-14 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -1148,6 +1450,139 @@ export default function TemplatesPage() {
                 className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors text-sm disabled:opacity-60"
               >
                 {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Procedure Modal ─── */}
+      {showProcedureModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowProcedureModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">{editingProcedure ? "Edit Procedure" : "New Procedure"}</h3>
+              <button onClick={() => setShowProcedureModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Procedure Name</label>
+                <input type="text" value={procedureForm.name} onChange={(e) => setProcedureForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Chemical Peel, Laser Hair Removal" className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" autoFocus />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Category</label>
+                {(() => {
+                  const selectedCat = PROCEDURE_CATEGORIES.find(c => c.key === procedureForm.category) || PROCEDURE_CATEGORIES[7];
+                  return (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setProcCatDropdownOpen(o => !o)}
+                        className={`w-full px-3 py-2.5 bg-gradient-to-br from-gray-50 to-white border-2 rounded-xl text-sm outline-none transition-all flex items-center justify-between ${
+                          procCatDropdownOpen
+                            ? "border-purple-500 ring-4 ring-purple-500/15 shadow-sm"
+                            : "border-gray-200 hover:border-purple-300"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <span className={`w-7 h-7 rounded-lg bg-gradient-to-br ${selectedCat.gradient} flex items-center justify-center shadow-sm`}>
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d={selectedCat.icon} />
+                            </svg>
+                          </span>
+                          <span className="font-semibold text-gray-800">{selectedCat.label}</span>
+                        </span>
+                        <svg
+                          className={`w-4 h-4 text-gray-400 transition-transform ${procCatDropdownOpen ? "rotate-180" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2.5}
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {procCatDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setProcCatDropdownOpen(false)} />
+                          <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden animate-fade-in-down">
+                            <div className="px-4 py-2.5 bg-gradient-to-r from-purple-50 to-violet-50 border-b border-purple-100">
+                              <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Choose a Category</p>
+                            </div>
+                            <div className="max-h-44 overflow-y-auto p-2 grid grid-cols-2 gap-1.5">
+                              {PROCEDURE_CATEGORIES.map((cat) => {
+                                const isSelected = procedureForm.category === cat.key;
+                                return (
+                                  <button
+                                    key={cat.key}
+                                    type="button"
+                                    onClick={() => {
+                                      setProcedureForm(f => ({ ...f, category: cat.key }));
+                                      setProcCatDropdownOpen(false);
+                                    }}
+                                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all ${
+                                      isSelected
+                                        ? `${cat.soft} border-2 shadow-sm`
+                                        : "border-2 border-transparent hover:bg-gray-50 hover:border-gray-200"
+                                    }`}
+                                  >
+                                    <span className={`flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br ${cat.gradient} flex items-center justify-center shadow-sm`}>
+                                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d={cat.icon} />
+                                      </svg>
+                                    </span>
+                                    <span className={`flex-1 text-sm font-semibold ${isSelected ? "" : "text-gray-700"}`}>{cat.label}</span>
+                                    {isSelected && (
+                                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Base Price ({"\u20B9"})</label>
+                  <input type="number" value={procedureForm.basePrice} onChange={(e) => setProcedureForm(f => ({ ...f, basePrice: e.target.value }))} placeholder="0" min="0" className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">GST Rate (%)</label>
+                  <input
+                    type="number"
+                    value={procedureForm.gstRate}
+                    onChange={(e) => setProcedureForm(f => ({ ...f, gstRate: e.target.value }))}
+                    placeholder="0"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                  />
+                </div>
+              </div>
+              {Number(procedureForm.basePrice) > 0 && Number(procedureForm.gstRate) > 0 && (
+                <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 flex justify-between items-center">
+                  <span className="text-xs text-purple-600 font-medium">Total (incl. GST)</span>
+                  <span className="text-lg font-bold text-purple-700">{"\u20B9"}{(Number(procedureForm.basePrice) + Number(procedureForm.basePrice) * Number(procedureForm.gstRate) / 100).toLocaleString()}</span>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Description (optional)</label>
+                <textarea value={procedureForm.description} onChange={(e) => setProcedureForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description of the procedure..." rows={2} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none resize-none" />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setShowProcedureModal(false)} className="px-4 py-2.5 text-sm text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
+              <button onClick={saveProcedure} disabled={savingProcedure} className="px-5 py-2.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors text-sm disabled:opacity-50">
+                {savingProcedure ? "Saving..." : editingProcedure ? "Update" : "Create"}
               </button>
             </div>
           </div>

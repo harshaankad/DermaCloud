@@ -259,12 +259,13 @@ function simpleBox(doc: PDFKit.PDFDocument, text: string) {
 function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
   const cols = [
     { label: "#",            w: 25  },
-    { label: "Medicine",     w: 120 },
-    { label: "Dosage",       w: 60  },
-    { label: "Route",        w: 55  },
-    { label: "Frequency",    w: 75  },
-    { label: "Duration",     w: 60  },
-    { label: "Instructions", w: CW - 25 - 120 - 60 - 55 - 75 - 60 },
+    { label: "Medicine",     w: 110 },
+    { label: "Dosage",       w: 55  },
+    { label: "Route",        w: 50  },
+    { label: "Frequency",    w: 65  },
+    { label: "Duration",     w: 55  },
+    { label: "Qty",          w: 40  },
+    { label: "Instructions", w: CW - 25 - 110 - 55 - 50 - 65 - 55 - 40 },
   ];
   const rowH = 22;
   const headerH = 20;
@@ -300,6 +301,7 @@ function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
       med.route || "—",
       med.frequency || "—",
       med.duration || "—",
+      med.quantity || "—",
       med.instructions || "—",
     ];
     vals.forEach((val, ci) => {

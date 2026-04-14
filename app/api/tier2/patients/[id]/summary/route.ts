@@ -258,6 +258,10 @@ export async function GET(
               if (goals) sub.push(`Goals: ${goals}`);
               lines.push(`    Procedure: ${sub.join(" · ")}`);
             }
+            const issueTotal = fd.totalAmount != null && fd.totalAmount !== "" ? Number(fd.totalAmount) : null;
+            if (issueTotal && issueTotal > 0) {
+              lines.push(`    Investment: Rs.${issueTotal.toLocaleString("en-IN")}`);
+            }
             if (findings || diagnosis) {
               const sub: string[] = [];
               if (findings) sub.push(findings);
@@ -302,6 +306,10 @@ export async function GET(
           if (session) sub.push(`session ${session}`);
           if (goals) sub.push(`Goals: ${goals}`);
           lines.push(`  Procedure: ${sub.join(" · ")}`);
+        }
+        const totalInv = v.procedure?.totalAmount != null ? Number(v.procedure.totalAmount) : null;
+        if (totalInv && totalInv > 0) {
+          lines.push(`  Investment: Rs.${totalInv.toLocaleString("en-IN")}`);
         }
         if (findings || diagnosis) {
           const sub: string[] = [];

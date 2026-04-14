@@ -26,7 +26,7 @@ interface PrescriptionData {
   type: "dermatology" | "cosmetology";
   consultation: {
     treatmentPlan?: {
-      medications?: { name: string; dosage: string; frequency: string; duration: string }[];
+      medications?: { name: string; dosage: string; frequency: string; duration: string; quantity?: string }[];
       topicals?: string;
       orals?: string;
       lifestyleChanges?: string;
@@ -35,6 +35,10 @@ interface PrescriptionData {
     procedure?: {
       name?: string;
       productsAndParameters?: string;
+      basePrice?: number;
+      gstRate?: number;
+      gstAmount?: number;
+      totalAmount?: number;
     };
     aftercare?: {
       homeProducts?: string;
@@ -1336,7 +1340,12 @@ export default function FrontdeskSalesPage() {
                     const proc = prescription.consultation.procedure;
                     const ac = prescription.consultation.aftercare;
                     const cosmoFields: { label: string; value: string; color: string; bg: string; border: string }[] = [];
-                    if (proc?.name) cosmoFields.push({ label: "Procedure", value: proc.name, color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-100" });
+                    if (proc?.name) {
+                      const priceSuffix = proc.basePrice && proc.basePrice > 0
+                        ? `  ·  \u20B9${Number(proc.basePrice).toLocaleString("en-IN")}${proc.gstRate && proc.gstRate > 0 ? ` + ${proc.gstRate}% GST = \u20B9${Number(proc.totalAmount || 0).toLocaleString("en-IN")}` : ""}`
+                        : "";
+                      cosmoFields.push({ label: "Procedure", value: `${proc.name}${priceSuffix}`, color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-100" });
+                    }
                     if (proc?.productsAndParameters) cosmoFields.push({ label: "Products", value: proc.productsAndParameters, color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-100" });
                     if (ac?.homeProducts) cosmoFields.push({ label: "Home Care", value: ac.homeProducts, color: "text-pink-600", bg: "bg-pink-50", border: "border-pink-100" });
                     if (ac?.instructions) cosmoFields.push({ label: "Aftercare", value: ac.instructions, color: "text-pink-600", bg: "bg-pink-50", border: "border-pink-100" });
@@ -1368,6 +1377,7 @@ export default function FrontdeskSalesPage() {
                                         <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Route</th>
                                         <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Freq</th>
                                         <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Duration</th>
+                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Qty</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -1379,6 +1389,7 @@ export default function FrontdeskSalesPage() {
                                           <td className="px-2.5 py-1.5 text-gray-600">{med.route || "—"}</td>
                                           <td className="px-2.5 py-1.5 text-gray-600">{med.frequency || "—"}</td>
                                           <td className="px-2.5 py-1.5 text-gray-600">{med.duration || "—"}</td>
+                                          <td className="px-2.5 py-1.5 text-gray-600">{med.quantity || "—"}</td>
                                         </tr>
                                       ))}
                                     </tbody>

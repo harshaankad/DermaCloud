@@ -114,7 +114,49 @@ export async function GET(request: NextRequest) {
       ]),
       ConsultationCosmetology.aggregate([
         { $match: { doctorId } },
-        { $facet: sharedFacets },
+        {
+          $facet: {
+            ...sharedFacets,
+            topProcedures: [
+              { $match: { "procedure.name": { $exists: true, $ne: "" } } },
+              {
+                $group: {
+                  _id: "$procedure.name",
+                  count: { $sum: 1 },
+                  revenue: { $sum: { $ifNull: ["$procedure.totalAmount", 0] } },
+                  gstCollected: { $sum: { $ifNull: ["$procedure.gstAmount", 0] } },
+                },
+              },
+              { $sort: { count: -1 } },
+              { $limit: 8 },
+            ],
+            procedureRevenueMonth: [
+              { $match: { consultationDate: { $gte: monthStart } } },
+              {
+                $group: {
+                  _id: null,
+                  totalBase: { $sum: { $ifNull: ["$procedure.basePrice", 0] } },
+                  totalGst: { $sum: { $ifNull: ["$procedure.gstAmount", 0] } },
+                  totalRevenue: { $sum: { $ifNull: ["$procedure.totalAmount", 0] } },
+                  count: {
+                    $sum: {
+                      $cond: [{ $gt: [{ $ifNull: ["$procedure.basePrice", 0] }, 0] }, 1, 0],
+                    },
+                  },
+                },
+              },
+            ],
+            procedureRevenueAllTime: [
+              {
+                $group: {
+                  _id: null,
+                  totalRevenue: { $sum: { $ifNull: ["$procedure.totalAmount", 0] } },
+                  totalGst: { $sum: { $ifNull: ["$procedure.gstAmount", 0] } },
+                },
+              },
+            ],
+          },
+        },
       ]),
       ConsultationDermatology.distinct("patientId", { doctorId }),
       ConsultationCosmetology.distinct("patientId", { doctorId }),
@@ -267,6 +309,24 @@ export async function GET(request: NextRequest) {
         condition: item._id,
         count: item.count,
       })),
+      cosmetologyProcedures: {
+        top: (c.topProcedures ?? []).map((item: { _id: string; count: number; revenue: number; gstCollected: number }) => ({
+          name: item._id,
+          count: item.count,
+          revenue: Math.round(item.revenue || 0),
+          gstCollected: Math.round(item.gstCollected || 0),
+        })),
+        thisMonth: {
+          totalBase: Math.round(c.procedureRevenueMonth?.[0]?.totalBase ?? 0),
+          totalGst: Math.round(c.procedureRevenueMonth?.[0]?.totalGst ?? 0),
+          totalRevenue: Math.round(c.procedureRevenueMonth?.[0]?.totalRevenue ?? 0),
+          count: c.procedureRevenueMonth?.[0]?.count ?? 0,
+        },
+        allTime: {
+          totalRevenue: Math.round(c.procedureRevenueAllTime?.[0]?.totalRevenue ?? 0),
+          totalGst: Math.round(c.procedureRevenueAllTime?.[0]?.totalGst ?? 0),
+        },
+      },
       demographics: { gender: genderMap, ageGroups },
       pharmacy,
       aiUsage: {

@@ -809,6 +809,7 @@ export default function ConsultationDetailsPage() {
                                     <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Route</th>
                                     <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Frequency</th>
                                     <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Duration</th>
+                                    <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Qty</th>
                                     <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Instructions</th>
                                   </tr>
                                 </thead>
@@ -821,6 +822,7 @@ export default function ConsultationDetailsPage() {
                                       <td className="px-5 py-3.5 text-sm text-gray-600">{med.route || "—"}</td>
                                       <td className="px-5 py-3.5 text-sm text-gray-600">{med.frequency || "—"}</td>
                                       <td className="px-5 py-3.5 text-sm text-gray-600">{med.duration || "—"}</td>
+                                      <td className="px-5 py-3.5 text-sm text-gray-600">{med.quantity || "—"}</td>
                                       <td className="px-5 py-3.5 text-sm text-gray-600">{med.instructions || "—"}</td>
                                     </tr>
                                   ))}
@@ -981,6 +983,7 @@ export default function ConsultationDetailsPage() {
                           <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Route</th>
                           <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Frequency</th>
                           <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Duration</th>
+                          <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Qty</th>
                           <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Instructions</th>
                         </tr>
                       </thead>
@@ -993,6 +996,7 @@ export default function ConsultationDetailsPage() {
                             <td className="px-5 py-3.5 text-sm text-gray-600">{med.route || "—"}</td>
                             <td className="px-5 py-3.5 text-sm text-gray-600">{med.frequency || "—"}</td>
                             <td className="px-5 py-3.5 text-sm text-gray-600">{med.duration || "—"}</td>
+                            <td className="px-5 py-3.5 text-sm text-gray-600">{med.quantity || "—"}</td>
                             <td className="px-5 py-3.5 text-sm text-gray-600">{med.instructions || "—"}</td>
                           </tr>
                         ))}

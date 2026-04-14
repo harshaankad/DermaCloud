@@ -183,6 +183,26 @@ function CosmetologyVisitPageInner() {
     }, 300);
   }, []);
 
+  // Procedure search for autocomplete
+  const [procSearchResults, setProcSearchResults] = useState<any[]>([]);
+  const [procSearchActive, setProcSearchActive] = useState<string | null>(null);
+  const procSearchTimer = useRef<NodeJS.Timeout | null>(null);
+  const procDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const searchProcedures = useCallback((query: string, key: string) => {
+    setProcSearchActive(key);
+    if (procSearchTimer.current) clearTimeout(procSearchTimer.current);
+    if (query.length < 1) { setProcSearchResults([]); return; }
+    procSearchTimer.current = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`/api/tier2/cosmetology-procedures?search=${encodeURIComponent(query)}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (data.success) setProcSearchResults(data.data);
+      } catch { setProcSearchResults([]); }
+    }, 300);
+  }, []);
+
   const initializedRef = useRef(false);
   const newestIssueRef = useRef<HTMLDivElement | null>(null);
   const issueTemplateSearchRef = useRef<HTMLInputElement | null>(null);
@@ -425,9 +445,18 @@ function CosmetologyVisitPageInner() {
   const applyTemplateToIssue = (issueId: string, templateId: string) => {
     const template = templates.find((t) => t._id === templateId);
     if (!template) return;
-    const nonEmpty = Object.fromEntries(
+    const nonEmpty: Record<string, any> = Object.fromEntries(
       Object.entries(template.templateData).filter(([, v]) => v !== undefined && v !== null && v !== "")
     );
+    const bp = Number(nonEmpty.basePrice);
+    const gr = Number(nonEmpty.gstRate);
+    if (!isNaN(bp) && bp > 0) {
+      const rate = !isNaN(gr) ? gr : 0;
+      nonEmpty.basePrice = bp;
+      nonEmpty.gstRate = rate;
+      nonEmpty.gstAmount = bp * rate / 100;
+      nonEmpty.totalAmount = bp + nonEmpty.gstAmount;
+    }
     setIssues((prev) =>
       prev.map((i) => (i.id === issueId ? { ...i, formData: { ...i.formData, ...nonEmpty } } : i))
     );
@@ -621,12 +650,66 @@ function CosmetologyVisitPageInner() {
   const renderField = (
     field: FormField,
     value: any,
-    onChange: (fieldName: string, value: any) => void
+    onChange: (fieldName: string, value: any) => void,
+    contextKey: string = "shared"
   ) => {
     if (!field.enabled) return null;
 
     const inputClass =
       "w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-slate-800 placeholder-gray-400";
+
+    // Special: Procedure name field with search dropdown + price/GST auto-fill
+    if (field.fieldName === "name" && field.label?.toLowerCase().includes("procedure")) {
+      const searchKey = `proc-${contextKey}-${field.fieldName}`;
+      return (
+        <div className="relative">
+          <input
+            type="text"
+            value={value || ""}
+            onChange={(e) => { onChange(field.fieldName, e.target.value); searchProcedures(e.target.value, searchKey); }}
+            onFocus={() => { if ((value || "").length >= 1) searchProcedures(value, searchKey); }}
+            onBlur={() => setTimeout(() => { if (procSearchActive === searchKey) { setProcSearchActive(null); setProcSearchResults([]); } }, 200)}
+            placeholder={field.placeholder || "Search or type procedure name..."}
+            className={inputClass}
+            required={field.required}
+            autoComplete="off"
+          />
+          {procSearchActive === searchKey && procSearchResults.length > 0 && (
+            <div ref={procDropdownRef} className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+              {procSearchResults.map((proc: any) => {
+                const gstAmt = proc.basePrice * proc.gstRate / 100;
+                const total = proc.basePrice + gstAmt;
+                return (
+                  <button key={proc._id} type="button" className="w-full text-left px-3 py-2.5 hover:bg-purple-50 transition-colors border-b border-gray-50 last:border-0" onClick={() => {
+                    onChange(field.fieldName, proc.name);
+                    onChange("procedureId", proc._id);
+                    onChange("basePrice", proc.basePrice);
+                    onChange("gstRate", proc.gstRate);
+                    onChange("gstAmount", gstAmt);
+                    onChange("totalAmount", total);
+                    setProcSearchActive(null); setProcSearchResults([]);
+                  }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900">{proc.name}</span>
+                      <span className="text-sm font-bold text-purple-600">{"\u20B9"}{proc.basePrice.toLocaleString()}{proc.gstRate > 0 ? ` +${proc.gstRate}% GST` : ""}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[11px] text-gray-400 capitalize">{proc.category}</span>
+                      {proc.gstRate > 0 && <span className="text-[11px] text-purple-500">Total: {"\u20B9"}{total.toLocaleString()}</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {/* Show pricing summary if selected */}
+          {value && (typeof onChange === "function") && (() => {
+            // We can't directly access other fields here, but pricing shows in the form below
+            return null;
+          })()}
+        </div>
+      );
+    }
 
     switch (field.type) {
       case "textarea":
@@ -689,13 +772,13 @@ function CosmetologyVisitPageInner() {
           </div>
         );
       case "prescription": {
-        const meds: Array<{ name: string; dosage: string; route: string; frequency: string; duration: string; instructions: string }> = Array.isArray(value) ? value : [];
+        const meds: Array<{ name: string; dosage: string; route: string; frequency: string; duration: string; instructions: string; quantity: string }> = Array.isArray(value) ? value : [];
         const updateMed = (idx: number, key: string, val: string) => {
           const updated = [...meds];
           updated[idx] = { ...updated[idx], [key]: val };
           onChange(field.fieldName, updated);
         };
-        const addMed = () => onChange(field.fieldName, [...meds, { name: "", dosage: "", route: "", frequency: "", duration: "", instructions: "" }]);
+        const addMed = () => onChange(field.fieldName, [...meds, { name: "", dosage: "", route: "", frequency: "", duration: "", instructions: "", quantity: "" }]);
         const removeMed = (idx: number) => onChange(field.fieldName, meds.filter((_, i) => i !== idx));
         return (
           <div className="space-y-3">
@@ -750,7 +833,11 @@ function CosmetologyVisitPageInner() {
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Duration</label>
                     <input type="text" value={med.duration} onChange={(e) => updateMed(idx, "duration", e.target.value)} placeholder="e.g. 7 days, 1 month" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
                   </div>
-                  <div className="sm:col-span-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Quantity</label>
+                    <input type="text" value={med.quantity || ""} onChange={(e) => updateMed(idx, "quantity", e.target.value)} placeholder="e.g. 10, 1 strip" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
+                  </div>
+                  <div>
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Instructions</label>
                     <input type="text" value={med.instructions} onChange={(e) => updateMed(idx, "instructions", e.target.value)} placeholder="e.g. After food, Apply locally" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
                   </div>
@@ -1134,12 +1221,43 @@ function CosmetologyVisitPageInner() {
                                   {field.label}
                                   {field.required && <span className="text-red-500 ml-1">*</span>}
                                 </label>
-                                {renderField(field, issue.formData[field.fieldName], (fn, v) => updateIssueFormData(issue.id, fn, v))}
+                                {renderField(field, issue.formData[field.fieldName], (fn, v) => updateIssueFormData(issue.id, fn, v), issue.id)}
                               </div>
                             ))}
                         </div>
                       </div>
                     ))}
+
+                    {/* Procedure Pricing Summary */}
+                    {issue.formData.basePrice > 0 && (
+                      <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl border border-purple-200 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <h5 className="font-semibold text-slate-900 text-sm">
+                            Procedure Pricing
+                            {issues.length > 1 && <span className="text-purple-600 font-bold ml-1">· Issue {issueIndex + 1}</span>}
+                          </h5>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-white rounded-lg p-3 text-center border border-purple-100">
+                            <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Procedure Base Price</p>
+                            <p className="text-lg font-bold text-slate-800">{"\u20B9"}{Number(issue.formData.basePrice).toLocaleString()}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 text-center border border-purple-100">
+                            <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">GST Charged ({issue.formData.gstRate || 0}%)</p>
+                            <p className="text-lg font-bold text-slate-800">{"\u20B9"}{Number(issue.formData.gstAmount || 0).toLocaleString()}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 text-center border border-purple-100">
+                            <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Total Payable</p>
+                            <p className="text-lg font-bold text-purple-700">{"\u20B9"}{Number(issue.formData.totalAmount || issue.formData.basePrice).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Visit Photos — per issue */}
                     <div className="bg-purple-50 rounded-xl border border-purple-200 p-5">

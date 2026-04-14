@@ -25,6 +25,12 @@ interface Consultation {
   diagnosis?: {
     provisional?: string;
   };
+  procedure?: {
+    name?: string;
+    basePrice?: number;
+    gstRate?: number;
+    totalAmount?: number;
+  };
 }
 
 type FilterType = "all" | "today" | "week" | "month";
@@ -435,6 +441,14 @@ function ConsultationsPageInner() {
                         {consultation.diagnosis?.provisional && (
                           <p className="text-xs text-gray-400 truncate max-w-[220px] mt-0.5">
                             Dx: {consultation.diagnosis.provisional}
+                          </p>
+                        )}
+                        {consultation.type === "cosmetology" && consultation.procedure?.name && (
+                          <p className="text-xs text-purple-600 truncate max-w-[220px] mt-0.5 font-medium">
+                            {consultation.procedure.name}
+                            {consultation.procedure.totalAmount != null && consultation.procedure.totalAmount > 0 && (
+                              <span className="text-purple-500 ml-1">· ₹{Number(consultation.procedure.totalAmount).toLocaleString("en-IN")}</span>
+                            )}
                           </p>
                         )}
                       </div>

@@ -6,7 +6,7 @@ import {
   buildExcelResponse,
   formatDate,
   sumGst,
-  PURCHASE_REGISTER_HEADERS,
+  PURCHASE_RETURN_REGISTER_HEADERS,
 } from "@/lib/excel/reportHelper";
 
 export async function GET(request: NextRequest) {
@@ -33,27 +33,62 @@ export async function GET(request: NextRequest) {
 
     const returns = await PurchaseReturn.find(query).sort({ invoiceDate: 1 }).lean();
 
-    const rows = returns.map((p: any) => [
-      p.supplierInvNo,
-      p.gstnNo || "",
-      formatDate(p.invoiceDate),
-      p.modeOfPayment?.toUpperCase() || "",
-      p.supplierName,
-      p.city || "",
-      p.grossValue || 0,
-      p.discount || 0,
-      p.cgst || sumGst("cgst", p.gst0, p.gst5, p.gst12, p.gst18, p.gst28),
-      p.sgst || sumGst("sgst", p.gst0, p.gst5, p.gst12, p.gst18, p.gst28),
-      p.igst || sumGst("igst", p.gst0, p.gst5, p.gst12, p.gst18, p.gst28),
-      p.totalGst || 0,
-      p.adding || 0,
-      p.less || 0,
-      p.roundingAmount || 0,
-      p.netAmount || 0,
-    ]);
+    const rows: any[][] = [];
+    for (const p of returns as any[]) {
+      const items = p.items || [];
+      const invoiceFields = [
+        p.supplierInvNo,
+        p.gstnNo || "",
+        formatDate(p.invoiceDate),
+        p.modeOfPayment?.toUpperCase() || "",
+        p.supplierName,
+        p.city || "",
+      ];
+      const summaryFields = [
+        p.grossValue || 0,
+        p.discount || 0,
+        p.cgst || sumGst("cgst", p.gst0, p.gst5, p.gst12, p.gst18, p.gst28),
+        p.sgst || sumGst("sgst", p.gst0, p.gst5, p.gst12, p.gst18, p.gst28),
+        p.igst || sumGst("igst", p.gst0, p.gst5, p.gst12, p.gst18, p.gst28),
+        p.totalGst || 0,
+        p.adding || 0,
+        p.less || 0,
+        p.roundingAmount || 0,
+        p.netAmount || 0,
+      ];
+      const emptyInvoice = invoiceFields.map(() => "");
+      const emptySummary = summaryFields.map(() => "");
+
+      if (items.length === 0) {
+        const emptyItem = ["", "", "", "", "", "", "", "", "", "", "", ""];
+        rows.push([...invoiceFields, ...emptyItem, ...summaryFields]);
+      } else {
+        items.forEach((item: any, idx: number) => {
+          const itemFields = [
+            item.itemName || "",
+            item.hsnCode || "",
+            item.pack || "",
+            item.batchNo || "",
+            item.expiryDate ? formatDate(item.expiryDate) : "",
+            item.quantity || 0,
+            item.freeQty || 0,
+            item.mrp || 0,
+            item.unitPrice || 0,
+            item.discount || 0,
+            item.gstRate != null ? `${item.gstRate}%` : "",
+            item.total || 0,
+          ];
+          if (idx === 0) {
+            rows.push([...invoiceFields, ...itemFields, ...summaryFields]);
+          } else {
+            rows.push([...emptyInvoice, ...itemFields, ...emptySummary]);
+          }
+        });
+      }
+    }
 
     const dateTag = from && to ? `${from}_to_${to}` : new Date().toISOString().slice(0, 10);
-    return buildExcelResponse(rows, PURCHASE_REGISTER_HEADERS, "PurchaseReturnRegister", `PurchaseReturnRegister_${dateTag}.xlsx`);
+    return buildExcelResponse(rows, PURCHASE_RETURN_REGISTER_HEADERS, "PurchaseReturnRegister", `PurchaseReturnRegister_${dateTag}.xlsx`);
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }

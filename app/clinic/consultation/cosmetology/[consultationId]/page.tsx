@@ -29,6 +29,11 @@ interface ConsultationData {
     package?: string;
     productsAndParameters?: string;
     immediateOutcome?: string;
+    procedureId?: string;
+    basePrice?: number;
+    gstRate?: number;
+    gstAmount?: number;
+    totalAmount?: number;
   };
   images: Array<{
     url: string;
@@ -760,6 +765,7 @@ export default function CosmetologyConsultationDetailsPage() {
             findings?: string; diagnosis?: string; baselineEvaluation?: string; contraindicationsCheck?: string;
             procedureName?: string; goals?: string; sessionNumber?: number; pkg?: string;
             productsAndParameters?: string; immediateOutcome?: string;
+            basePrice?: number; gstRate?: number; gstAmount?: number; totalAmount?: number;
             instructions?: string; homeProducts?: string; followUpDate?: string; expectedResults?: string;
             prescription?: any[];
             _rawFormData: Record<string, any>;
@@ -780,6 +786,10 @@ export default function CosmetologyConsultationDetailsPage() {
                     pkg: consultation.procedure?.package,
                     productsAndParameters: consultation.procedure?.productsAndParameters,
                     immediateOutcome: consultation.procedure?.immediateOutcome,
+                    basePrice: consultation.procedure?.basePrice,
+                    gstRate: consultation.procedure?.gstRate,
+                    gstAmount: consultation.procedure?.gstAmount,
+                    totalAmount: consultation.procedure?.totalAmount,
                     instructions: consultation.aftercare?.instructions,
                     homeProducts: consultation.aftercare?.homeProducts,
                     followUpDate: consultation.aftercare?.followUpDate,
@@ -802,6 +812,10 @@ export default function CosmetologyConsultationDetailsPage() {
                   pkg: fd.package,
                   productsAndParameters: fd.productsAndParameters,
                   immediateOutcome: fd.immediateOutcome,
+                  basePrice: fd.basePrice != null && fd.basePrice !== "" ? Number(fd.basePrice) : undefined,
+                  gstRate: fd.gstRate != null && fd.gstRate !== "" ? Number(fd.gstRate) : undefined,
+                  gstAmount: fd.gstAmount != null && fd.gstAmount !== "" ? Number(fd.gstAmount) : undefined,
+                  totalAmount: fd.totalAmount != null && fd.totalAmount !== "" ? Number(fd.totalAmount) : undefined,
                   instructions: fd.instructions,
                   homeProducts: fd.homeProducts,
                   followUpDate: fd.followUpDate,
@@ -823,6 +837,10 @@ export default function CosmetologyConsultationDetailsPage() {
                 pkg: consultation.procedure?.package,
                 productsAndParameters: consultation.procedure?.productsAndParameters,
                 immediateOutcome: consultation.procedure?.immediateOutcome,
+                basePrice: consultation.procedure?.basePrice,
+                gstRate: consultation.procedure?.gstRate,
+                gstAmount: consultation.procedure?.gstAmount,
+                totalAmount: consultation.procedure?.totalAmount,
                 instructions: consultation.aftercare?.instructions,
                 homeProducts: consultation.aftercare?.homeProducts,
                 followUpDate: consultation.aftercare?.followUpDate,
@@ -931,7 +949,7 @@ export default function CosmetologyConsultationDetailsPage() {
               )}
 
               {/* Procedure */}
-              {(iss.procedureName || iss.goals) && (
+              {(iss.procedureName || iss.goals || (iss._rawFormData?.basePrice ?? iss.basePrice)) && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                   <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
                     <div className="w-1.5 h-5 rounded-full bg-gradient-to-b from-violet-500 to-purple-500"></div>
@@ -969,6 +987,33 @@ export default function CosmetologyConsultationDetailsPage() {
                         </div>
                       )}
                     </div>
+                    {(() => {
+                      const raw = iss._rawFormData || {};
+                      const rawBase = iss.basePrice ?? (raw.basePrice != null && raw.basePrice !== "" ? Number(raw.basePrice) : undefined);
+                      const rawGstRate = iss.gstRate ?? (raw.gstRate != null && raw.gstRate !== "" ? Number(raw.gstRate) : undefined);
+                      const rawGstAmt = iss.gstAmount ?? (raw.gstAmount != null && raw.gstAmount !== "" ? Number(raw.gstAmount) : (rawBase != null && rawGstRate != null ? (rawBase * rawGstRate) / 100 : undefined));
+                      const rawTotal = iss.totalAmount ?? (raw.totalAmount != null && raw.totalAmount !== "" ? Number(raw.totalAmount) : (rawBase != null ? rawBase + (rawGstAmt || 0) : undefined));
+                      if (rawBase == null || !(rawBase > 0)) return null;
+                      return (
+                        <div className="mt-4 bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl border border-purple-200 p-4">
+                          <p className="text-xs font-bold text-purple-700 uppercase tracking-wide mb-3">Procedure Pricing</p>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="bg-white rounded-lg p-3 border border-purple-100">
+                              <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Procedure Base Price</p>
+                              <p className="text-base font-bold text-slate-800">{"\u20B9"}{Number(rawBase).toLocaleString()}</p>
+                            </div>
+                            <div className="bg-white rounded-lg p-3 border border-purple-100">
+                              <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">GST Charged ({rawGstRate || 0}%)</p>
+                              <p className="text-base font-bold text-slate-800">{"\u20B9"}{Number(rawGstAmt || 0).toLocaleString()}</p>
+                            </div>
+                            <div className="bg-white rounded-lg p-3 border border-purple-100">
+                              <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Total Payable</p>
+                              <p className="text-base font-bold text-purple-700">{"\u20B9"}{Number(rawTotal ?? rawBase).toLocaleString()}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -990,6 +1035,7 @@ export default function CosmetologyConsultationDetailsPage() {
                           <th className="px-3 py-2 text-left">Route</th>
                           <th className="px-3 py-2 text-left">Frequency</th>
                           <th className="px-3 py-2 text-left">Duration</th>
+                          <th className="px-3 py-2 text-left">Qty</th>
                           <th className="px-3 py-2 text-left">Instructions</th>
                         </tr>
                       </thead>
@@ -1002,6 +1048,7 @@ export default function CosmetologyConsultationDetailsPage() {
                             <td className="px-3 py-2 text-gray-700">{med.route || "—"}</td>
                             <td className="px-3 py-2 text-gray-700">{med.frequency || "—"}</td>
                             <td className="px-3 py-2 text-gray-700">{med.duration || "—"}</td>
+                            <td className="px-3 py-2 text-gray-700">{med.quantity || "—"}</td>
                             <td className="px-3 py-2 text-gray-700">{med.instructions || "—"}</td>
                           </tr>
                         ))}
@@ -1103,7 +1150,7 @@ export default function CosmetologyConsultationDetailsPage() {
                       {/* Any fields not in form config */}
                       {(() => {
                         const allConfigFields = formSections.flatMap((s) => s.fields.map((f) => f.fieldName));
-                        const extras = Object.entries(fd).filter(([key, val]) => !allConfigFields.includes(key) && !["_multiIssue", "_issues", "prescription"].includes(key) && val && (typeof val === "string" ? val.trim() : typeof val !== "object"));
+                        const extras = Object.entries(fd).filter(([key, val]) => !allConfigFields.includes(key) && !["_multiIssue", "_issues", "prescription", "basePrice", "gstRate", "gstAmount", "totalAmount", "procedureId"].includes(key) && val && (typeof val === "string" ? val.trim() : typeof val !== "object"));
                         if (extras.length === 0) return null;
                         return (
                           <div>

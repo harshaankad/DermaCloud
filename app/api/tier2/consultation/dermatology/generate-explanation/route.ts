@@ -23,6 +23,7 @@ function formatMedicines(prescription?: any[], topicals?: string, orals?: string
         if (med.route) parts.push(`(${med.route})`);
         if (med.frequency) parts.push(`— ${med.frequency}`);
         if (med.duration) parts.push(`for ${med.duration}`);
+        if (med.quantity) parts.push(`Qty: ${med.quantity}`);
         if (med.instructions) parts.push(`[${med.instructions}]`);
         items.push(parts.join(" "));
       }

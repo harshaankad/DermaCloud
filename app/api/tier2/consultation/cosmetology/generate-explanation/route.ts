@@ -23,6 +23,7 @@ function formatMedicines(prescription?: any[]): string[] {
         if (med.route) parts.push(`(${med.route})`);
         if (med.frequency) parts.push(`— ${med.frequency}`);
         if (med.duration) parts.push(`for ${med.duration}`);
+        if (med.quantity) parts.push(`Qty: ${med.quantity}`);
         if (med.instructions) parts.push(`[${med.instructions}]`);
         items.push(parts.join(" "));
       }
@@ -33,7 +34,11 @@ function formatMedicines(prescription?: any[]): string[] {
 
 /** Collect all non-empty fields from formData into a readable block */
 function collectAllFields(fd: Record<string, any>, skipKeys: string[] = []): string {
-  const skip = new Set(["_multiIssue", "_issues", "prescription", ...skipKeys]);
+  const skip = new Set([
+    "_multiIssue", "_issues", "prescription",
+    "procedureId", "basePrice", "gstRate", "gstAmount", "totalAmount",
+    ...skipKeys,
+  ]);
   const lines: string[] = [];
   for (const [key, val] of Object.entries(fd)) {
     if (skip.has(key) || !val) continue;
@@ -43,6 +48,19 @@ function collectAllFields(fd: Record<string, any>, skipKeys: string[] = []): str
     lines.push(`- ${label}: ${val}`);
   }
   return lines.join("\n");
+}
+
+/** Build a pricing context line for the prompt (if pricing is set) */
+function formatPricing(fd: Record<string, any>, proc?: any): string {
+  const basePrice = fd.basePrice ?? proc?.basePrice;
+  const gstRate = fd.gstRate ?? proc?.gstRate;
+  const totalAmount = fd.totalAmount ?? proc?.totalAmount;
+  if (basePrice == null || basePrice === "" || Number(basePrice) <= 0) return "";
+  const total = totalAmount != null && totalAmount !== "" ? Number(totalAmount) : Number(basePrice) * (1 + Number(gstRate || 0) / 100);
+  const parts = [`Base Price: Rs.${Number(basePrice).toLocaleString("en-IN")}`];
+  if (gstRate && Number(gstRate) > 0) parts.push(`GST ${gstRate}%`);
+  parts.push(`Total: Rs.${Math.round(total).toLocaleString("en-IN")}`);
+  return parts.join(" · ");
 }
 
 // ── Single-issue prompt ───────────────────────────────────────────────────────
@@ -77,6 +95,7 @@ ${procedureName ? `- Procedure: ${procedureName}` : ""}
 ${proc.goals ? `- Goals: ${proc.goals}` : ""}
 ${proc.productsAndParameters ? `- Products/Parameters: ${proc.productsAndParameters}` : ""}
 ${proc.immediateOutcome ? `- Immediate Outcome: ${proc.immediateOutcome}` : ""}
+${formatPricing(fd, proc) ? `- Investment: ${formatPricing(fd, proc)}` : ""}
 ${after.instructions ? `- Aftercare: ${after.instructions}` : ""}
 ${after.homeProducts ? `- Home Products: ${after.homeProducts}` : ""}
 ${after.expectedResults ? `- Expected Results: ${after.expectedResults}` : ""}
@@ -127,8 +146,9 @@ function buildMultiIssueCosmetologyPrompt(issues: any[]): string {
     const allFields = collectAllFields(fd);
     const concern = fd.primaryConcern || `Concern ${idx + 1}`;
     const meds = formatMedicines(fd.prescription);
+    const pricing = formatPricing(fd);
     return `ISSUE ${idx + 1} — ${issue.label || concern}:
-${allFields || "  No additional details."}
+${allFields || "  No additional details."}${pricing ? `\n  Investment: ${pricing}` : ""}
   Medicines (${meds.length}): ${meds.length > 0 ? meds.map((m, i) => `${i + 1}. ${m}`).join(", ") : "None"}`;
   }).join("\n\n");
 
