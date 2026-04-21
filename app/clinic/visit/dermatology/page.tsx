@@ -778,7 +778,7 @@ function DermatologyVisitPageInner() {
         if (issue.clinicalImages.length > 0) {
           const fd = new FormData();
           issue.clinicalImages.forEach((img) => fd.append("images", img));
-          const res = await fetch("/api/tier2/upload", {
+          const res = await fetch("/api/tier2/upload?skipAI=true", {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
             body: fd,
