@@ -124,7 +124,7 @@ export async function verifyTier2Request(request: NextRequest): Promise<AuthResu
 /**
  * Check if user has specific permission
  */
-export function hasPermission(auth: AuthResult, permission: keyof AuthResult["permissions"]): boolean {
+export function hasPermission(auth: AuthResult, permission: keyof NonNullable<AuthResult["permissions"]>): boolean {
   if (!auth.success || !auth.permissions) return false;
   return auth.permissions[permission] === true;
 }

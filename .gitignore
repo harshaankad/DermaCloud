@@ -6,6 +6,9 @@
 # AI microservice — lives in its own private repo (harshaankad/dermacloud-ai-service)
 /ai-service/
 
+# Learning docs (local only)
+/docs/learning/
+
 # dependencies
 /node_modules
 /.pnp

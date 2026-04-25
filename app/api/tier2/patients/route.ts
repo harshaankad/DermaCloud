@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       allergies: allergies || [],
     });
 
-    auditLog({ clinicId: auth.clinicId, userId: auth.userId, userEmail: auth.email, role: auth.role as "doctor" | "frontdesk", action: "PATIENT_CREATE", resourceType: "patient", resourceId: patient._id.toString(), details: { patientName: patient.name } }).catch(() => {});
+    auditLog({ clinicId: auth.clinicId, userId: auth.userId!, userEmail: auth.email!, role: auth.role as "doctor" | "frontdesk", action: "PATIENT_CREATE", resourceType: "patient", resourceId: patient._id.toString(), details: { patientName: patient.name } }).catch(() => {});
 
     return NextResponse.json({
       success: true,
