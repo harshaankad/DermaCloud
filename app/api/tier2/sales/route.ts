@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
 
     const query: any = { clinicId: auth.clinicId };
@@ -30,14 +31,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const sales = await Sale.find(query).sort({ createdAt: -1 }).limit(limit).lean();
+    const [sales, total] = await Promise.all([
+      Sale.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Sale.countDocuments(query),
+    ]);
 
     // Add clinicName for print bill
     const clinic = await Clinic.findById(auth.clinicId, { clinicName: 1 }).lean() as any;
     const clinicName = clinic?.clinicName || auth.clinicName || "Pharmacy";
     const enrichedSales = sales.map((s: any) => ({ ...s, clinicName }));
 
-    return NextResponse.json({ success: true, data: { sales: enrichedSales } });
+    return NextResponse.json({ success: true, data: { sales: enrichedSales, pagination: { page, limit, total, pages: Math.ceil(total / limit) } } });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }

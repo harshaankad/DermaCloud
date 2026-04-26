@@ -76,10 +76,13 @@ export default function PatientsPage() {
         if (isFirst) {
           setPatients(newItems);
         } else {
-          setPatients((prev) => [...prev, ...newItems]);
+          setPatients((prev) => {
+            const existingIds = new Set(prev.map((p) => p._id));
+            return [...prev, ...newItems.filter((p: Patient) => !existingIds.has(p._id))];
+          });
           setPage(pageNum);
         }
-        setHasMore(pageNum < data.data.pagination.pages);
+        setHasMore(pageNum < data.data.pagination.totalPages);
         setTotal(data.data.pagination.total);
       }
     } catch (err) {
@@ -96,15 +99,16 @@ export default function PatientsPage() {
   }, [fetchPatients]);
 
   useEffect(() => {
+    if (!hasMore) return;
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && hasMore && !isFetchingRef.current) {
+        if (entry.isIntersecting && !isFetchingRef.current) {
           fetchPatients(page + 1);
         }
       },
-      { rootMargin: "200px" }
+      { threshold: 0.1 }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -341,19 +345,19 @@ export default function PatientsPage() {
                 ))}
               </div>
 
-              {/* Infinite scroll sentinel */}
-              <div ref={sentinelRef} className="px-5 py-3 border-t bg-gray-50 flex items-center justify-center min-h-[48px]">
-                {loadingMore ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600" />
-                    Loading more...
-                  </div>
-                ) : hasMore ? null : patients.length > 0 ? (
-                  <p className="text-xs text-gray-400">{total} patients total</p>
-                ) : null}
-              </div>
             </>
           )}
+        </div>
+        {/* Infinite scroll sentinel — outside overflow-hidden container */}
+        <div ref={sentinelRef} className="flex items-center justify-center min-h-[48px]">
+          {loadingMore ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600" />
+              Loading more...
+            </div>
+          ) : hasMore ? null : patients.length > 0 ? (
+            <p className="text-xs text-gray-400">{total} patients total</p>
+          ) : null}
         </div>
       </main>
 

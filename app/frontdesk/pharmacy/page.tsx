@@ -132,6 +132,24 @@ export default function FrontdeskPharmacyPage() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
   }, []);
 
+  const validateDateRange = (from: string, to: string, requireDates = false): boolean => {
+    if (!from || !to) {
+      if (requireDates) { showToast("error", "Please select a date range first"); return false; }
+      return true;
+    }
+    const diffMs = new Date(to).getTime() - new Date(from).getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    if (diffDays > 92) {
+      showToast("error", "Date range cannot exceed 3 months");
+      return false;
+    }
+    if (diffDays < 0) {
+      showToast("error", "Start date must be before end date");
+      return false;
+    }
+    return true;
+  };
+
   const getToken = () => {
     const token = localStorage.getItem("frontdeskToken");
     if (!token) { router.push("/frontdesk/login"); return null; }
@@ -855,11 +873,11 @@ export default function FrontdeskPharmacyPage() {
                 <input type="date" value={purchaseFrom} onChange={(e) => setPurchaseFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
                 <span className="text-gray-400 text-sm">to</span>
                 <input type="date" value={purchaseTo} onChange={(e) => setPurchaseTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-                <button onClick={() => fetchPurchases(purchaseFrom, purchaseTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
+                <button onClick={() => validateDateRange(purchaseFrom, purchaseTo) && fetchPurchases(purchaseFrom, purchaseTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => { const qs = purchaseFrom && purchaseTo ? `?from=${purchaseFrom}&to=${purchaseTo}` : ""; downloadReport(`/api/tier2/purchases/report${qs}`, `PurchaseRegister.xlsx`); }}
+                  onClick={() => { if (!validateDateRange(purchaseFrom, purchaseTo, true)) return; const qs = `?from=${purchaseFrom}&to=${purchaseTo}`; downloadReport(`/api/tier2/purchases/report${qs}`, `PurchaseRegister.xlsx`); }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -932,11 +950,11 @@ export default function FrontdeskPharmacyPage() {
                 <input type="date" value={prFrom} onChange={(e) => setPrFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
                 <span className="text-gray-400 text-sm">to</span>
                 <input type="date" value={prTo} onChange={(e) => setPrTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-                <button onClick={() => fetchPurchaseReturns(prFrom, prTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
+                <button onClick={() => validateDateRange(prFrom, prTo) && fetchPurchaseReturns(prFrom, prTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => { const qs = prFrom && prTo ? `?from=${prFrom}&to=${prTo}` : ""; downloadReport(`/api/tier2/purchase-returns/report${qs}`, `PurchaseReturnRegister.xlsx`); }}
+                  onClick={() => { if (!validateDateRange(prFrom, prTo, true)) return; const qs = `?from=${prFrom}&to=${prTo}`; downloadReport(`/api/tier2/purchase-returns/report${qs}`, `PurchaseReturnRegister.xlsx`); }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>

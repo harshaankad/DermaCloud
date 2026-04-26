@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { printSaleBill } from "@/lib/printBill";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -60,6 +60,11 @@ export default function DoctorPharmacyPage() {
   const router = useRouter();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [invPage, setInvPage] = useState(1);
+  const [invHasMore, setInvHasMore] = useState(false);
+  const invLoaderRef = useRef<HTMLDivElement>(null);
+  const invFetchingRef = useRef(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [stats, setStats] = useState<any>(null);
@@ -80,6 +85,11 @@ export default function DoctorPharmacyPage() {
   // Purchases state
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loadingPurchases, setLoadingPurchases] = useState(false);
+  const [loadingMorePurchases, setLoadingMorePurchases] = useState(false);
+  const [purchasePage, setPurchasePage] = useState(1);
+  const [purchaseHasMore, setPurchaseHasMore] = useState(false);
+  const purchaseLoaderRef = useRef<HTMLDivElement>(null);
+  const purchaseFetchingRef = useRef(false);
   const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
   const [purchaseFrom, setPurchaseFrom] = useState("");
   const [purchaseTo, setPurchaseTo] = useState("");
@@ -99,6 +109,11 @@ export default function DoctorPharmacyPage() {
   const EMPTY_SALE_ITEM = { itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, gstRate: 0, total: 0 };
   const [sales, setSales] = useState<any[]>([]);
   const [loadingSales, setLoadingSales] = useState(false);
+  const [loadingMoreSales, setLoadingMoreSales] = useState(false);
+  const [salesPage, setSalesPage] = useState(1);
+  const [salesHasMore, setSalesHasMore] = useState(false);
+  const salesLoaderRef = useRef<HTMLDivElement>(null);
+  const salesFetchingRef = useRef(false);
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [salesFrom, setSalesFrom] = useState("");
   const [salesTo, setSalesTo] = useState("");
@@ -117,6 +132,8 @@ export default function DoctorPharmacyPage() {
   const [loadingMoreSR, setLoadingMoreSR] = useState(false);
   const [srPage, setSrPage] = useState(1);
   const [srHasMore, setSrHasMore] = useState(false);
+  const srLoaderRef = useRef<HTMLDivElement>(null);
+  const srFetchingRef = useRef(false);
   const [srFrom, setSrFrom] = useState("");
   const [srTo, setSrTo] = useState("");
   const [showAddSrModal, setShowAddSrModal] = useState(false);
@@ -133,6 +150,11 @@ export default function DoctorPharmacyPage() {
   // Purchase Returns state
   const [purchaseReturns, setPurchaseReturns] = useState<any[]>([]);
   const [loadingPurchaseReturns, setLoadingPurchaseReturns] = useState(false);
+  const [loadingMorePR, setLoadingMorePR] = useState(false);
+  const [prPage, setPrPage] = useState(1);
+  const [prHasMore, setPrHasMore] = useState(false);
+  const prLoaderRef = useRef<HTMLDivElement>(null);
+  const prFetchingRef = useRef(false);
   const [selectedPurchaseReturn, setSelectedPurchaseReturn] = useState<any>(null);
   const [prFrom, setPrFrom] = useState("");
   const [prTo, setPrTo] = useState("");
@@ -152,33 +174,56 @@ export default function DoctorPharmacyPage() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
   }, []);
 
+  const validateDateRange = (from: string, to: string, requireDates = false): boolean => {
+    if (!from || !to) {
+      if (requireDates) { showToast("error", "Please select a date range first"); return false; }
+      return true;
+    }
+    const diffMs = new Date(to).getTime() - new Date(from).getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    if (diffDays > 92) {
+      showToast("error", "Date range cannot exceed 3 months");
+      return false;
+    }
+    if (diffDays < 0) {
+      showToast("error", "Start date must be before end date");
+      return false;
+    }
+    return true;
+  };
+
   const getToken = () => {
     const token = localStorage.getItem("token");
     if (!token) { router.push("/login"); return null; }
     return token;
   };
 
-  const fetchInventory = useCallback(async () => {
-    setLoading(true);
+  const fetchInventory = useCallback(async (page = 1) => {
+    if (page === 1) setLoading(true); else setLoadingMore(true);
+    invFetchingRef.current = true;
     try {
       const token = localStorage.getItem("token");
       if (!token) { router.push("/login"); return; }
-      let url = "/api/tier2/inventory?";
-      if (filter === "low-stock") url += "lowStock=true";
-      else if (filter === "out-of-stock") url += "status=out-of-stock";
-      else if (filter === "expiring") url += "expiringSoon=true";
+      let url = `/api/tier2/inventory?page=${page}&limit=50`;
+      if (filter === "low-stock") url += "&lowStock=true";
+      else if (filter === "out-of-stock") url += "&status=out-of-stock";
+      else if (filter === "expiring") url += "&expiringSoon=true";
       if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
 
       const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       const data = await response.json();
       if (data.success) {
-        setItems(data.data.items || []);
+        setItems(prev => page === 1 ? (data.data.items || []) : [...prev, ...(data.data.items || [])]);
         setStats(data.data.stats);
+        setInvPage(page);
+        setInvHasMore(data.data.pagination.page < data.data.pagination.pages);
       }
     } catch {
       showToast("error", "Failed to load inventory");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+      invFetchingRef.current = false;
     }
   }, [filter, searchQuery, router, showToast]);
 
@@ -219,53 +264,72 @@ export default function DoctorPharmacyPage() {
     }
   }, [showToast]);
 
-  const fetchPurchases = useCallback(async (from?: string, to?: string) => {
+  const fetchPurchases = useCallback(async (from?: string, to?: string, page = 1) => {
     const token = getToken(); if (!token) return;
-    setLoadingPurchases(true);
+    if (page === 1) setLoadingPurchases(true); else setLoadingMorePurchases(true);
+    purchaseFetchingRef.current = true;
     try {
-      let url = "/api/tier2/purchases?limit=50";
+      let url = `/api/tier2/purchases?limit=50&page=${page}`;
       if (from) url += `&from=${from}`;
       if (to) url += `&to=${to}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (data.success) setPurchases(data.data.purchases || []);
+      if (data.success) {
+        const items = data.data.purchases || [];
+        setPurchases(prev => page === 1 ? items : [...prev, ...items]);
+        setPurchasePage(page);
+        setPurchaseHasMore(data.data.pagination.page < data.data.pagination.pages);
+      }
     } catch { showToast("error", "Failed to load purchases"); }
-    finally { setLoadingPurchases(false); }
+    finally { setLoadingPurchases(false); setLoadingMorePurchases(false); purchaseFetchingRef.current = false; }
   }, [showToast]);
 
-  const fetchPurchaseReturns = useCallback(async (from?: string, to?: string) => {
+  const fetchPurchaseReturns = useCallback(async (from?: string, to?: string, page = 1) => {
     const token = getToken(); if (!token) return;
-    setLoadingPurchaseReturns(true);
+    if (page === 1) setLoadingPurchaseReturns(true); else setLoadingMorePR(true);
+    prFetchingRef.current = true;
     try {
-      let url = "/api/tier2/purchase-returns?limit=50";
+      let url = `/api/tier2/purchase-returns?limit=50&page=${page}`;
       if (from) url += `&from=${from}`;
       if (to) url += `&to=${to}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (data.success) setPurchaseReturns(data.data.returns || []);
+      if (data.success) {
+        const items = data.data.returns || [];
+        setPurchaseReturns(prev => page === 1 ? items : [...prev, ...items]);
+        setPrPage(page);
+        setPrHasMore(data.data.pagination.page < data.data.pagination.pages);
+      }
     } catch { showToast("error", "Failed to load purchase returns"); }
-    finally { setLoadingPurchaseReturns(false); }
+    finally { setLoadingPurchaseReturns(false); setLoadingMorePR(false); prFetchingRef.current = false; }
   }, [showToast]);
 
-  const fetchSales = useCallback(async (from?: string, to?: string) => {
+  const fetchSales = useCallback(async (from?: string, to?: string, page = 1) => {
     const token = getToken(); if (!token) return;
-    setLoadingSales(true);
+    if (page === 1) setLoadingSales(true); else setLoadingMoreSales(true);
+    salesFetchingRef.current = true;
     try {
-      let url = "/api/tier2/sales?limit=50";
+      let url = `/api/tier2/sales?limit=50&page=${page}`;
       if (from) url += `&startDate=${from}`;
       if (to) url += `&endDate=${to}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (data.success) setSales(data.data.sales || []);
+      if (data.success) {
+        const items = data.data.sales || [];
+        setSales(prev => page === 1 ? items : [...prev, ...items]);
+        setSalesPage(page);
+        setSalesHasMore(data.data.pagination.page < data.data.pagination.pages);
+      }
     } catch { showToast("error", "Failed to load sales"); }
-    finally { setLoadingSales(false); }
+    finally { setLoadingSales(false); setLoadingMoreSales(false); salesFetchingRef.current = false; }
   }, [showToast]);
 
   const fetchSalesReturns = useCallback(async (from?: string, to?: string, page = 1) => {
     const token = getToken(); if (!token) return;
     if (page === 1) setLoadingSalesReturns(true); else setLoadingMoreSR(true);
+    srFetchingRef.current = true;
     try {
-      let url = `/api/tier2/sales-returns?limit=20&page=${page}`;
+      let url = `/api/tier2/sales-returns?limit=50&page=${page}`;
       if (from) url += `&from=${from}`;
       if (to) url += `&to=${to}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -277,7 +341,7 @@ export default function DoctorPharmacyPage() {
         setSrHasMore(data.data.pagination.page < data.data.pagination.pages);
       }
     } catch { showToast("error", "Failed to load sales returns"); }
-    finally { setLoadingSalesReturns(false); setLoadingMoreSR(false); }
+    finally { setLoadingSalesReturns(false); setLoadingMoreSR(false); srFetchingRef.current = false; }
   }, [showToast]);
 
   const computeGstBreakdowns = (items: any[]) => {
@@ -421,6 +485,81 @@ export default function DoctorPharmacyPage() {
     } catch { showToast("error", "Failed to save sale"); }
     finally { setSaleSubmitting(false); }
   };
+
+  useEffect(() => {
+    const el = invLoaderRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && invHasMore && !invFetchingRef.current) {
+          fetchInventory(invPage + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [invHasMore, invPage, fetchInventory]);
+
+  useEffect(() => {
+    const el = purchaseLoaderRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && purchaseHasMore && !purchaseFetchingRef.current) {
+          fetchPurchases(purchaseFrom, purchaseTo, purchasePage + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [purchaseHasMore, purchasePage, fetchPurchases, purchaseFrom, purchaseTo]);
+
+  useEffect(() => {
+    const el = prLoaderRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && prHasMore && !prFetchingRef.current) {
+          fetchPurchaseReturns(prFrom, prTo, prPage + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [prHasMore, prPage, fetchPurchaseReturns, prFrom, prTo]);
+
+  useEffect(() => {
+    const el = salesLoaderRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && salesHasMore && !salesFetchingRef.current) {
+          fetchSales(salesFrom, salesTo, salesPage + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [salesHasMore, salesPage, fetchSales, salesFrom, salesTo]);
+
+  useEffect(() => {
+    const el = srLoaderRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && srHasMore && !srFetchingRef.current) {
+          fetchSalesReturns(srFrom, srTo, srPage + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [srHasMore, srPage, fetchSalesReturns, srFrom, srTo]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -822,6 +961,13 @@ export default function DoctorPharmacyPage() {
                       );
                     })}
                   </div>
+                  <div ref={invLoaderRef} className="py-2">
+                    {loadingMore && (
+                      <div className="flex justify-center py-4">
+                        <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="p-16 text-center">
@@ -849,11 +995,11 @@ export default function DoctorPharmacyPage() {
                 <input type="date" value={purchaseFrom} onChange={(e) => setPurchaseFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
                 <span className="text-gray-400 text-sm">to</span>
                 <input type="date" value={purchaseTo} onChange={(e) => setPurchaseTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-                <button onClick={() => fetchPurchases(purchaseFrom, purchaseTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
+                <button onClick={() => validateDateRange(purchaseFrom, purchaseTo) && fetchPurchases(purchaseFrom, purchaseTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => { const qs = purchaseFrom && purchaseTo ? `?from=${purchaseFrom}&to=${purchaseTo}` : ""; downloadReport(`/api/tier2/purchases/report${qs}`, `PurchaseRegister.xlsx`); }}
+                  onClick={() => { if (!validateDateRange(purchaseFrom, purchaseTo, true)) return; const qs = `?from=${purchaseFrom}&to=${purchaseTo}`; downloadReport(`/api/tier2/purchases/report${qs}`, `PurchaseRegister.xlsx`); }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -915,6 +1061,13 @@ export default function DoctorPharmacyPage() {
                   </table>
                 </div>
               )}
+              <div ref={purchaseLoaderRef} className="py-1">
+                {loadingMorePurchases && (
+                  <div className="flex justify-center py-4">
+                    <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : activeTab === "purchase-returns" ? (
@@ -925,11 +1078,11 @@ export default function DoctorPharmacyPage() {
                 <input type="date" value={prFrom} onChange={(e) => setPrFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
                 <span className="text-gray-400 text-sm">to</span>
                 <input type="date" value={prTo} onChange={(e) => setPrTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-                <button onClick={() => fetchPurchaseReturns(prFrom, prTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
+                <button onClick={() => validateDateRange(prFrom, prTo) && fetchPurchaseReturns(prFrom, prTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => { const qs = prFrom && prTo ? `?from=${prFrom}&to=${prTo}` : ""; downloadReport(`/api/tier2/purchase-returns/report${qs}`, `PurchaseReturnRegister.xlsx`); }}
+                  onClick={() => { if (!validateDateRange(prFrom, prTo, true)) return; const qs = `?from=${prFrom}&to=${prTo}`; downloadReport(`/api/tier2/purchase-returns/report${qs}`, `PurchaseReturnRegister.xlsx`); }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -992,6 +1145,13 @@ export default function DoctorPharmacyPage() {
                   </table>
                 </div>
               )}
+              <div ref={prLoaderRef} className="py-1">
+                {loadingMorePR && (
+                  <div className="flex justify-center py-4">
+                    <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : activeTab === "sales" ? (
@@ -1002,11 +1162,11 @@ export default function DoctorPharmacyPage() {
                 <input type="date" value={salesFrom} onChange={(e) => setSalesFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
                 <span className="text-gray-400 text-sm">to</span>
                 <input type="date" value={salesTo} onChange={(e) => setSalesTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-                <button onClick={() => fetchSales(salesFrom, salesTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
+                <button onClick={() => validateDateRange(salesFrom, salesTo) && fetchSales(salesFrom, salesTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => { const qs = salesFrom && salesTo ? `?from=${salesFrom}&to=${salesTo}` : ""; downloadReport(`/api/tier2/sales/report${qs}`, `SalesRegister.xlsx`); }}
+                  onClick={() => { if (!validateDateRange(salesFrom, salesTo, true)) return; const qs = `?from=${salesFrom}&to=${salesTo}`; downloadReport(`/api/tier2/sales/report${qs}`, `SalesRegister.xlsx`); }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -1078,6 +1238,13 @@ export default function DoctorPharmacyPage() {
                   </table>
                 </div>
               )}
+              <div ref={salesLoaderRef} className="py-1">
+                {loadingMoreSales && (
+                  <div className="flex justify-center py-4">
+                    <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : activeTab === "sales-returns" ? (
@@ -1088,11 +1255,11 @@ export default function DoctorPharmacyPage() {
                 <input type="date" value={srFrom} onChange={(e) => setSrFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
                 <span className="text-gray-400 text-sm">to</span>
                 <input type="date" value={srTo} onChange={(e) => setSrTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
-                <button onClick={() => fetchSalesReturns(srFrom, srTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
+                <button onClick={() => validateDateRange(srFrom, srTo) && fetchSalesReturns(srFrom, srTo)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Filter</button>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => { const qs = srFrom && srTo ? `?from=${srFrom}&to=${srTo}` : ""; downloadReport(`/api/tier2/sales-returns/report${qs}`, `SalesReturnRegister.xlsx`); }}
+                  onClick={() => { if (!validateDateRange(srFrom, srTo, true)) return; const qs = `?from=${srFrom}&to=${srTo}`; downloadReport(`/api/tier2/sales-returns/report${qs}`, `SalesReturnRegister.xlsx`); }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -1149,15 +1316,15 @@ export default function DoctorPharmacyPage() {
                       </tr>
                     </tfoot>
                   </table>
-                  {srHasMore && (
-                    <div className="px-5 py-4 text-center border-t border-gray-100">
-                      <button onClick={() => fetchSalesReturns(srFrom, srTo, srPage + 1)} disabled={loadingMoreSR} className="text-sm font-semibold text-teal-600 hover:text-teal-700 transition-colors disabled:opacity-40">
-                        {loadingMoreSR ? "Loading..." : "Load more"}
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
+              <div ref={srLoaderRef} className="py-1">
+                {loadingMoreSR && (
+                  <div className="flex justify-center py-4">
+                    <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : (
