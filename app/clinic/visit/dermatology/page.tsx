@@ -617,8 +617,8 @@ function DermatologyVisitPageInner() {
     const issue = issues.find((i) => i.id === issueId);
     if (!issue) return;
     const files = Array.from(e.target.files || []);
-    if (issue.clinicalImages.length + files.length > 5) {
-      showToast("Maximum 5 clinical images per issue", "error");
+    if (issue.clinicalImages.length + files.length > 10) {
+      showToast("Maximum 10 clinical images per issue", "error");
       return;
     }
     const compressed = await Promise.all(files.map((f) => compressImage(f)));
@@ -646,8 +646,8 @@ function DermatologyVisitPageInner() {
     const issue = issues.find((i) => i.id === issueId);
     if (!issue) return;
     const files = Array.from(e.target.files || []);
-    if (issue.dermoscopeImages.length + files.length > 5) {
-      showToast("Maximum 5 dermoscope images per issue", "error");
+    if (issue.dermoscopeImages.length + files.length > 10) {
+      showToast("Maximum 10 dermoscope images per issue", "error");
       return;
     }
     const compressed = await Promise.all(files.map((f) => compressImage(f)));
@@ -1529,7 +1529,7 @@ function DermatologyVisitPageInner() {
                                 </svg>
                                 <div>
                                   <h5 className="font-semibold text-slate-900 text-sm">Clinical Images</h5>
-                                  <p className="text-xs text-slate-400">Up to 5 photographs of the affected area</p>
+                                  <p className="text-xs text-slate-400">Up to 10 photographs of the affected area</p>
                                 </div>
                               </div>
 
@@ -1555,12 +1555,12 @@ function DermatologyVisitPageInner() {
                                 </div>
                               )}
 
-                              {issue.clinicalImages.length < 5 && (
+                              {issue.clinicalImages.length < 10 && (
                                 <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-teal-400 hover:bg-teal-50/50 transition-all">
                                   <svg className="w-7 h-7 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                   </svg>
-                                  <p className="text-xs text-slate-500 font-medium">Add Clinical Images ({issue.clinicalImages.length}/5)</p>
+                                  <p className="text-xs text-slate-500 font-medium">Add Clinical Images ({issue.clinicalImages.length}/10)</p>
                                   <input
                                     type="file"
                                     className="hidden"
@@ -1583,7 +1583,7 @@ function DermatologyVisitPageInner() {
                                   </div>
                                   <div>
                                     <h5 className="font-semibold text-slate-900 text-sm">Dermoscope Images</h5>
-                                    <p className="text-xs text-emerald-600">AI-powered skin lesion analysis · up to 5 images</p>
+                                    <p className="text-xs text-emerald-600">AI-powered skin lesion analysis · up to 10 images</p>
                                   </div>
                                 </div>
                                 <div className="relative">
@@ -1720,12 +1720,12 @@ function DermatologyVisitPageInner() {
                                 </div>
                               )}
 
-                              {!issue.aiResults && issue.dermoscopeImages.length < 5 && (
+                              {!issue.aiResults && issue.dermoscopeImages.length < 10 && (
                                 <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-emerald-300 rounded-xl cursor-pointer hover:border-emerald-500 hover:bg-emerald-100/50 transition-all">
                                   <svg className="w-7 h-7 text-emerald-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                   </svg>
-                                  <p className="text-xs text-emerald-700 font-medium">Add Dermoscope Images ({issue.dermoscopeImages.length}/5)</p>
+                                  <p className="text-xs text-emerald-700 font-medium">Add Dermoscope Images ({issue.dermoscopeImages.length}/10)</p>
                                   <input
                                     type="file"
                                     className="hidden"
