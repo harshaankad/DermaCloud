@@ -9,9 +9,6 @@ import InventoryItem from "@/models/InventoryItem";
 import Sale from "@/models/Sale";
 import mongoose from "mongoose";
 
-// Usage limits for Tier 2
-const DAILY_LIMIT = 20;
-const MONTHLY_LIMIT = 500;
 
 export async function GET(request: NextRequest) {
   try {
@@ -230,11 +227,7 @@ export async function GET(request: NextRequest) {
       data: {
         usage: {
           dailyUsed,
-          dailyLimit: DAILY_LIMIT,
-          dailyRemaining: Math.max(0, DAILY_LIMIT - dailyUsed),
           monthlyUsed,
-          monthlyLimit: MONTHLY_LIMIT,
-          monthlyRemaining: Math.max(0, MONTHLY_LIMIT - monthlyUsed),
           totalConsultations,
           totalPatients,
         },

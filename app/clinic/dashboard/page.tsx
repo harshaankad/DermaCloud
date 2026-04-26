@@ -6,11 +6,7 @@ import Link from "next/link";
 
 interface UsageStats {
   dailyUsed: number;
-  dailyLimit: number;
-  dailyRemaining: number;
   monthlyUsed: number;
-  monthlyLimit: number;
-  monthlyRemaining: number;
   totalConsultations: number;
   totalPatients: number;
 }
