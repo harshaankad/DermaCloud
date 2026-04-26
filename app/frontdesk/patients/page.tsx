@@ -68,10 +68,6 @@ function FrontdeskPatientsPageInner() {
     medicalHistory: "",
   });
 
-  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
-  const [editForm, setEditForm] = useState({ allergies: "", medicalHistory: "", age: "", address: "", email: "" });
-  const [editLoading, setEditLoading] = useState(false);
-
   const [toasts, setToasts] = useState<Toast[]>([]);
   const loaderRef = useRef<HTMLDivElement>(null);
 
@@ -234,55 +230,6 @@ function FrontdeskPatientsPageInner() {
     if (gender === "male") return "from-blue-400 to-indigo-500";
     if (gender === "female") return "from-pink-400 to-rose-500";
     return "from-purple-400 to-violet-500";
-  };
-
-  const openEditDrawer = (patient: Patient) => {
-    setEditForm({
-      allergies: patient.allergies?.join(", ") || "",
-      medicalHistory: patient.medicalHistory || "",
-      age: patient.age?.toString() || "",
-      address: patient.address || "",
-      email: patient.email || "",
-    });
-    setEditingPatient(patient);
-  };
-
-  const handleUpdatePatient = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPatient) return;
-    setEditLoading(true);
-    try {
-      const res = await fetch(`/api/tier2/patients/${editingPatient._id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          allergies: editForm.allergies
-            ? editForm.allergies.split(",").map((a) => a.trim()).filter(Boolean)
-            : [],
-          medicalHistory: editForm.medicalHistory,
-          age: editForm.age ? parseInt(editForm.age) : undefined,
-          address: editForm.address,
-          email: editForm.email,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast("success", `${editingPatient.name}'s info updated`);
-        setEditingPatient(null);
-        setPage(1);
-        setHasMore(true);
-        fetchPatients(token, search, 1);
-      } else {
-        showToast("error", data.message || "Failed to update patient");
-      }
-    } catch {
-      showToast("error", "Failed to update patient");
-    } finally {
-      setEditLoading(false);
-    }
   };
 
   return (
@@ -560,15 +507,6 @@ function FrontdeskPatientsPageInner() {
                           })}
                         </span>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => openEditDrawer(patient)}
-                            className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-                            title="Edit patient"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
                           <Link
                             href={`/frontdesk/appointments?action=new`}
                             className="p-1.5 text-teal-500 hover:bg-teal-50 rounded-lg transition-colors"
@@ -599,15 +537,6 @@ function FrontdeskPatientsPageInner() {
                         </p>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => openEditDrawer(patient)}
-                          className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-                          title="Edit patient"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
                         <Link
                           href={`/frontdesk/appointments?action=new`}
                           className="p-2 text-teal-500 hover:bg-teal-50 rounded-lg transition-colors"
@@ -641,168 +570,6 @@ function FrontdeskPatientsPageInner() {
           )}
         </div>
       </main>
-
-      {/* Edit Patient Drawer */}
-      {editingPatient && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditingPatient(null)} />
-          <div className="relative bg-white w-full max-w-md h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right">
-            {/* Drawer Header */}
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-teal-100 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Update Patient Info</h3>
-                  <p className="text-sm text-gray-500">{editingPatient.name}</p>
-                </div>
-              </div>
-              <button onClick={() => setEditingPatient(null)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Patient Summary Card */}
-            <div className="px-6 pt-5 pb-2">
-              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-4 border border-teal-100">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${getGenderColor(editingPatient.gender)} flex items-center justify-center`}>
-                    <span className="text-white font-bold text-base">{editingPatient.name.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{editingPatient.name}</p>
-                    <p className="text-sm text-gray-500">{editingPatient.patientId} &middot; {editingPatient.phone}</p>
-                  </div>
-                </div>
-                <div className="flex gap-3 text-sm">
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium capitalize border bg-gray-50 text-gray-600 border-gray-200">{editingPatient.gender}</span>
-                  <span className="text-gray-500">{editingPatient.age} years</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Edit Form */}
-            <form onSubmit={handleUpdatePatient} className="px-6 py-5 space-y-5">
-              {/* Allergies */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                  Allergies
-                </label>
-                <input
-                  type="text"
-                  value={editForm.allergies}
-                  onChange={(e) => setEditForm({ ...editForm, allergies: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  placeholder="e.g. Penicillin, Dust, Pollen"
-                />
-                <p className="text-xs text-gray-400 mt-1">Separate multiple allergies with commas</p>
-              </div>
-
-              {/* Medical History */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Medical History
-                </label>
-                <textarea
-                  value={editForm.medicalHistory}
-                  onChange={(e) => setEditForm({ ...editForm, medicalHistory: e.target.value })}
-                  rows={4}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50 resize-none"
-                  placeholder="Previous conditions, surgeries, ongoing treatments..."
-                />
-              </div>
-
-              {/* Age */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  Age
-                </label>
-                <input
-                  type="number"
-                  value={editForm.age}
-                  onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
-                  min="0"
-                  max="150"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  placeholder="Patient's current age"
-                />
-              </div>
-
-              {/* Address */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Address
-                </label>
-                <input
-                  type="text"
-                  value={editForm.address}
-                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  placeholder="Patient's address"
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
-                  placeholder="email@example.com"
-                />
-              </div>
-
-              {/* Submit */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingPatient(null)}
-                  className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={editLoading}
-                  className="flex-[2] py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 transition-all font-semibold text-base disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-teal-500/20 disabled:shadow-none"
-                >
-                  {editLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Saving...
-                    </span>
-                  ) : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Add Patient Modal */}
       {showAddModal && (
