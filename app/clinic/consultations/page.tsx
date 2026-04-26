@@ -109,7 +109,10 @@ function ConsultationsPageInner() {
         if (isFirst) {
           setConsultations(newItems);
         } else {
-          setConsultations((prev) => [...prev, ...newItems]);
+          setConsultations((prev) => {
+            const existingIds = new Set(prev.map((c) => c._id));
+            return [...prev, ...newItems.filter((c: Consultation) => !existingIds.has(c._id))];
+          });
           setPage(pageNum);
         }
         setHasMore(pageNum < data.data.pagination.pages);
@@ -131,15 +134,16 @@ function ConsultationsPageInner() {
   }, [fetchConsultations]);
 
   useEffect(() => {
+    if (!hasMore) return;
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && hasMore && !isFetchingRef.current) {
+        if (entry.isIntersecting && !isFetchingRef.current) {
           fetchConsultations(page + 1);
         }
       },
-      { rootMargin: "200px" }
+      { threshold: 0.1 }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -482,19 +486,19 @@ function ConsultationsPageInner() {
                 })}
               </div>
 
-              {/* Infinite scroll sentinel */}
-              <div ref={sentinelRef} className="px-5 py-3 border-t bg-gray-50 flex items-center justify-center min-h-[48px]">
-                {loadingMore ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600" />
-                    Loading more...
-                  </div>
-                ) : hasMore ? null : consultations.length > 0 ? (
-                  <p className="text-xs text-gray-400">{total} consultations total</p>
-                ) : null}
-              </div>
             </>
           )}
+        </div>
+        {/* Infinite scroll sentinel — outside overflow-hidden container */}
+        <div ref={sentinelRef} className="flex items-center justify-center min-h-[48px]">
+          {loadingMore ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600" />
+              Loading more...
+            </div>
+          ) : hasMore ? null : consultations.length > 0 ? (
+            <p className="text-xs text-gray-400">{total} consultations total</p>
+          ) : null}
         </div>
       </main>
 
