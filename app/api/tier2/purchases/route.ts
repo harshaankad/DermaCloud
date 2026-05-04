@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request } from "@/lib/auth/verify-request";
 import Purchase from "@/models/Purchase";
@@ -63,21 +64,22 @@ export async function POST(request: NextRequest) {
       role: auth.role || "doctor",
     };
 
-    // Process each item: upsert inventory and log stock-in transaction
-    const enrichedItems = await Promise.all(
-      (body.items || []).map(async (item: any) => {
-        if (!item.itemName?.trim()) return item;
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
 
-        // Find existing item (case-insensitive name match within clinic)
+      const enrichedItems: any[] = [];
+      for (const item of body.items || []) {
+        if (!item.itemName?.trim()) { enrichedItems.push(item); continue; }
+
         let invItem = await InventoryItem.findOne({
           clinicId: auth.clinicId,
           name: { $regex: `^${item.itemName.trim()}$`, $options: "i" },
-        });
+        }).session(session);
 
         const qty = Number(item.quantity) || 0;
 
         if (invItem) {
-          // Update existing: increment stock and refresh cost price + product details
           const previousStock = invItem.currentStock;
           invItem.currentStock += qty;
           invItem.costPrice = item.unitPrice || invItem.costPrice;
@@ -91,71 +93,86 @@ export async function POST(request: NextRequest) {
           if (invItem.currentStock > 0 && invItem.status === "out-of-stock") {
             invItem.status = "active";
           }
-          await invItem.save();
+          await invItem.save({ session });
 
-          await InventoryTransaction.create({
-            itemId: invItem._id,
-            clinicId: auth.clinicId,
-            type: "stock-in",
-            quantity: qty,
-            previousStock,
-            newStock: invItem.currentStock,
-            reason: `Purchase from ${body.supplierName || "supplier"} (Inv# ${body.supplierInvNo || "—"})`,
-            referenceType: "purchase",
-            costPrice: item.unitPrice,
-            performedBy,
-          });
+          await InventoryTransaction.create(
+            [{
+              itemId: invItem._id,
+              clinicId: auth.clinicId,
+              type: "stock-in",
+              quantity: qty,
+              previousStock,
+              newStock: invItem.currentStock,
+              reason: `Purchase from ${body.supplierName || "supplier"} (Inv# ${body.supplierInvNo || "—"})`,
+              referenceType: "purchase",
+              costPrice: item.unitPrice,
+              performedBy,
+            }],
+            { session }
+          );
 
-          return { ...item, itemId: invItem._id };
+          enrichedItems.push({ ...item, itemId: invItem._id });
         } else {
-          // Create new inventory item with sensible defaults
-          invItem = await InventoryItem.create({
-            name: item.itemName.trim(),
-            clinicId: auth.clinicId,
-            category: "medicine",
-            type: "otc",
-            currentStock: qty,
-            minStockLevel: 10,
-            unit: "units",
-            costPrice: item.unitPrice || 0,
-            sellingPrice: item.mrp || item.unitPrice || 0,
-            manufacturer: item.manufacturer || undefined,
-            batchNumber: item.batchNo || undefined,
-            expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined,
-            hsnCode: item.hsnCode || undefined,
-            packing: item.pack || undefined,
-            gstRate: item.gstRate ?? 0,
-            status: qty > 0 ? "active" : "out-of-stock",
-          });
+          const [created] = await InventoryItem.create(
+            [{
+              name: item.itemName.trim(),
+              clinicId: auth.clinicId,
+              category: "medicine",
+              type: "otc",
+              currentStock: qty,
+              minStockLevel: 10,
+              unit: "units",
+              costPrice: item.unitPrice || 0,
+              sellingPrice: item.mrp || item.unitPrice || 0,
+              manufacturer: item.manufacturer || undefined,
+              batchNumber: item.batchNo || undefined,
+              expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined,
+              hsnCode: item.hsnCode || undefined,
+              packing: item.pack || undefined,
+              gstRate: item.gstRate ?? 0,
+              status: qty > 0 ? "active" : "out-of-stock",
+            }],
+            { session }
+          );
 
-          await InventoryTransaction.create({
-            itemId: invItem._id,
-            clinicId: auth.clinicId,
-            type: "stock-in",
-            quantity: qty,
-            previousStock: 0,
-            newStock: qty,
-            reason: `New item via purchase from ${body.supplierName || "supplier"} (Inv# ${body.supplierInvNo || "—"})`,
-            referenceType: "purchase",
-            costPrice: item.unitPrice,
-            performedBy,
-          });
+          await InventoryTransaction.create(
+            [{
+              itemId: created._id,
+              clinicId: auth.clinicId,
+              type: "stock-in",
+              quantity: qty,
+              previousStock: 0,
+              newStock: qty,
+              reason: `New item via purchase from ${body.supplierName || "supplier"} (Inv# ${body.supplierInvNo || "—"})`,
+              referenceType: "purchase",
+              costPrice: item.unitPrice,
+              performedBy,
+            }],
+            { session }
+          );
 
-          return { ...item, itemId: invItem._id };
+          enrichedItems.push({ ...item, itemId: created._id });
         }
-      })
-    );
+      }
 
-    const purchase = new Purchase({
-      ...body,
-      items: enrichedItems,
-      clinicId: auth.clinicId,
-      createdBy: auth.doctorId || auth.userId,
-    });
+      const purchase = new Purchase({
+        ...body,
+        items: enrichedItems,
+        clinicId: auth.clinicId,
+        createdBy: auth.doctorId || auth.userId,
+      });
 
-    await purchase.save();
+      await purchase.save({ session });
 
-    return NextResponse.json({ success: true, data: purchase }, { status: 201 });
+      await session.commitTransaction();
+
+      return NextResponse.json({ success: true, data: purchase }, { status: 201 });
+    } catch (txnError) {
+      await session.abortTransaction();
+      throw txnError;
+    } finally {
+      session.endSession();
+    }
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }

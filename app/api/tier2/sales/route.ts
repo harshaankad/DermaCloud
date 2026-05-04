@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request } from "@/lib/auth/verify-request";
 import Sale from "@/models/Sale";
@@ -192,32 +193,47 @@ export async function POST(request: NextRequest) {
       soldBy: performedBy,
     });
 
-    await sale.save();
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
 
-    // Deduct inventory
-    for (const e of enriched) {
-      const previousStock = e.invItem.currentStock;
-      const newStock = Math.max(0, previousStock - e.qty);
+      await sale.save({ session });
 
-      await InventoryTransaction.create({
-        itemId: e.invItem._id,
-        clinicId: auth.clinicId,
-        type: "stock-out",
-        quantity: e.qty,
-        previousStock,
-        newStock,
-        reason: `Sale to ${patientName.trim()} (${sale.invoiceNumber || sale.saleId})`,
-        referenceType: "sale",
-        costPrice: e.mrp,
-        performedBy,
-      });
+      for (const e of enriched) {
+        const previousStock = e.invItem.currentStock;
+        const newStock = Math.max(0, previousStock - e.qty);
 
-      e.invItem.currentStock = newStock;
-      if (newStock === 0) e.invItem.status = "out-of-stock";
-      await e.invItem.save();
+        await InventoryTransaction.create(
+          [
+            {
+              itemId: e.invItem._id,
+              clinicId: auth.clinicId,
+              type: "stock-out",
+              quantity: e.qty,
+              previousStock,
+              newStock,
+              reason: `Sale to ${patientName.trim()} (${sale.invoiceNumber || sale.saleId})`,
+              referenceType: "sale",
+              costPrice: e.mrp,
+              performedBy,
+            },
+          ],
+          { session }
+        );
+
+        e.invItem.currentStock = newStock;
+        if (newStock === 0) e.invItem.status = "out-of-stock";
+        await e.invItem.save({ session });
+      }
+
+      await session.commitTransaction();
+    } catch (txnError) {
+      await session.abortTransaction();
+      throw txnError;
+    } finally {
+      session.endSession();
     }
 
-    // Return sale with clinic name for immediate print use
     const saleObj = sale.toObject();
     (saleObj as any).clinicName = clinic?.clinicName || auth.clinicName || "Pharmacy";
 

@@ -76,12 +76,6 @@ export default function FormSettingsPage() {
   });
   const [modalError, setModalError] = useState("");
 
-  // Delete Confirm Modal
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    sectionIndex: number;
-    fieldIndex: number;
-    label: string;
-  } | null>(null);
 
   const showToast = useCallback((type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -209,23 +203,6 @@ export default function FormSettingsPage() {
     showToast("success", `"${newField.label.trim()}" field added`);
   };
 
-  const confirmDeleteField = (sectionIndex: number, fieldIndex: number) => {
-    setDeleteConfirm({
-      sectionIndex,
-      fieldIndex,
-      label: sections[sectionIndex].fields[fieldIndex].label,
-    });
-  };
-
-  const handleDeleteField = () => {
-    if (!deleteConfirm) return;
-    const updated = [...sections];
-    updated[deleteConfirm.sectionIndex].fields.splice(deleteConfirm.fieldIndex, 1);
-    setSections(updated);
-    setHasChanges(true);
-    showToast("success", `"${deleteConfirm.label}" removed`);
-    setDeleteConfirm(null);
-  };
 
   if (loading) {
     return (
@@ -491,16 +468,6 @@ export default function FormSettingsPage() {
                           {field.required ? "Required" : "Optional"}
                         </button>
 
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => confirmDeleteField(sectionIndex, fieldIndex)}
-                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                          title="Remove field"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
                       </div>
                     ))}
                   </div>
@@ -557,39 +524,6 @@ export default function FormSettingsPage() {
         </div>
       </main>
 
-      {/* Delete Confirm Modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-            <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 text-center mb-1">Remove Field</h3>
-            <p className="text-sm text-gray-500 text-center mb-6">
-              Remove{" "}
-              <span className="font-semibold text-gray-700">"{deleteConfirm.label}"</span> from the form?
-              <br />
-              <span className="text-xs">This action cannot be undone.</span>
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteField}
-                className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors text-sm"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add Field Modal */}
       {showModal && (
