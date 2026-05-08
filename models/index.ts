@@ -31,6 +31,9 @@ export type { ITemplateCosmetology } from "./TemplateCosmetology";
 export { default as OTP } from "./OTP";
 export type { IOTP } from "./OTP";
 
+export { default as ShortLink } from "./ShortLink";
+export type { IShortLink } from "./ShortLink";
+
 // Frontdesk Add-on Kit Models
 export { default as FrontdeskStaff } from "./FrontdeskStaff";
 export type { IFrontdeskStaff } from "./FrontdeskStaff";

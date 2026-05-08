@@ -482,12 +482,14 @@ export default function ConsultationDetailsPage() {
 
   const shareViaWhatsApp = async () => {
     if (!consultation) return;
+
+    // Open placeholder tab immediately to avoid popup blockers blocking it after the await
+    const waWindow = window.open("about:blank", "_blank");
     setSharingWhatsApp(true);
 
     try {
       const token = localStorage.getItem("token");
 
-      // Step 1: Generate the shareable PDF URL
       const pdfResponse = await fetch("/api/tier2/consultation/dermatology/share-pdf", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -505,22 +507,38 @@ export default function ConsultationDetailsPage() {
 
       const { url } = await pdfResponse.json();
 
-      // Step 2: Send via WhatsApp template API
-      const waResponse = await fetch("/api/tier2/consultation/send-whatsapp-report", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ consultationId, reportUrl: url, consultationType: "dermatology" }),
-      });
-
-      if (!waResponse.ok) {
-        const err = await waResponse.json().catch(() => ({}));
-        throw new Error(err.message || "Failed to send WhatsApp message");
+      let shareUrl = url;
+      try {
+        const shortRes = await fetch("/api/short-link", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ url, expiresInDays: 7 }),
+        });
+        if (shortRes.ok) {
+          const { shortUrl } = await shortRes.json();
+          if (shortUrl) shareUrl = shortUrl;
+        }
+      } catch {
+        // Fall back to long S3 URL if shortening fails
       }
 
-      showToast("success", "Report sent to patient via WhatsApp!");
+      const rawPhone = (consultation.patientId.phone || "").replace(/\D/g, "");
+      if (!rawPhone) throw new Error("Patient phone number not available");
+      const phone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+
+      const patientName = consultation.patientInfo.name;
+      const clinicName = consultation.clinicId.clinicName;
+      const message = `Hi ${patientName} 👋\n\nThank you for visiting *${clinicName}* today.\n\n📋 Here's your consultation report:\n${shareUrl}\n\nFeel free to reach out if you have any questions.\n\n— *${clinicName}*`;
+      const waUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+
+      if (waWindow) waWindow.location.href = waUrl;
+      else window.open(waUrl, "_blank");
+
+      showToast("success", "WhatsApp opened — review and send the message");
     } catch (error) {
       console.error("Error sharing via WhatsApp:", error);
-      showToast("error", "Failed to send WhatsApp report");
+      if (waWindow) waWindow.close();
+      showToast("error", error instanceof Error ? error.message : "Failed to share via WhatsApp");
     } finally {
       setSharingWhatsApp(false);
     }
