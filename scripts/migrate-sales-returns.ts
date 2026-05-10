@@ -13,7 +13,7 @@ import InventoryItem from "../models/InventoryItem";
 const MONGODB_URI = process.env.MONGODB_URI || "";
 const CUSTOMER_EMAIL = "rajvarsha02@gmail.com";
 const DATA_DIR = path.resolve(__dirname, "../../Data/Medicines return");
-const FILES = ["1.xlsx", "2.xlsx", "3.xlsx", "4.xlsx", "5.xlsx"];
+const FILES = ["1.xlsx", "2.xlsx", "3.xlsx", "4.xlsx", "5.xlsx", "6.xlsx"];
 
 const DRY_RUN = process.argv.includes("--dry-run");
 
