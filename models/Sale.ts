@@ -131,7 +131,6 @@ const SaleSchema = new Schema<ISale>(
   {
     saleId: {
       type: String,
-      unique: true,
     },
     clinicId: {
       type: Schema.Types.ObjectId,
@@ -289,7 +288,8 @@ SaleSchema.index({ patientId: 1 });
 SaleSchema.index({ createdAt: -1 });
 SaleSchema.index({ paymentStatus: 1 });
 SaleSchema.index({ "soldBy.id": 1 });
-// Compound unique index — invoice numbers should be unique per clinic, not globally
+// Compound unique indexes — saleId and invoiceNumber should be unique per clinic, not globally
+SaleSchema.index({ clinicId: 1, saleId: 1 }, { unique: true, sparse: true });
 SaleSchema.index({ clinicId: 1, invoiceNumber: 1 }, { unique: true, sparse: true });
 
 const Sale: Model<ISale> =
