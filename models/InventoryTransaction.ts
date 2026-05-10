@@ -26,7 +26,6 @@ const InventoryTransactionSchema = new Schema<IInventoryTransaction>(
   {
     transactionId: {
       type: String,
-      unique: true,
     },
     itemId: {
       type: Schema.Types.ObjectId,
@@ -115,6 +114,8 @@ InventoryTransactionSchema.index({ clinicId: 1 });
 InventoryTransactionSchema.index({ type: 1 });
 InventoryTransactionSchema.index({ createdAt: -1 });
 InventoryTransactionSchema.index({ referenceId: 1 });
+// Compound unique — transactionIds are unique per clinic, not globally
+InventoryTransactionSchema.index({ clinicId: 1, transactionId: 1 }, { unique: true, sparse: true });
 
 const InventoryTransaction: Model<IInventoryTransaction> =
   mongoose.models.InventoryTransaction ||

@@ -33,7 +33,6 @@ const AppointmentSchema = new Schema<IAppointment>(
   {
     appointmentId: {
       type: String,
-      unique: true,
     },
     tokenNumber: {
       type: Number,
@@ -139,6 +138,8 @@ AppointmentSchema.index({ clinicId: 1 });
 AppointmentSchema.index({ status: 1 });
 AppointmentSchema.index({ appointmentDate: 1, clinicId: 1 });
 AppointmentSchema.index({ clinicId: 1, appointmentDate: 1, tokenNumber: 1 });
+// Compound unique — appointmentIds are unique per clinic, not globally
+AppointmentSchema.index({ clinicId: 1, appointmentId: 1 }, { unique: true, sparse: true });
 
 const Appointment: Model<IAppointment> =
   mongoose.models.Appointment ||
