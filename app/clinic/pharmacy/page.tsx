@@ -961,13 +961,6 @@ export default function DoctorPharmacyPage() {
                       );
                     })}
                   </div>
-                  <div ref={invLoaderRef} className="py-2">
-                    {loadingMore && (
-                      <div className="flex justify-center py-4">
-                        <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-                      </div>
-                    )}
-                  </div>
                 </>
               ) : (
                 <div className="p-16 text-center">
@@ -983,6 +976,11 @@ export default function DoctorPharmacyPage() {
                     {searchQuery ? `No results for "${searchQuery}"` : filter !== "all" ? "Try a different filter" : "Items are added automatically when you record a purchase"}
                   </p>
                 </div>
+              )}
+            </div>
+            <div ref={invLoaderRef} className="flex items-center justify-center min-h-[48px]">
+              {loadingMore && (
+                <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
               )}
             </div>
           </>
@@ -1061,13 +1059,11 @@ export default function DoctorPharmacyPage() {
                   </table>
                 </div>
               )}
-              <div ref={purchaseLoaderRef} className="py-1">
-                {loadingMorePurchases && (
-                  <div className="flex justify-center py-4">
-                    <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-                  </div>
-                )}
-              </div>
+            </div>
+            <div ref={purchaseLoaderRef} className="flex items-center justify-center min-h-[48px]">
+              {loadingMorePurchases && (
+                <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
             </div>
           </div>
         ) : activeTab === "purchase-returns" ? (
@@ -1145,13 +1141,11 @@ export default function DoctorPharmacyPage() {
                   </table>
                 </div>
               )}
-              <div ref={prLoaderRef} className="py-1">
-                {loadingMorePR && (
-                  <div className="flex justify-center py-4">
-                    <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-                  </div>
-                )}
-              </div>
+            </div>
+            <div ref={prLoaderRef} className="flex items-center justify-center min-h-[48px]">
+              {loadingMorePR && (
+                <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
             </div>
           </div>
         ) : activeTab === "sales" ? (
@@ -1238,13 +1232,11 @@ export default function DoctorPharmacyPage() {
                   </table>
                 </div>
               )}
-              <div ref={salesLoaderRef} className="py-1">
-                {loadingMoreSales && (
-                  <div className="flex justify-center py-4">
-                    <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-                  </div>
-                )}
-              </div>
+            </div>
+            <div ref={salesLoaderRef} className="flex items-center justify-center min-h-[48px]">
+              {loadingMoreSales && (
+                <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
             </div>
           </div>
         ) : activeTab === "sales-returns" ? (
@@ -1318,13 +1310,11 @@ export default function DoctorPharmacyPage() {
                   </table>
                 </div>
               )}
-              <div ref={srLoaderRef} className="py-1">
-                {loadingMoreSR && (
-                  <div className="flex justify-center py-4">
-                    <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-                  </div>
-                )}
-              </div>
+            </div>
+            <div ref={srLoaderRef} className="flex items-center justify-center min-h-[48px]">
+              {loadingMoreSR && (
+                <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
             </div>
           </div>
         ) : (
