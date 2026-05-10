@@ -241,8 +241,6 @@ const SaleSchema = new Schema<ISale>(
     },
     invoiceNumber: {
       type: String,
-      unique: true,
-      sparse: true,
     },
     city: { type: String, trim: true },
     grossValue: { type: Number, default: 0, min: 0 },
@@ -268,7 +266,7 @@ const SaleSchema = new Schema<ISale>(
 // Auto-generate saleId and invoiceNumber before saving
 SaleSchema.pre("save", async function (next) {
   if (!this.saleId) {
-    const count = await mongoose.models.Sale.countDocuments();
+    const count = await mongoose.models.Sale.countDocuments({ clinicId: this.clinicId });
     this.saleId = `SALE-${String(count + 1).padStart(6, "0")}`;
   }
 
@@ -276,10 +274,8 @@ SaleSchema.pre("save", async function (next) {
     const today = new Date();
     const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
     const todayCount = await mongoose.models.Sale.countDocuments({
-      createdAt: {
-        $gte: new Date(today.setHours(0, 0, 0, 0)),
-        $lt: new Date(today.setHours(23, 59, 59, 999)),
-      },
+      clinicId: this.clinicId,
+      invoiceNumber: { $regex: `^INV-${dateStr}-` },
     });
     this.invoiceNumber = `INV-${dateStr}-${String(todayCount + 1).padStart(4, "0")}`;
   }
@@ -293,6 +289,8 @@ SaleSchema.index({ patientId: 1 });
 SaleSchema.index({ createdAt: -1 });
 SaleSchema.index({ paymentStatus: 1 });
 SaleSchema.index({ "soldBy.id": 1 });
+// Compound unique index — invoice numbers should be unique per clinic, not globally
+SaleSchema.index({ clinicId: 1, invoiceNumber: 1 }, { unique: true, sparse: true });
 
 const Sale: Model<ISale> =
   mongoose.models.Sale || mongoose.model<ISale>("Sale", SaleSchema);
