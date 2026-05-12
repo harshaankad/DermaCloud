@@ -265,18 +265,23 @@ const SaleSchema = new Schema<ISale>(
 // Auto-generate saleId and invoiceNumber before saving
 SaleSchema.pre("save", async function (next) {
   if (!this.saleId) {
-    const count = await mongoose.models.Sale.countDocuments({ clinicId: this.clinicId });
-    this.saleId = `SALE-${String(count + 1).padStart(6, "0")}`;
+    const last = await mongoose.models.Sale
+      .findOne({ clinicId: this.clinicId }, { saleId: 1 })
+      .sort({ saleId: -1 })
+      .lean() as { saleId?: string } | null;
+    const lastSeq = last?.saleId ? parseInt(last.saleId.replace("SALE-", ""), 10) : 0;
+    this.saleId = `SALE-${String(lastSeq + 1).padStart(6, "0")}`;
   }
 
   if (!this.invoiceNumber) {
     const today = new Date();
     const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
-    const todayCount = await mongoose.models.Sale.countDocuments({
-      clinicId: this.clinicId,
-      invoiceNumber: { $regex: `^INV-${dateStr}-` },
-    });
-    this.invoiceNumber = `INV-${dateStr}-${String(todayCount + 1).padStart(4, "0")}`;
+    const last = await mongoose.models.Sale
+      .findOne({ clinicId: this.clinicId, invoiceNumber: { $regex: `^INV-${dateStr}-` } }, { invoiceNumber: 1 })
+      .sort({ invoiceNumber: -1 })
+      .lean() as { invoiceNumber?: string } | null;
+    const lastSeq = last?.invoiceNumber ? parseInt(last.invoiceNumber.split("-")[2], 10) : 0;
+    this.invoiceNumber = `INV-${dateStr}-${String(lastSeq + 1).padStart(4, "0")}`;
   }
 
   next();

@@ -1605,20 +1605,28 @@ export default function FrontdeskSalesPage() {
                 <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
                   {(() => {
                     const gross = saleForm.items.reduce((s, it) => s + it.total, 0);
+                    // MRP is GST-inclusive: extract GST from each item's total
                     let cgst = 0, sgst = 0, igst = 0;
                     saleForm.items.forEach(it => {
                       const r = it.gstRate;
-                      if (r > 0) { if (saleForm.isInterstate) igst += it.total * r / 100; else { cgst += it.total * r / 200; sgst += it.total * r / 200; } }
-                    });
-                    const totalGst = saleForm.isInterstate ? +igst.toFixed(2) : +(cgst + sgst).toFixed(2);
-                    const net = +(gross + totalGst + saleForm.roundingAmount).toFixed(2);
-                    return <>
-                      <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span className="font-medium">₹{gross.toFixed(2)}</span></div>
-                      {saleForm.isInterstate
-                        ? <div className="flex justify-between"><span className="text-gray-500">IGST</span><span className="font-medium text-blue-600">₹{igst.toFixed(2)}</span></div>
-                        : <><div className="flex justify-between"><span className="text-gray-500">CGST</span><span className="font-medium text-blue-600">₹{cgst.toFixed(2)}</span></div><div className="flex justify-between"><span className="text-gray-500">SGST</span><span className="font-medium text-blue-600">₹{sgst.toFixed(2)}</span></div></>
+                      if (r > 0) {
+                        const gstInItem = it.total * r / (100 + r);
+                        if (saleForm.isInterstate) igst += gstInItem;
+                        else { cgst += gstInItem / 2; sgst += gstInItem / 2; }
                       }
-                      <div className="flex justify-between"><span className="text-gray-500">Total GST</span><span className="font-medium text-blue-600">₹{totalGst.toFixed(2)}</span></div>
+                    });
+                    cgst = +cgst.toFixed(2); sgst = +sgst.toFixed(2); igst = +igst.toFixed(2);
+                    const totalGst = saleForm.isInterstate ? igst : +(cgst + sgst).toFixed(2);
+                    const taxableTotal = +(gross - totalGst).toFixed(2);
+                    const net = +(gross + saleForm.roundingAmount).toFixed(2);
+                    return <>
+                      <div className="flex justify-between"><span className="text-gray-500">Total (MRP)</span><span className="font-medium">₹{gross.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-xs text-gray-400"><span>Taxable value</span><span>₹{taxableTotal.toFixed(2)}</span></div>
+                      {saleForm.isInterstate
+                        ? <div className="flex justify-between text-xs"><span className="text-gray-400">IGST (incl.)</span><span className="text-blue-500">₹{igst.toFixed(2)}</span></div>
+                        : <><div className="flex justify-between text-xs"><span className="text-gray-400">CGST (incl.)</span><span className="text-blue-500">₹{cgst.toFixed(2)}</span></div><div className="flex justify-between text-xs"><span className="text-gray-400">SGST (incl.)</span><span className="text-blue-500">₹{sgst.toFixed(2)}</span></div></>
+                      }
+                      <div className="flex justify-between text-xs"><span className="text-gray-400">Total GST (incl.)</span><span className="font-medium text-blue-500">₹{totalGst.toFixed(2)}</span></div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-500">Rounding</span>
                         <input type="number" step="0.01" value={saleForm.roundingAmount} onChange={(e) => setSaleForm(f => ({ ...f, roundingAmount: Number(e.target.value) || 0 }))}

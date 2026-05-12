@@ -10,7 +10,7 @@ import InventoryItem from "../models/InventoryItem";
 
 const MONGODB_URI = process.env.MONGODB_URI || "";
 const CUSTOMER_EMAIL = "rajvarsha02@gmail.com";
-const CSV_PATH = path.resolve(__dirname, "../../Data/Inventory/1.csv");
+const CSV_PATH = path.resolve(__dirname, "../../Data/Inventory/3.csv");
 
 const DRY_RUN = process.argv.includes("--dry-run");
 

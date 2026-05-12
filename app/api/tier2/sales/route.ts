@@ -110,18 +110,17 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // Item total is the base (excl. GST); GST is added on top
-      const taxable = total;
+      // MRP is GST-inclusive: extract taxable base and GST from the total
+      const taxable = gstRate > 0 ? +(total * 100 / (100 + gstRate)).toFixed(4) : total;
+      const gstOnItem = +(total - taxable).toFixed(4);
 
       if (isInterstate) {
-        const igstAmt = +(taxable * gstRate / 100).toFixed(4);
-        if (gstBuckets[gstRate] !== undefined) gstBuckets[gstRate].igst += igstAmt;
+        if (gstBuckets[gstRate] !== undefined) gstBuckets[gstRate].igst += gstOnItem;
       } else {
-        const cgst = +(taxable * gstRate / 200).toFixed(4);
-        const sgst = +(taxable * gstRate / 200).toFixed(4);
+        const half = +(gstOnItem / 2).toFixed(4);
         if (gstBuckets[gstRate] !== undefined) {
-          gstBuckets[gstRate].cgst += cgst;
-          gstBuckets[gstRate].sgst += sgst;
+          gstBuckets[gstRate].cgst += half;
+          gstBuckets[gstRate].sgst += half;
         }
       }
       if (gstBuckets[gstRate] !== undefined) gstBuckets[gstRate].taxable += taxable;
@@ -141,7 +140,8 @@ export async function POST(request: NextRequest) {
     const totalSgst = Object.values(gstBuckets).reduce((s, b) => s + b.sgst, 0);
     const totalIgst = Object.values(gstBuckets).reduce((s, b) => s + b.igst, 0);
     const totalGst = +(totalCgst + totalSgst + totalIgst).toFixed(2);
-    const netAmount = +(grossValue + totalGst + roundingAmount).toFixed(2);
+    // GST is already included in grossValue (MRP-inclusive pricing)
+    const netAmount = +(grossValue + roundingAmount).toFixed(2);
 
     const saleItems = enriched.map((e) => ({
       itemId: e.invItem._id,

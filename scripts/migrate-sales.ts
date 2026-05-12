@@ -12,7 +12,7 @@ import InventoryItem from "../models/InventoryItem";
 const MONGODB_URI = process.env.MONGODB_URI || "";
 const CUSTOMER_EMAIL = "rajvarsha02@gmail.com";
 const DATA_DIR = path.resolve(__dirname, "../../Data/Sales Tax Report");
-const FILES = ["1.xlsx", "2.xlsx", "3.xlsx", "4.xlsx", "5.xlsx", "6.xlsx"];
+const FILES = ["7.xlsx"];
 
 const DRY_RUN = process.argv.includes("--dry-run");
 
@@ -31,7 +31,7 @@ function parseDate(raw: any): Date {
     const day = parseInt(match[1]);
     const month = months[match[2]];
     const year = parseInt(match[3]);
-    if (month !== undefined) return new Date(year, month, day);
+    if (month !== undefined) return new Date(Date.UTC(year, month, day));
   }
   // Also handle "DD-Mon-YY" format just in case
   const match2 = str.match(/^(\d{1,2})-(\w{3})-(\d{2})$/);
@@ -39,7 +39,7 @@ function parseDate(raw: any): Date {
     const day = parseInt(match2[1]);
     const month = months[match2[2]];
     const year = 2000 + parseInt(match2[3]);
-    if (month !== undefined) return new Date(year, month, day);
+    if (month !== undefined) return new Date(Date.UTC(year, month, day));
   }
   const d = new Date(str);
   if (!isNaN(d.getTime())) return d;
@@ -161,14 +161,40 @@ async function migrateSales() {
       console.log(`WARNING: ${missingItems} line items reference medicines not in inventory.\n`);
     }
 
-    // ── Step 5: Create Sale documents ──
+    // ── Step 5: Compute starting saleId and per-date invoice counters ──
+    // Find max saleId number in DB to avoid collisions with pre-save hook
+    const maxSaleDoc = await Sale.findOne({ clinicId }, { saleId: 1 }).sort({ saleId: -1 }).lean();
+    let saleCounter = 0;
+    if (maxSaleDoc?.saleId) {
+      const m = maxSaleDoc.saleId.match(/SALE-(\d+)/);
+      if (m) saleCounter = parseInt(m[1]);
+    }
+    console.log(`Starting saleId from: SALE-${String(saleCounter + 1).padStart(6, "0")}\n`);
+
+    // For each unique date in the file, seed the invoice counter from DB
+    const invoiceCounters = new Map<string, number>();
+    const uniqueDatesInFile = new Set<string>();
+    for (const row of validRows) {
+      const d = parseDate(row.Date);
+      const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      uniqueDatesInFile.add(dateStr);
+    }
+    for (const dateStr of uniqueDatesInFile) {
+      const count = await Sale.countDocuments({
+        clinicId,
+        invoiceNumber: { $regex: `^INV-${dateStr}-` },
+      });
+      invoiceCounters.set(dateStr, count);
+    }
+
+    // ── Step 6: Create Sale documents ──
     console.log("--- Creating sale records ---");
     let salesCreated = 0;
     let salesSkipped = 0;
     let totalSalesAmount = 0;
     let itemsMissing = new Set<string>();
 
-    // Get existing sale notes to detect duplicates (we store order # in notes)
+    // Get existing sale notes to detect duplicates
     const existingSaleNotes = new Set<string>();
     if (!DRY_RUN && existingCount > 0) {
       const existing = await Sale.find({ clinicId }, { notes: 1 }).lean();
@@ -192,14 +218,12 @@ async function migrateSales() {
 
       // Build items array
       const items = [];
-      let hasAllItems = true;
 
       for (const row of rows) {
         const medicineName = row.Medicine?.trim();
         const inv = itemByName.get(medicineName.toUpperCase());
         if (!inv) {
           itemsMissing.add(medicineName);
-          hasAllItems = false;
           continue;
         }
 
@@ -264,11 +288,22 @@ async function migrateSales() {
       const totalAmount = roundTo2(grossValue);
       totalSalesAmount += totalAmount;
 
-      if (!DRY_RUN) {
-        const invoiceDate = parseDate(firstRow.Date);
+      // Assign explicit saleId and invoiceNumber (bypass pre-save hook)
+      saleCounter++;
+      const saleId = `SALE-${String(saleCounter).padStart(6, "0")}`;
 
-        await Sale.create({
+      const invoiceDate = parseDate(firstRow.Date);
+      const dateStr = `${invoiceDate.getFullYear()}${String(invoiceDate.getMonth() + 1).padStart(2, "0")}${String(invoiceDate.getDate()).padStart(2, "0")}`;
+      const invCount = (invoiceCounters.get(dateStr) ?? 0) + 1;
+      invoiceCounters.set(dateStr, invCount);
+      const invoiceNumber = `INV-${dateStr}-${String(invCount).padStart(4, "0")}`;
+
+      if (!DRY_RUN) {
+        await Sale.collection.insertOne({
           clinicId,
+          saleId,
+          invoiceNumber,
+          invoiceDate,
           patientName: firstRow["Patient Name"]?.trim() || "Walk-in",
           items,
           subtotal: grossValue,
@@ -292,10 +327,13 @@ async function migrateSales() {
           totalGst: totalTax,
           roundingAmount: 0,
           doctorName,
-          invoiceDate,
           isInterstate: false,
           igst: 0,
+          createdAt: invoiceDate,
+          updatedAt: invoiceDate,
         });
+      } else {
+        console.log(`  [DRY] ${saleId} | ${invoiceNumber} | Order #${orderNo} | ₹${totalAmount}`);
       }
 
       salesCreated++;
