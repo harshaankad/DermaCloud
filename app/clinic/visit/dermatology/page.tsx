@@ -1216,31 +1216,28 @@ function DermatologyVisitPageInner() {
             </div>
           </div>
         </div>
-        <nav className="border-t border-gray-100 bg-white/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex space-x-1 overflow-x-auto">
-              {[
-                { label: "Dashboard", href: "/clinic/dashboard" },
-                { label: "Patients", href: "/clinic/patients" },
-                { label: "Visits", href: "/clinic/visit/new", active: true },
-                { label: "Appointments", href: "/clinic/appointments" },
-              ].map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    item.active
-                      ? "border-teal-600 text-teal-700"
-                      : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </nav>
       </header>
+
+      {/* Navigation */}
+      <nav className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+            {[
+              { label: "Dashboard", href: "/clinic/dashboard" },
+              { label: "Patients", href: "/clinic/patients" },
+              { label: "Consultations", href: "/clinic/consultations" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="px-4 py-3 text-base font-medium whitespace-nowrap transition-colors relative text-gray-500 hover:text-gray-700"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </nav>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
