@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 interface FormField {
   fieldName: string;
@@ -28,14 +27,6 @@ interface Toast {
   type: "success" | "error";
   message: string;
 }
-
-const NAV_LINKS = [
-  { label: "Dashboard", href: "/clinic/dashboard" },
-  { label: "Patients", href: "/clinic/patients" },
-  { label: "Visits", href: "/clinic/visit/new" },
-  { label: "Appointments", href: "/clinic/appointments" },
-  { label: "Templates", href: "/clinic/templates" },
-];
 
 const FIELD_TYPE_LABELS: Record<string, string> = {
   text: "Text",
@@ -270,23 +261,6 @@ export default function FormSettingsPage() {
           </div>
         </div>
       </header>
-
-      {/* Nav */}
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="px-4 py-3 text-base font-medium whitespace-nowrap transition-colors text-gray-500 hover:text-gray-700"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </nav>
 
       {/* Main */}
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
