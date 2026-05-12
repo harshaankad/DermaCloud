@@ -397,7 +397,7 @@ export default function DoctorPharmacyPage() {
   const fetchInvSuggestions = useCallback(async () => {
     const token = getToken(); if (!token) return;
     try {
-      const res = await fetch("/api/tier2/inventory?limit=500", { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch("/api/tier2/inventory?limit=2000", { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) setInvSuggestions(data.data?.items || []);
     } catch {}
