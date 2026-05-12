@@ -187,6 +187,7 @@ export default function CosmetologyConsultationDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
+  const [prescriptionOnly, setPrescriptionOnly] = useState(false);
   const [includeAiExplanation, setIncludeAiExplanation] = useState(true);
   const [includeTranslation, setIncludeTranslation] = useState(true);
 
@@ -486,8 +487,9 @@ export default function CosmetologyConsultationDetailsPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           consultationId,
-          includeExplanation: includeAiExplanation,
-          language: includeAiExplanation && includeTranslation && selectedLanguage ? selectedLanguage : null,
+          prescriptionOnly,
+          includeExplanation: !prescriptionOnly && includeAiExplanation,
+          language: !prescriptionOnly && includeAiExplanation && includeTranslation && selectedLanguage ? selectedLanguage : null,
         }),
       });
       if (!response.ok) {
@@ -497,7 +499,7 @@ export default function CosmetologyConsultationDetailsPage() {
       const blob = await response.blob();
       const patientId = consultation.patientId?.patientId || "Unknown";
       const dateStr   = new Date().toISOString().split("T")[0];
-      saveAs(blob, `Cosmetology_${patientId}_${dateStr}.pdf`);
+      saveAs(blob, prescriptionOnly ? `Prescription_${patientId}_${dateStr}.pdf` : `Cosmetology_${patientId}_${dateStr}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
       showToast("error", "Failed to generate PDF");
@@ -670,20 +672,25 @@ export default function CosmetologyConsultationDetailsPage() {
                   <span className="w-2 h-2 rounded-full bg-emerald-300 flex-shrink-0"></span>
                 )}
               </button>
-              {/* AI in PDF toggle */}
-              {activeExplanation && (
+              {/* AI in PDF toggle — hidden when prescription-only */}
+              {!prescriptionOnly && activeExplanation && (
                 <label className="flex items-center gap-1.5 bg-purple-50 px-2.5 py-1.5 rounded-lg border border-purple-200 cursor-pointer">
                   <input type="checkbox" checked={includeAiExplanation} onChange={(e) => setIncludeAiExplanation(e.target.checked)} className="w-3.5 h-3.5 text-purple-600 rounded" />
                   <span className="text-xs text-purple-700 font-medium">AI in PDF</span>
                 </label>
               )}
-              {/* Translation in PDF toggle */}
-              {selectedLanguage && translatedExplanation && (
+              {/* Translation in PDF toggle — hidden when prescription-only */}
+              {!prescriptionOnly && selectedLanguage && translatedExplanation && (
                 <label className="flex items-center gap-1.5 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200 cursor-pointer">
                   <input type="checkbox" checked={includeTranslation} onChange={(e) => setIncludeTranslation(e.target.checked)} className="w-3.5 h-3.5 text-orange-600 rounded" />
                   <span className="text-xs text-orange-700 font-medium">{selectedLanguage === "hindi" ? "हिंदी" : "ಕನ್ನಡ"} in PDF</span>
                 </label>
               )}
+              {/* PDF type toggle */}
+              <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-medium">
+                <button onClick={() => setPrescriptionOnly(false)} className={`px-2.5 py-1.5 transition-colors ${!prescriptionOnly ? "bg-purple-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>Full Report</button>
+                <button onClick={() => setPrescriptionOnly(true)} className={`px-2.5 py-1.5 transition-colors border-l border-gray-200 ${prescriptionOnly ? "bg-purple-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>Rx Only</button>
+              </div>
               <Link href={`/clinic/patients/${consultation.patientId._id}`}>
                 <button className="px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors">
                   Patient

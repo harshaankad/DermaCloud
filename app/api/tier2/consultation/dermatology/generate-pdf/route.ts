@@ -321,6 +321,123 @@ function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
   doc.y += 8;
 }
 
+// ── Prescription-only PDF builder ─────────────────────────────────────────────
+function buildPrescriptionPdf(doc: PDFKit.PDFDocument, consultation: any) {
+  const patient = consultation.patientId  || {};
+  const clinic  = consultation.clinicId   || {};
+  const info    = consultation.patientInfo || {};
+  const cf      = consultation.customFields || {};
+
+  const clinicName    = clinic.clinicName || "Dermatology Clinic";
+  const clinicAddress = [clinic.address, clinic.city, clinic.state].filter(Boolean).join(", ");
+  const clinicPhone   = clinic.phone || "";
+  const clinicEmail   = clinic.email || "";
+
+  // ── 1. HEADER ────────────────────────────────────────────────────────────────
+  const headerH = 75;
+  fillRect(doc, 0, 0, PW, headerH, C.navy);
+  fillRect(doc, 0, 0, PW, 4, C.navyDark);
+  fillRect(doc, 0, headerH - 4, PW, 4, C.navyDark);
+
+  doc.fillColor(C.white).font("Helvetica-Bold").fontSize(20)
+     .text(clinicName.toUpperCase(), 0, 22, { width: PW, align: "center", characterSpacing: 1.5 });
+
+  hLine(doc, PW * 0.3, PW * 0.7, 48, "#4A6A8A", 1);
+
+  const contactParts: string[] = [];
+  if (clinicAddress) contactParts.push(clinicAddress);
+  if (clinicPhone)   contactParts.push(`Tel: ${clinicPhone}`);
+  if (clinicEmail)   contactParts.push(clinicEmail);
+  if (contactParts.length) {
+    doc.fillColor("#E8F0F8").font("Helvetica").fontSize(9)
+       .text(contactParts.join("   •   "), 0, 54, { width: PW, align: "center" });
+  }
+
+  doc.y = headerH + 16;
+
+  // ── 2. TITLE ──────────────────────────────────────────────────────────────────
+  doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(12)
+     .text("PRESCRIPTION", ML, doc.y, { width: CW, align: "center" });
+  doc.y += 6;
+  hLine(doc, ML, ML + CW, doc.y, C.navy, 1.5);
+  doc.y += 16;
+
+  // ── 3. DATE + PATIENT ID ──────────────────────────────────────────────────────
+  const dateStr = new Date(consultation.consultationDate).toLocaleDateString("en-IN", {
+    day: "2-digit", month: "long", year: "numeric",
+  });
+  const pidStr = patient.patientId || "N/A";
+
+  const metaY = doc.y;
+  doc.fillColor(C.muted).font("Helvetica").fontSize(9).text(`Date: ${dateStr}`, ML, metaY);
+  doc.fillColor(C.muted).font("Helvetica").fontSize(9)
+     .text(`Patient ID: ${pidStr}`, ML, metaY, { width: CW, align: "right" });
+  doc.y = metaY + 18;
+  hLine(doc, ML, ML + CW, doc.y, C.border, 0.5);
+  doc.y += 8;
+
+  // ── 4. PATIENT INFORMATION ────────────────────────────────────────────────────
+  sectionHeader(doc, "Patient Information");
+  infoTable(doc, [
+    { label: "Name",         value: info.name || "N/A" },
+    { label: "Age / Gender", value: `${info.age || "N/A"} yrs  ·  ${(info.gender || "N/A").charAt(0).toUpperCase() + (info.gender || "").slice(1)}` },
+    { label: "Contact",      value: patient.phone || "N/A" },
+  ]);
+
+  // ── 5. PRESCRIPTION(S) ────────────────────────────────────────────────────────
+  const isMultiIssue =
+    cf._multiIssue === true &&
+    Array.isArray(cf._issues) &&
+    cf._issues.length > 1;
+
+  let anyRx = false;
+
+  if (isMultiIssue) {
+    const issues: any[] = cf._issues;
+    issues.forEach((issue: any, idx: number) => {
+      const fd = issue.formData || {};
+      const rxMeds = Array.isArray(fd.prescription) ? fd.prescription.filter((m: any) => m.name?.trim()) : [];
+      if (rxMeds.length > 0) {
+        anyRx = true;
+        const issueLabel = issue.label || `Issue ${idx + 1}`;
+        const diagnosis  = fd.provisional || fd.provisionalDiagnosis || "";
+        const title      = diagnosis ? `${issueLabel}: ${diagnosis}` : issueLabel;
+        sectionHeader(doc, `Prescription (Rx) — ${title}`);
+        prescriptionTable(doc, rxMeds);
+      }
+    });
+  } else {
+    const fd = cf._issues?.[0]?.formData || cf;
+    const rxMeds = Array.isArray(fd.prescription) ? fd.prescription.filter((m: any) => m.name?.trim()) : [];
+    if (rxMeds.length > 0) {
+      anyRx = true;
+      sectionHeader(doc, "Prescription (Rx)");
+      prescriptionTable(doc, rxMeds);
+    }
+  }
+
+  if (!anyRx) {
+    doc.y += 24;
+    doc.fillColor(C.muted).font("Helvetica-Oblique").fontSize(10)
+       .text("No medications prescribed for this consultation.", ML, doc.y, { width: CW, align: "center" });
+    doc.y += 20;
+  }
+
+  // ── 6. SIGNATURE BLOCK ────────────────────────────────────────────────────────
+  ensureSpace(doc, 80);
+  doc.y += 30;
+  hLine(doc, ML, ML + CW, doc.y, C.border, 0.5);
+  doc.y += 20;
+
+  const sigX = ML + CW * 0.55;
+  const sigW = CW * 0.44;
+  doc.fillColor(C.muted).font("Helvetica").fontSize(9)
+     .text("_________________________________", sigX, doc.y, { width: sigW, align: "right" });
+  doc.y += 16;
+  doc.fillColor(C.muted).font("Helvetica-Oblique").fontSize(8.5)
+     .text("Doctor's Signature & Stamp", sigX, doc.y, { width: sigW, align: "right" });
+}
+
 // ── Main PDF builder ───────────────────────────────────────────────────────────
 function buildPdf(
   doc: PDFKit.PDFDocument,
@@ -649,7 +766,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { consultationId, includeExplanation = false, language = null } = body;
+    const { consultationId, includeExplanation = false, language = null, prescriptionOnly = false } = body;
 
     if (!consultationId) {
       return NextResponse.json({ success: false, message: "consultationId is required" }, { status: 400 });
@@ -685,7 +802,11 @@ export async function POST(request: NextRequest) {
       doc.on("error", reject);
 
       try {
-        buildPdf(doc, consultation, includeExplanation, language);
+        if (prescriptionOnly) {
+          buildPrescriptionPdf(doc, consultation);
+        } else {
+          buildPdf(doc, consultation, includeExplanation, language);
+        }
 
         // Stamp page number + footer on every page
         const footerText = "Confidential — For the named patient only. Follow your doctor's instructions.";
@@ -712,7 +833,9 @@ export async function POST(request: NextRequest) {
 
     const patientId = (consultation as any).patientId?.patientId || "Unknown";
     const dateStr   = new Date().toISOString().split("T")[0];
-    const filename  = `Consultation_${patientId}_${dateStr}.pdf`;
+    const filename  = prescriptionOnly
+      ? `Prescription_${patientId}_${dateStr}.pdf`
+      : `Consultation_${patientId}_${dateStr}.pdf`;
 
     return new Response(pdfBuffer, {
       headers: {
