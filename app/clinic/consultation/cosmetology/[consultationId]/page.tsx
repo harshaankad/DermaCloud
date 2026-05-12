@@ -178,6 +178,146 @@ function RenderMarkdown({
   );
 }
 
+// ── PDF field groups for the Customize PDF popover (cosmetology) ─────────────
+const COSMETOLOGY_FIELD_GROUPS: Array<{ label: string; fields: Array<{ key: string; label: string }> }> = [
+  { label: "Contact Info", fields: [{ key: "contact", label: "Phone Number" }] },
+  { label: "Primary Info", fields: [
+    { key: "primaryConcern", label: "Primary Concern" },
+    { key: "skinType", label: "Skin Type" },
+  ]},
+  { label: "Assessment", fields: [
+    { key: "findings", label: "Clinical Findings" },
+    { key: "diagnosis", label: "Diagnosis" },
+    { key: "baselineEvaluation", label: "Baseline Evaluation" },
+    { key: "contraindicationsCheck", label: "Contraindications" },
+  ]},
+  { label: "Procedure", fields: [
+    { key: "procedureName", label: "Procedure Name" },
+    { key: "goals", label: "Treatment Goals" },
+    { key: "sessionNumber", label: "Session Number" },
+    { key: "package", label: "Package" },
+    { key: "productsAndParameters", label: "Products & Parameters" },
+    { key: "immediateOutcome", label: "Immediate Outcome" },
+  ]},
+  { label: "Pricing", fields: [
+    { key: "basePrice", label: "Base Price" },
+    { key: "gstRate", label: "GST Rate" },
+    { key: "gstAmount", label: "GST Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+  ]},
+  { label: "Aftercare", fields: [
+    { key: "instructions", label: "Aftercare Instructions" },
+    { key: "homeProducts", label: "Home Products" },
+    { key: "expectedResults", label: "Expected Results" },
+  ]},
+  { label: "Follow-up", fields: [
+    { key: "followUpDate", label: "Follow-up Date" },
+  ]},
+  { label: "Consent", fields: [
+    { key: "risksExplained", label: "Risks Explained" },
+    { key: "consentConfirmed", label: "Consent Status" },
+  ]},
+  { label: "Prescription", fields: [{ key: "prescription", label: "Prescription Table" }] },
+  { label: "AI Summary", fields: [
+    { key: "aiExplanation", label: "Patient Explanation" },
+    { key: "aiTranslation", label: "Translation" },
+  ]},
+];
+
+const KNOWN_COSMETOLOGY_KEYS = new Set([
+  "contact",
+  "primaryConcern", "skinType",
+  "findings", "diagnosis", "baselineEvaluation", "contraindicationsCheck",
+  "procedureName", "name", "goals", "sessionNumber", "package",
+  "productsAndParameters", "immediateOutcome",
+  "basePrice", "gstRate", "gstAmount", "totalAmount",
+  "instructions", "homeProducts", "expectedResults", "followUpDate",
+  "risksExplained", "consentConfirmed",
+  "prescription",
+  "aiExplanation", "aiTranslation",
+  "_multiIssue", "_issues", "procedureId",
+]);
+
+type CosmoFormSection = { sectionLabel: string; fields: Array<{ fieldName: string; label: string; type: string }> };
+
+function detectAvailableFieldsCosmetology(consultation: any, selectedLanguage: string | null, translatedText: string | null, formSections: CosmoFormSection[] = []): string[] {
+  if (!consultation) return [];
+  const result: string[] = [];
+  const patient  = consultation.patientId  || {};
+  const info     = consultation.patientInfo || {};
+  const assess   = consultation.assessment || {};
+  const proc     = consultation.procedure  || {};
+  const ac       = consultation.aftercare  || {};
+  const consent  = consultation.consent    || {};
+  const summary  = consultation.patientSummary || {};
+  const cf       = consultation.customFields || {};
+
+  const issuesData: any[] = cf._multiIssue && Array.isArray(cf._issues)
+    ? cf._issues.map((i: any) => i.formData || {})
+    : [cf._issues?.[0]?.formData || cf];
+
+  const inAny = (...keys: string[]) =>
+    issuesData.some((fd: any) => keys.some((k) => {
+      const v = fd?.[k];
+      if (v == null || v === "") return false;
+      if (typeof v === "string") return v.trim().length > 0;
+      if (Array.isArray(v)) return v.length > 0;
+      return true;
+    }));
+
+  if (patient.phone) result.push("contact");
+  if (info.primaryConcern || inAny("primaryConcern")) result.push("primaryConcern");
+  if (info.skinType || inAny("skinType")) result.push("skinType");
+
+  if (assess.findings || inAny("findings")) result.push("findings");
+  if (assess.diagnosis || inAny("diagnosis")) result.push("diagnosis");
+  if (assess.baselineEvaluation || inAny("baselineEvaluation")) result.push("baselineEvaluation");
+  if (assess.contraindicationsCheck || inAny("contraindicationsCheck")) result.push("contraindicationsCheck");
+
+  if (proc.procedureName || proc.name || inAny("procedureName", "name")) result.push("procedureName");
+  if (proc.goals || inAny("goals")) result.push("goals");
+  if (proc.sessionNumber != null || inAny("sessionNumber")) result.push("sessionNumber");
+  if (proc.package || inAny("package")) result.push("package");
+  if (proc.productsAndParameters || inAny("productsAndParameters")) result.push("productsAndParameters");
+  if (proc.immediateOutcome || inAny("immediateOutcome")) result.push("immediateOutcome");
+  if (proc.basePrice != null || inAny("basePrice")) result.push("basePrice");
+  if (proc.gstRate != null || inAny("gstRate")) result.push("gstRate");
+  if (proc.gstAmount != null || inAny("gstAmount")) result.push("gstAmount");
+  if (proc.totalAmount != null || inAny("totalAmount")) result.push("totalAmount");
+
+  if (ac.instructions || inAny("instructions")) result.push("instructions");
+  if (ac.homeProducts || inAny("homeProducts")) result.push("homeProducts");
+  if (ac.expectedResults || inAny("expectedResults")) result.push("expectedResults");
+  if (ac.followUpDate || inAny("followUpDate")) result.push("followUpDate");
+
+  if (consent.risksExplained || inAny("risksExplained")) result.push("risksExplained");
+  if (consent.consentConfirmed != null || inAny("consentConfirmed")) result.push("consentConfirmed");
+
+  const hasRx = issuesData.some((fd: any) => Array.isArray(fd?.prescription) && fd.prescription.some((m: any) => m?.name?.trim()));
+  if (hasRx) result.push("prescription");
+
+  if (summary.aiGenerated || summary.doctorEdited) result.push("aiExplanation");
+  if (selectedLanguage && translatedText) result.push("aiTranslation");
+
+  // Custom fields from FormSettings — anything outside the known list that has data in any issue.
+  for (const section of formSections) {
+    for (const field of section.fields) {
+      if (KNOWN_COSMETOLOGY_KEYS.has(field.fieldName)) continue;
+      if (field.type === "prescription") continue;
+      const hasData = issuesData.some((fd: any) => {
+        const v = fd?.[field.fieldName];
+        if (v == null || v === "") return false;
+        if (typeof v === "string") return v.trim().length > 0;
+        if (Array.isArray(v)) return v.length > 0;
+        return true;
+      });
+      if (hasData && !result.includes(field.fieldName)) result.push(field.fieldName);
+    }
+  }
+
+  return result;
+}
+
 export default function CosmetologyConsultationDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -187,9 +327,8 @@ export default function CosmetologyConsultationDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
-  const [prescriptionOnly, setPrescriptionOnly] = useState(false);
-  const [includeAiExplanation, setIncludeAiExplanation] = useState(true);
-  const [includeTranslation, setIncludeTranslation] = useState(true);
+  const [includedFields, setIncludedFields] = useState<Set<string>>(new Set());
+  const [showCustomizePopover, setShowCustomizePopover] = useState(false);
 
   // AI Summary state
   const [generatingExplanation, setGeneratingExplanation] = useState(false);
@@ -229,6 +368,12 @@ export default function CosmetologyConsultationDetailsPage() {
   useEffect(() => {
     fetchConsultation();
   }, [consultationId]);
+
+  // Reset PDF field selection to "all available" whenever the underlying data changes.
+  useEffect(() => {
+    const available = detectAvailableFieldsCosmetology(consultation, selectedLanguage, translatedExplanation, formSections);
+    setIncludedFields(new Set(available));
+  }, [consultation, selectedLanguage, translatedExplanation, formSections]);
 
   const fetchConsultation = async () => {
     try {
@@ -487,9 +632,14 @@ export default function CosmetologyConsultationDetailsPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           consultationId,
-          prescriptionOnly,
-          includeExplanation: !prescriptionOnly && includeAiExplanation,
-          language: !prescriptionOnly && includeAiExplanation && includeTranslation && selectedLanguage ? selectedLanguage : null,
+          includedFields: Array.from(includedFields),
+          language: includedFields.has("aiTranslation") ? selectedLanguage : null,
+          fieldLabels: formSections.reduce((acc, s) => {
+            for (const f of s.fields) {
+              if (!KNOWN_COSMETOLOGY_KEYS.has(f.fieldName)) acc[f.fieldName] = f.label;
+            }
+            return acc;
+          }, {} as Record<string, string>),
         }),
       });
       if (!response.ok) {
@@ -499,7 +649,7 @@ export default function CosmetologyConsultationDetailsPage() {
       const blob = await response.blob();
       const patientId = consultation.patientId?.patientId || "Unknown";
       const dateStr   = new Date().toISOString().split("T")[0];
-      saveAs(blob, prescriptionOnly ? `Prescription_${patientId}_${dateStr}.pdf` : `Cosmetology_${patientId}_${dateStr}.pdf`);
+      saveAs(blob, `Cosmetology_${patientId}_${dateStr}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
       showToast("error", "Failed to generate PDF");
@@ -521,8 +671,8 @@ export default function CosmetologyConsultationDetailsPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           consultationId,
-          includeExplanation: includeAiExplanation,
-          language: includeAiExplanation && includeTranslation && selectedLanguage ? selectedLanguage : null,
+          includeExplanation: includedFields.has("aiExplanation"),
+          language: includedFields.has("aiTranslation") && selectedLanguage ? selectedLanguage : null,
         }),
       });
       if (!pdfResponse.ok) {
@@ -672,25 +822,82 @@ export default function CosmetologyConsultationDetailsPage() {
                   <span className="w-2 h-2 rounded-full bg-emerald-300 flex-shrink-0"></span>
                 )}
               </button>
-              {/* AI in PDF toggle — hidden when prescription-only */}
-              {!prescriptionOnly && activeExplanation && (
-                <label className="flex items-center gap-1.5 bg-purple-50 px-2.5 py-1.5 rounded-lg border border-purple-200 cursor-pointer">
-                  <input type="checkbox" checked={includeAiExplanation} onChange={(e) => setIncludeAiExplanation(e.target.checked)} className="w-3.5 h-3.5 text-purple-600 rounded" />
-                  <span className="text-xs text-purple-700 font-medium">AI in PDF</span>
-                </label>
-              )}
-              {/* Translation in PDF toggle — hidden when prescription-only */}
-              {!prescriptionOnly && selectedLanguage && translatedExplanation && (
-                <label className="flex items-center gap-1.5 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200 cursor-pointer">
-                  <input type="checkbox" checked={includeTranslation} onChange={(e) => setIncludeTranslation(e.target.checked)} className="w-3.5 h-3.5 text-orange-600 rounded" />
-                  <span className="text-xs text-orange-700 font-medium">{selectedLanguage === "hindi" ? "हिंदी" : "ಕನ್ನಡ"} in PDF</span>
-                </label>
-              )}
-              {/* PDF type toggle */}
-              <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-medium">
-                <button onClick={() => setPrescriptionOnly(false)} className={`px-2.5 py-1.5 transition-colors ${!prescriptionOnly ? "bg-purple-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>Full Report</button>
-                <button onClick={() => setPrescriptionOnly(true)} className={`px-2.5 py-1.5 transition-colors border-l border-gray-200 ${prescriptionOnly ? "bg-purple-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>Rx Only</button>
-              </div>
+              {/* Customize PDF button + popover */}
+              {(() => {
+                const availableFields = detectAvailableFieldsCosmetology(consultation, selectedLanguage, translatedExplanation, formSections);
+                const customGroups: Array<{ label: string; fields: Array<{ key: string; label: string }> }> = formSections
+                  .map((s) => ({
+                    label: s.sectionLabel,
+                    fields: s.fields
+                      .filter((f) => !KNOWN_COSMETOLOGY_KEYS.has(f.fieldName) && f.type !== "prescription" && availableFields.includes(f.fieldName))
+                      .map((f) => ({ key: f.fieldName, label: f.label })),
+                  }))
+                  .filter((g) => g.fields.length > 0);
+                return (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowCustomizePopover((v) => !v)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-colors"
+                      title="Choose which fields to include in the PDF"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                      <span>Customize</span>
+                      <span className="text-xs text-gray-500">{includedFields.size}/{availableFields.length}</span>
+                    </button>
+                    {showCustomizePopover && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowCustomizePopover(false)} />
+                        <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-[70vh] overflow-y-auto">
+                          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
+                            <h3 className="text-sm font-semibold text-gray-900">Customize PDF</h3>
+                            <div className="flex gap-3 text-xs font-medium">
+                              <button onClick={() => setIncludedFields(new Set(availableFields))} className="text-purple-600 hover:underline">All</button>
+                              <button onClick={() => setIncludedFields(new Set())} className="text-gray-500 hover:underline">None</button>
+                            </div>
+                          </div>
+                          <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+                            <div className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">Always Included</div>
+                            <div className="text-xs text-gray-700 mt-0.5">Patient Name · Age · Gender</div>
+                          </div>
+                          <div className="py-1">
+                            {[...COSMETOLOGY_FIELD_GROUPS, ...customGroups].map((group) => {
+                              const visible = group.fields.filter((f) => availableFields.includes(f.key));
+                              if (visible.length === 0) return null;
+                              return (
+                                <div key={group.label} className="px-3 py-1.5">
+                                  <div className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mb-1 px-1">{group.label}</div>
+                                  {visible.map((f) => {
+                                    const dynamicLabel = f.key === "aiTranslation" && selectedLanguage
+                                      ? `${selectedLanguage === "hindi" ? "Hindi" : "Kannada"} Translation`
+                                      : f.label;
+                                    return (
+                                      <label key={f.key} className="flex items-center gap-2 py-1 px-1 cursor-pointer hover:bg-gray-50 rounded">
+                                        <input
+                                          type="checkbox"
+                                          checked={includedFields.has(f.key)}
+                                          onChange={(e) => {
+                                            setIncludedFields((prev) => {
+                                              const next = new Set(prev);
+                                              if (e.target.checked) next.add(f.key); else next.delete(f.key);
+                                              return next;
+                                            });
+                                          }}
+                                          className="w-3.5 h-3.5 text-purple-600 rounded"
+                                        />
+                                        <span className="text-xs text-gray-700">{dynamicLabel}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               <Link href={`/clinic/patients/${consultation.patientId._id}`}>
                 <button className="px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors">
                   Patient

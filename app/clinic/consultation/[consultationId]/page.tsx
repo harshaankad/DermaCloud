@@ -152,6 +152,134 @@ function RenderMarkdown({ text, headingColor = "text-violet-800" }: { text: stri
   );
 }
 
+// ── PDF field groups for the Customize PDF popover (dermatology) ─────────────
+const DERMATOLOGY_FIELD_GROUPS: Array<{ label: string; fields: Array<{ key: string; label: string }> }> = [
+  { label: "Contact Info", fields: [{ key: "contact", label: "Phone Number" }] },
+  { label: "Clinical History", fields: [
+    { key: "complaint", label: "Chief Complaint" },
+    { key: "duration", label: "Duration" },
+    { key: "previousTreatment", label: "Previous Treatment" },
+  ]},
+  { label: "Clinical Examination", fields: [
+    { key: "lesionSite", label: "Lesion Site" },
+    { key: "morphology", label: "Morphology" },
+    { key: "distribution", label: "Distribution" },
+    { key: "severity", label: "Severity" },
+  ]},
+  { label: "Dermoscopic Findings", fields: [
+    { key: "finalInterpretation", label: "Dermoscopic Findings" },
+  ]},
+  { label: "Diagnosis", fields: [
+    { key: "provisional", label: "Provisional Diagnosis" },
+    { key: "differentials", label: "Differential Diagnoses" },
+  ]},
+  { label: "Prescription", fields: [
+    { key: "prescription", label: "Prescription Table" },
+  ]},
+  { label: "Treatment Plan", fields: [
+    { key: "topicals", label: "Topical Medications" },
+    { key: "orals", label: "Oral Medications" },
+    { key: "lifestyleChanges", label: "Lifestyle Advice" },
+    { key: "investigations", label: "Investigations" },
+  ]},
+  { label: "Follow-up", fields: [
+    { key: "followUpDate", label: "Follow-up Date" },
+    { key: "followUpReason", label: "Follow-up Reason" },
+  ]},
+  { label: "AI Summary", fields: [
+    { key: "aiExplanation", label: "Patient Explanation" },
+    { key: "aiTranslation", label: "Translation" },
+  ]},
+];
+
+// Keys covered by hardcoded DERMATOLOGY_FIELD_GROUPS / known rendering logic in the API.
+// Anything outside this set found in formSections is treated as a custom field.
+const KNOWN_DERMATOLOGY_KEYS = new Set([
+  "contact",
+  "complaint", "chiefComplaint", "duration", "previousTreatment",
+  "lesionSite", "morphology", "distribution", "severity",
+  "finalInterpretation", "patterns", "dermoscopicFindings",
+  "provisional", "provisionalDiagnosis", "differentials", "differentialDiagnosis",
+  "prescription",
+  "topicals", "topicalMedications", "orals", "oralMedications",
+  "lifestyleChanges", "lifestyleAdvice", "investigations",
+  "followUpDate", "date", "followUpReason", "reason",
+  "aiExplanation", "aiTranslation",
+  "_multiIssue", "_issues",
+]);
+
+type FormSection = { sectionLabel: string; fields: Array<{ fieldName: string; label: string; type: string }> };
+
+// Detect which fields actually have data in this consultation; returns keys to show as toggles.
+function detectAvailableFields(consultation: any, selectedLanguage: string | null, translatedText: string | null, formSections: FormSection[] = []): string[] {
+  if (!consultation) return [];
+  const result: string[] = [];
+  const patient = consultation.patientId  || {};
+  const info    = consultation.patientInfo || {};
+  const exam    = consultation.clinicalExamination || {};
+  const dermo   = consultation.dermoscopeFindings  || {};
+  const diag    = consultation.diagnosis  || {};
+  const tx      = consultation.treatmentPlan || {};
+  const fu      = consultation.followUp   || {};
+  const summary = consultation.patientSummary || {};
+  const cf      = consultation.customFields || {};
+
+  const issuesData: any[] = cf._multiIssue && Array.isArray(cf._issues)
+    ? cf._issues.map((i: any) => i.formData || {})
+    : [cf._issues?.[0]?.formData || cf];
+
+  const inAnyIssue = (...keys: string[]) =>
+    issuesData.some((fd: any) => keys.some((k) => {
+      const v = fd?.[k];
+      if (v == null) return false;
+      if (typeof v === "string") return v.trim().length > 0;
+      if (Array.isArray(v)) return v.length > 0;
+      return true;
+    }));
+
+  if (patient.phone) result.push("contact");
+  if (info.complaint || inAnyIssue("complaint", "chiefComplaint")) result.push("complaint");
+  if (info.duration || inAnyIssue("duration")) result.push("duration");
+  if (info.previousTreatment || inAnyIssue("previousTreatment")) result.push("previousTreatment");
+  if (exam.lesionSite || inAnyIssue("lesionSite")) result.push("lesionSite");
+  if (exam.morphology || inAnyIssue("morphology")) result.push("morphology");
+  if (exam.distribution || inAnyIssue("distribution")) result.push("distribution");
+  if (exam.severity || inAnyIssue("severity")) result.push("severity");
+  if (dermo.finalInterpretation || inAnyIssue("finalInterpretation", "patterns", "dermoscopicFindings")) result.push("finalInterpretation");
+  if (diag.provisional || inAnyIssue("provisional", "provisionalDiagnosis")) result.push("provisional");
+  if ((diag.differentials?.length) || inAnyIssue("differentials", "differentialDiagnosis")) result.push("differentials");
+
+  const hasRx = issuesData.some((fd: any) => Array.isArray(fd?.prescription) && fd.prescription.some((m: any) => m?.name?.trim()));
+  if (hasRx) result.push("prescription");
+
+  if (tx.topicals || inAnyIssue("topicals", "topicalMedications")) result.push("topicals");
+  if (tx.orals || inAnyIssue("orals", "oralMedications")) result.push("orals");
+  if (tx.lifestyleChanges || inAnyIssue("lifestyleChanges", "lifestyleAdvice")) result.push("lifestyleChanges");
+  if (tx.investigations || inAnyIssue("investigations")) result.push("investigations");
+  if (fu.date) result.push("followUpDate");
+  if (fu.reason) result.push("followUpReason");
+  if (summary.aiGenerated || summary.doctorEdited) result.push("aiExplanation");
+  if (selectedLanguage && translatedText) result.push("aiTranslation");
+
+  // Custom fields from FormSettings — anything outside the known list that has data in any issue.
+  for (const section of formSections) {
+    for (const field of section.fields) {
+      if (KNOWN_DERMATOLOGY_KEYS.has(field.fieldName)) continue;
+      if (field.type === "prescription") continue;
+      const hasData = issuesData.some((fd: any) => {
+        const v = fd?.[field.fieldName];
+        if (v == null || v === "") return false;
+        if (typeof v === "string") return v.trim().length > 0;
+        if (Array.isArray(v)) return v.length > 0;
+        return true;
+      });
+      if (hasData && !result.includes(field.fieldName)) result.push(field.fieldName);
+    }
+  }
+
+  return result;
+}
+
 export default function ConsultationDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -161,8 +289,8 @@ export default function ConsultationDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
-  const [prescriptionOnly, setPrescriptionOnly] = useState(false);
-  const [includeAiExplanation, setIncludeAiExplanation] = useState(true);
+  const [includedFields, setIncludedFields] = useState<Set<string>>(new Set());
+  const [showCustomizePopover, setShowCustomizePopover] = useState(false);
   const [generatingExplanation, setGeneratingExplanation] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [showAiModal, setShowAiModal] = useState(false);
@@ -186,7 +314,6 @@ export default function ConsultationDetailsPage() {
   // Tracks last-viewed translated language + text for PDF inclusion
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [translatedExplanation, setTranslatedExplanation] = useState<string | null>(null);
-  const [includeTranslation, setIncludeTranslation] = useState(true);
 
   // Form sections config for "All Details" display
   const [formSections, setFormSections] = useState<Array<{ sectionLabel: string; fields: Array<{ fieldName: string; label: string; type: string }> }>>([]);
@@ -213,6 +340,12 @@ export default function ConsultationDetailsPage() {
   useEffect(() => {
     fetchConsultation();
   }, [consultationId]);
+
+  // Reset PDF field selection to "all available" whenever the underlying data changes.
+  useEffect(() => {
+    const available = detectAvailableFields(consultation, selectedLanguage, translatedExplanation, formSections);
+    setIncludedFields(new Set(available));
+  }, [consultation, selectedLanguage, translatedExplanation, formSections]);
 
 
   const fetchConsultation = async () => {
@@ -459,9 +592,14 @@ export default function ConsultationDetailsPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           consultationId,
-          prescriptionOnly,
-          includeExplanation: !prescriptionOnly && includeAiExplanation,
-          language: !prescriptionOnly && includeAiExplanation && includeTranslation && selectedLanguage ? selectedLanguage : null,
+          includedFields: Array.from(includedFields),
+          language: includedFields.has("aiTranslation") ? selectedLanguage : null,
+          fieldLabels: formSections.reduce((acc, s) => {
+            for (const f of s.fields) {
+              if (!KNOWN_DERMATOLOGY_KEYS.has(f.fieldName)) acc[f.fieldName] = f.label;
+            }
+            return acc;
+          }, {} as Record<string, string>),
         }),
       });
 
@@ -473,7 +611,7 @@ export default function ConsultationDetailsPage() {
       const blob = await response.blob();
       const patientId = consultation.patientId?.patientId || "Unknown";
       const dateStr   = new Date().toISOString().split("T")[0];
-      saveAs(blob, prescriptionOnly ? `Prescription_${patientId}_${dateStr}.pdf` : `Consultation_${patientId}_${dateStr}.pdf`);
+      saveAs(blob, `Consultation_${patientId}_${dateStr}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
       showToast("error", "Failed to generate PDF");
@@ -497,8 +635,8 @@ export default function ConsultationDetailsPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           consultationId,
-          includeExplanation: includeAiExplanation,
-          language: includeAiExplanation && includeTranslation && selectedLanguage ? selectedLanguage : null,
+          includeExplanation: includedFields.has("aiExplanation"),
+          language: includedFields.has("aiTranslation") && selectedLanguage ? selectedLanguage : null,
         }),
       });
 
@@ -629,24 +767,83 @@ export default function ConsultationDetailsPage() {
                 <span>{activeExplanation ? "AI Summary" : "Add AI Summary"}</span>
                 {activeExplanation && <span className="w-2 h-2 rounded-full bg-emerald-300 flex-shrink-0"></span>}
               </button>
-              {/* PDF inclusion toggles — only if summary exists and not prescription-only */}
-              {!prescriptionOnly && activeExplanation && (
-                <label className="flex items-center gap-1.5 bg-violet-50 px-2.5 py-1.5 rounded-lg border border-violet-200 cursor-pointer">
-                  <input type="checkbox" checked={includeAiExplanation} onChange={(e) => setIncludeAiExplanation(e.target.checked)} className="w-3.5 h-3.5 text-violet-600 rounded" />
-                  <span className="text-xs text-violet-700 font-medium">AI in PDF</span>
-                </label>
-              )}
-              {!prescriptionOnly && selectedLanguage && translatedExplanation && (
-                <label className="flex items-center gap-1.5 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200 cursor-pointer">
-                  <input type="checkbox" checked={includeTranslation} onChange={(e) => setIncludeTranslation(e.target.checked)} className="w-3.5 h-3.5 text-orange-600 rounded" />
-                  <span className="text-xs text-orange-700 font-medium">{selectedLanguage === "hindi" ? "हिंदी" : "ಕನ್ನಡ"} in PDF</span>
-                </label>
-              )}
-              {/* PDF type toggle */}
-              <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-medium">
-                <button onClick={() => setPrescriptionOnly(false)} className={`px-2.5 py-1.5 transition-colors ${!prescriptionOnly ? "bg-teal-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>Full Report</button>
-                <button onClick={() => setPrescriptionOnly(true)} className={`px-2.5 py-1.5 transition-colors border-l border-gray-200 ${prescriptionOnly ? "bg-teal-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>Rx Only</button>
-              </div>
+              {/* Customize PDF button + popover */}
+              {(() => {
+                const availableFields = detectAvailableFields(consultation, selectedLanguage, translatedExplanation, formSections);
+                // Custom fields from formSections, grouped by section label.
+                const customGroups: Array<{ label: string; fields: Array<{ key: string; label: string }> }> = formSections
+                  .map((s) => ({
+                    label: s.sectionLabel,
+                    fields: s.fields
+                      .filter((f) => !KNOWN_DERMATOLOGY_KEYS.has(f.fieldName) && f.type !== "prescription" && availableFields.includes(f.fieldName))
+                      .map((f) => ({ key: f.fieldName, label: f.label })),
+                  }))
+                  .filter((g) => g.fields.length > 0);
+                return (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowCustomizePopover((v) => !v)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-colors"
+                      title="Choose which fields to include in the PDF"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                      <span>Customize</span>
+                      <span className="text-xs text-gray-500">{includedFields.size}/{availableFields.length}</span>
+                    </button>
+                    {showCustomizePopover && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowCustomizePopover(false)} />
+                        <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-[70vh] overflow-y-auto">
+                          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
+                            <h3 className="text-sm font-semibold text-gray-900">Customize PDF</h3>
+                            <div className="flex gap-3 text-xs font-medium">
+                              <button onClick={() => setIncludedFields(new Set(availableFields))} className="text-teal-600 hover:underline">All</button>
+                              <button onClick={() => setIncludedFields(new Set())} className="text-gray-500 hover:underline">None</button>
+                            </div>
+                          </div>
+                          <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+                            <div className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">Always Included</div>
+                            <div className="text-xs text-gray-700 mt-0.5">Patient Name · Age · Gender</div>
+                          </div>
+                          <div className="py-1">
+                            {[...DERMATOLOGY_FIELD_GROUPS, ...customGroups].map((group) => {
+                              const visible = group.fields.filter((f) => availableFields.includes(f.key));
+                              if (visible.length === 0) return null;
+                              return (
+                                <div key={group.label} className="px-3 py-1.5">
+                                  <div className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mb-1 px-1">{group.label}</div>
+                                  {visible.map((f) => {
+                                    const dynamicLabel = f.key === "aiTranslation" && selectedLanguage
+                                      ? `${selectedLanguage === "hindi" ? "Hindi" : "Kannada"} Translation`
+                                      : f.label;
+                                    return (
+                                      <label key={f.key} className="flex items-center gap-2 py-1 px-1 cursor-pointer hover:bg-gray-50 rounded">
+                                        <input
+                                          type="checkbox"
+                                          checked={includedFields.has(f.key)}
+                                          onChange={(e) => {
+                                            setIncludedFields((prev) => {
+                                              const next = new Set(prev);
+                                              if (e.target.checked) next.add(f.key); else next.delete(f.key);
+                                              return next;
+                                            });
+                                          }}
+                                          className="w-3.5 h-3.5 text-teal-600 rounded"
+                                        />
+                                        <span className="text-xs text-gray-700">{dynamicLabel}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               <Link href={`/clinic/patients/${consultation.patientId._id}`}>
                 <button className="px-3 py-1.5 text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors">Patient</button>
               </Link>
@@ -1366,20 +1563,10 @@ export default function ConsultationDetailsPage() {
               )}
             </div>
 
-            {/* Modal Footer — PDF toggles */}
+            {/* Modal Footer */}
             {activeExplanation && !generatingExplanation && (
               <div className="border-t border-gray-100 px-6 py-3 flex items-center gap-4 flex-shrink-0 bg-gray-50">
-                <span className="text-xs text-gray-500 font-medium">Include in PDF:</span>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={includeAiExplanation} onChange={(e) => setIncludeAiExplanation(e.target.checked)} className="w-3.5 h-3.5 text-violet-600 rounded" />
-                  <span className="text-xs text-gray-700">English summary</span>
-                </label>
-                {selectedLanguage && translatedExplanation && (
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" checked={includeTranslation} onChange={(e) => setIncludeTranslation(e.target.checked)} className="w-3.5 h-3.5 text-orange-600 rounded" />
-                    <span className="text-xs text-gray-700">{selectedLanguage === "hindi" ? "हिंदी translation" : "ಕನ್ನಡ translation"}</span>
-                  </label>
-                )}
+                <span className="text-xs text-gray-500">Use the Customize button on the main page to choose what to include in the PDF.</span>
                 <button onClick={() => setShowAiModal(false)} className="ml-auto px-4 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">Close</button>
               </div>
             )}
