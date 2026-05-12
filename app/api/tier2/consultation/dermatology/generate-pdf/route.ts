@@ -813,11 +813,14 @@ export async function POST(request: NextRequest) {
         const range = doc.bufferedPageRange();
         for (let i = range.start; i < range.start + range.count; i++) {
           doc.switchToPage(i);
+          // Zero bottom margin so pdfkit doesn't auto-paginate when writing into
+          // the footer zone (y > PH - MB), which would create blank trailing pages.
+          (doc.page as any).margins.bottom = 0;
           hLine(doc, ML, ML + CW, PH - 45, C.border, 0.5);
           doc.fillColor(C.muted).font("Helvetica-Oblique").fontSize(7.5)
-             .text(footerText, ML, PH - 36, { width: CW - 60, align: "left" });
+             .text(footerText, ML, PH - 36, { width: CW - 60, align: "left", lineBreak: false });
           doc.fillColor(C.muted).font("Helvetica").fontSize(7.5)
-             .text(`Page ${i - range.start + 1} of ${range.count}`, ML, PH - 36, { width: CW, align: "right" });
+             .text(`Page ${i - range.start + 1} of ${range.count}`, ML, PH - 36, { width: CW, align: "right", lineBreak: false });
         }
         doc.flushPages();
       } catch (e) {
