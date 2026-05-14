@@ -228,6 +228,9 @@ export default function FrontdeskDashboardPage() {
                 Sales
               </Link>
             )}
+            <Link href="/frontdesk/procedures" className="px-4 py-3 text-base font-medium whitespace-nowrap transition-colors text-gray-500 hover:text-gray-700">
+              Procedures
+            </Link>
           </div>
         </div>
       </nav>

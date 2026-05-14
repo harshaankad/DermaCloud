@@ -566,6 +566,7 @@ export default function FrontdeskPharmacyPage() {
               { label: "Patients", href: "/frontdesk/patients" },
               { label: "Pharmacy", href: "/frontdesk/pharmacy", active: true },
               { label: "Sales", href: "/frontdesk/sales" },
+              { label: "Procedures", href: "/frontdesk/procedures" },
             ].map((item) => (
               <Link
                 key={item.href}

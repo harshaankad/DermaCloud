@@ -326,6 +326,7 @@ function FrontdeskPatientsPageInner() {
               { label: "Patients", href: "/frontdesk/patients", active: true },
               { label: "Pharmacy", href: "/frontdesk/pharmacy" },
               { label: "Sales", href: "/frontdesk/sales" },
+              { label: "Procedures", href: "/frontdesk/procedures" },
             ].map((item) => (
               <Link
                 key={item.href}
