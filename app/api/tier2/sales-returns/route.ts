@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request } from "@/lib/auth/verify-request";
 import SalesReturn from "@/models/SalesReturn";
+import Sale from "@/models/Sale";
 import InventoryItem from "@/models/InventoryItem";
 import InventoryTransaction from "@/models/InventoryTransaction";
 
@@ -50,6 +51,62 @@ export async function POST(request: NextRequest) {
 
   await connectDB();
   const body = await request.json();
+
+  // Over-return guard: if linked to an original sale, ensure total returned qty per item
+  // never exceeds the qty actually sold on that invoice (counting prior returns too).
+  if (body.originalSaleId) {
+    if (!mongoose.Types.ObjectId.isValid(body.originalSaleId)) {
+      return NextResponse.json({ success: false, message: "Invalid originalSaleId" }, { status: 400 });
+    }
+    const originalSale: any = await Sale.findOne({ _id: body.originalSaleId, clinicId: auth.clinicId }).lean();
+    if (!originalSale) {
+      return NextResponse.json({ success: false, message: "Original sale not found" }, { status: 404 });
+    }
+
+    const soldById: Record<string, number> = {};
+    const soldByName: Record<string, number> = {};
+    for (const it of (originalSale.items || [])) {
+      const qty = Number(it.quantity) || 0;
+      if (it.itemId) soldById[String(it.itemId)] = (soldById[String(it.itemId)] || 0) + qty;
+      soldByName[(it.itemName || "").trim().toLowerCase()] = (soldByName[(it.itemName || "").trim().toLowerCase()] || 0) + qty;
+    }
+
+    const priorReturns: any[] = await SalesReturn.find({
+      originalSaleId: body.originalSaleId,
+      clinicId: auth.clinicId,
+    }).lean();
+    const priorById: Record<string, number> = {};
+    const priorByName: Record<string, number> = {};
+    for (const pr of priorReturns) {
+      for (const it of (pr.items || [])) {
+        const qty = Number(it.quantity) || 0;
+        if (it.itemId) priorById[String(it.itemId)] = (priorById[String(it.itemId)] || 0) + qty;
+        priorByName[(it.itemName || "").trim().toLowerCase()] = (priorByName[(it.itemName || "").trim().toLowerCase()] || 0) + qty;
+      }
+    }
+
+    for (const it of (body.items || [])) {
+      const qty = Number(it.quantity) || 0;
+      if (qty <= 0) continue;
+      const idKey = it.itemId ? String(it.itemId) : null;
+      const nameKey = (it.itemName || "").trim().toLowerCase();
+      const sold = (idKey && soldById[idKey]) || soldByName[nameKey] || 0;
+      const prior = (idKey && priorById[idKey]) || priorByName[nameKey] || 0;
+      if (sold === 0) {
+        return NextResponse.json({
+          success: false,
+          message: `"${it.itemName}" was not part of the original sale.`,
+        }, { status: 400 });
+      }
+      if (prior + qty > sold) {
+        const remaining = Math.max(0, sold - prior);
+        return NextResponse.json({
+          success: false,
+          message: `Cannot return ${qty} of "${it.itemName}". Sold: ${sold}, already returned: ${prior}, remaining returnable: ${remaining}.`,
+        }, { status: 400 });
+      }
+    }
+  }
 
   const session = await mongoose.startSession();
   try {
