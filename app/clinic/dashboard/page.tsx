@@ -18,6 +18,9 @@ interface AppointmentData {
   status: string;
   reason: string;
   tokenNumber?: number;
+  consultationId?: string;
+  procedureName?: string;
+  walkIn?: boolean;
   patientId: {
     _id: string;
     name: string;
@@ -66,6 +69,8 @@ export default function Tier2Dashboard() {
   const [sales, setSales] = useState<SalesInfo | null>(null);
   const [pharmacy, setPharmacy] = useState<{ lowStockCount: number; outOfStockCount: number; expiringCount: number } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [apptSearch, setApptSearch] = useState("");
+  const [apptQueue, setApptQueue] = useState<"consultation" | "procedure">("consultation");
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchDashboard = useCallback(async (showLoader = false, liteMode = false) => {
@@ -230,12 +235,43 @@ export default function Tier2Dashboard() {
     "no-show": 5,
     "cancelled": 6,
   };
-  const sortedAppointments = [...(appointments?.list || [])].sort((a, b) => {
+  const allAppointments = [...(appointments?.list || [])].sort((a, b) => {
     const pa = statusPriority[a.status] ?? 99;
     const pb = statusPriority[b.status] ?? 99;
     if (pa !== pb) return pa - pb;
     return (a.appointmentTime || "").localeCompare(b.appointmentTime || "");
   });
+  // Queue filter: consultation queue = consultation/follow-up, procedure queue = cosmetology.
+  const inQueue = (a: AppointmentData) =>
+    apptQueue === "procedure"
+      ? a.type === "cosmetology"
+      : a.type === "consultation" || a.type === "follow-up";
+  const queueCounts = {
+    consultation: allAppointments.filter((a) => a.type === "consultation" || a.type === "follow-up").length,
+    procedure: allAppointments.filter((a) => a.type === "cosmetology").length,
+  };
+  const queuedAppointments = allAppointments.filter(inQueue);
+  const sortedAppointments = apptSearch.trim()
+    ? queuedAppointments.filter((a) =>
+        (a.patientId?.name || "").toLowerCase().includes(apptSearch.trim().toLowerCase())
+      )
+    : queuedAppointments;
+
+  // Doctor's "Start" button — smart routing:
+  //   - If the appointment already has a consultation document, open the saved report.
+  //   - Otherwise, open the patient profile page with appointmentId in the URL.
+  //     The profile page shows a banner ("Appointment linked — start a visit below")
+  //     and lets the doctor pick Dermatology or Cosmetology themselves.
+  // Status is intentionally NOT mutated — frontdesk owns status transitions.
+  const startHref = (apt: AppointmentData): string => {
+    if (apt.consultationId) {
+      const isCosmo = apt.type === "cosmetology" || !!apt.procedureName;
+      return isCosmo
+        ? `/clinic/consultation/cosmetology/${apt.consultationId}`
+        : `/clinic/consultation/${apt.consultationId}`;
+    }
+    return `/clinic/patients/${apt.patientId._id}?appointmentId=${apt._id}`;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50">
@@ -441,110 +477,156 @@ export default function Tier2Dashboard() {
           {/* Today's Appointments */}
           <div className="lg:col-span-2 order-1 lg:order-2">
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <h3 className="font-semibold text-gray-900">Today&apos;s Appointments</h3>
-                  {/* Live indicator */}
-                  <span className="flex items-center space-x-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              <div className="p-4 border-b bg-gray-50 flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2">
+                    <h3 className="font-semibold text-gray-900">Today&apos;s Appointments</h3>
+                    <span className="flex items-center space-x-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                      </span>
+                      <span>Live</span>
                     </span>
-                    <span>Live</span>
-                  </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={apptSearch}
+                        onChange={(e) => setApptSearch(e.target.value)}
+                        placeholder="Search patient name…"
+                        className="pl-8 pr-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none w-56"
+                      />
+                      <svg className="w-4 h-4 text-gray-400 absolute top-1/2 left-2.5 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    {lastUpdated && (
+                      <span className="text-xs text-gray-400 hidden md:inline">Updated {getTimeAgo(lastUpdated)}</span>
+                    )}
+                    <span className="text-sm text-gray-500">{sortedAppointments.length}{apptSearch ? ` / ${queuedAppointments.length}` : ""}</span>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-3">
-                  {lastUpdated && (
-                    <span className="text-xs text-gray-400">Updated {getTimeAgo(lastUpdated)}</span>
-                  )}
-                  <span className="text-sm text-gray-500">{appointments?.stats.total || 0} total</span>
+                {/* Queue toggle */}
+                <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-0.5 self-start">
+                  <button
+                    onClick={() => setApptQueue("consultation")}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                      apptQueue === "consultation" ? "bg-white text-teal-700 shadow-sm font-semibold" : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Consultations
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${apptQueue === "consultation" ? "bg-teal-100 text-teal-700" : "bg-gray-200 text-gray-600"}`}>
+                      {queueCounts.consultation}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setApptQueue("procedure")}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                      apptQueue === "procedure" ? "bg-white text-pink-700 shadow-sm font-semibold" : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Procedures
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${apptQueue === "procedure" ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-600"}`}>
+                      {queueCounts.procedure}
+                    </span>
+                  </button>
                 </div>
               </div>
 
               {sortedAppointments.length > 0 ? (
-                <div className="divide-y max-h-[500px] overflow-y-auto">
+                <div className="divide-y max-h-[600px] overflow-y-auto">
                   {sortedAppointments.map((apt) => {
                     const ss = getStatusStyle(apt.status);
                     const isActive = apt.status === "in-progress";
                     const isWaiting = apt.status === "checked-in";
-
-                    const rowContent = (
-                      <div
-                        className={`p-4 flex items-center gap-4 transition-colors w-full ${
-                          isActive
-                            ? "bg-purple-50/60 border-l-4 border-purple-500"
-                            : isWaiting
-                            ? "bg-amber-50/40 border-l-4 border-amber-400"
-                            : "border-l-4 border-transparent"
-                        }`}
-                      >
-                        {/* Token Number */}
-                        <div className="flex-shrink-0">
-                          <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center border-2 ${getTokenStyle(apt.status)} ${
-                            apt.status === "in-progress" ? "ring-2 ring-purple-300 ring-offset-1" : ""
-                          }`}>
-                            <span className="text-lg font-black leading-none">
-                              {apt.tokenNumber || "-"}
-                            </span>
-                            <span className="text-[9px] font-bold opacity-60 uppercase">Token</span>
-                          </div>
-                        </div>
-
-                        {/* Time */}
-                        <div className="min-w-[60px] text-center flex-shrink-0">
-                          <div className="inline-flex flex-col items-center px-2.5 py-1.5 bg-gradient-to-b from-teal-50 to-cyan-50 rounded-xl border border-teal-100">
-                            <span className="text-sm font-bold text-teal-700 leading-tight">{apt.appointmentTime || "—"}</span>
-                            <span className="text-[9px] text-teal-500 font-medium">
-                              {apt.appointmentTime && parseInt(apt.appointmentTime) >= 12 ? "PM" : "AM"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Patient Info */}
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center flex-shrink-0">
-                            <span className="text-white font-bold text-sm">
-                              {apt.patientId?.name?.charAt(0) || "?"}
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-900 text-sm truncate">{apt.patientId?.name || "Unknown"}</p>
-                            <p className="text-xs text-gray-400 truncate">{apt.patientId?.phone || ""}</p>
-                          </div>
-                        </div>
-
-                        {/* Type Badge */}
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium hidden sm:inline-block ${getTypeColor(apt.type)}`}>
-                          {apt.type}
-                        </span>
-
-                        {/* Status Badge */}
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 ${ss.bg} ${ss.text}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${ss.dot}`}></span>
-                          {ss.label}
-                        </span>
-
-                        {/* Action Button */}
-                        <div className="flex-shrink-0">
-                          {isActive && apt.patientId?._id && (
-                            <Link
-                              href={`/clinic/patients/${apt.patientId._id}?appointmentId=${apt._id}`}
-                              className="px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                              <span>Start Visit</span>
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    );
+                    const isCompleted = apt.status === "completed";
+                    const hasReport = !!apt.consultationId;
+                    const reasonLabel = apt.procedureName || (apt.type === "follow-up" ? "Follow-up" : apt.type === "cosmetology" ? "Cosmetology" : "Consultation");
 
                     return (
-                      <div key={apt._id}>
-                        {rowContent}
-                      </div>
+                      <Link
+                        key={apt._id}
+                        href={startHref(apt)}
+                        className="block group"
+                      >
+                        <div
+                          className={`p-4 flex items-center gap-4 transition-colors w-full hover:bg-gray-50 ${
+                            isActive
+                              ? "bg-purple-50/60 border-l-4 border-purple-500 hover:bg-purple-50"
+                              : isWaiting
+                              ? "bg-amber-50/40 border-l-4 border-amber-400 hover:bg-amber-50"
+                              : "border-l-4 border-transparent"
+                          }`}
+                        >
+                          {/* Token Number */}
+                          <div className="flex-shrink-0">
+                            <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center border-2 ${getTokenStyle(apt.status)} ${
+                              apt.status === "in-progress" ? "ring-2 ring-purple-300 ring-offset-1" : ""
+                            }`}>
+                              <span className="text-lg font-black leading-none">{apt.tokenNumber || "—"}</span>
+                              <span className="text-[9px] font-bold opacity-60 uppercase">Token</span>
+                            </div>
+                          </div>
+
+                          {/* Time */}
+                          <div className="min-w-[60px] text-center flex-shrink-0">
+                            <div className="inline-flex flex-col items-center px-2.5 py-1.5 bg-gradient-to-b from-teal-50 to-cyan-50 rounded-xl border border-teal-100">
+                              <span className="text-sm font-bold text-teal-700 leading-tight">{apt.appointmentTime || "—"}</span>
+                              <span className="text-[9px] text-teal-500 font-medium">
+                                {apt.appointmentTime && parseInt(apt.appointmentTime) >= 12 ? "PM" : "AM"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Patient Info */}
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center flex-shrink-0">
+                              <span className="text-white font-bold text-sm">{apt.patientId?.name?.charAt(0) || "?"}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 text-sm truncate">{apt.patientId?.name || "Unknown"}</p>
+                              <p className="text-xs text-gray-400 truncate">{reasonLabel} · {apt.patientId?.phone || ""}</p>
+                            </div>
+                          </div>
+
+                          {/* Status Badge */}
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 ${ss.bg} ${ss.text}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${ss.dot}`}></span>
+                            {ss.label}
+                          </span>
+
+                          {/* Start / View button */}
+                          <div className="flex-shrink-0">
+                            <span
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1 transition-colors ${
+                                hasReport && isCompleted
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 group-hover:bg-emerald-100"
+                                  : isActive
+                                  ? "bg-teal-600 text-white group-hover:bg-teal-700"
+                                  : "bg-teal-50 text-teal-700 border border-teal-200 group-hover:bg-teal-100"
+                              }`}
+                            >
+                              {hasReport ? (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  <span>View Report</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                  <span>Start</span>
+                                </>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
                     );
                   })}
                 </div>
@@ -553,8 +635,10 @@ export default function Tier2Dashboard() {
                   <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <p>No appointments scheduled for today</p>
-                  <p className="text-sm text-gray-400 mt-1">Appointments booked by frontdesk will appear here automatically</p>
+                  <p>{apptSearch ? `No appointment matches "${apptSearch}"` : "No appointments today"}</p>
+                  {!apptSearch && (
+                    <p className="text-sm text-gray-400 mt-1">Walk-ins registered by frontdesk will appear here automatically</p>
+                  )}
                 </div>
               )}
             </div>
