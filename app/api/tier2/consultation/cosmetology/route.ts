@@ -389,3 +389,142 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+// PUT endpoint to update consultation form data ("All Details" edit).
+// Only mutates form-derived fields (patientInfo / assessment / procedure / aftercare / consent / customFields).
+// Leaves images, appointmentId, consultationDate, patientSummary, status, ownership fields untouched.
+export async function PUT(request: NextRequest) {
+  try {
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
+    }
+    if (auth.role !== "doctor") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { consultationId, formData } = body;
+
+    if (!consultationId || !isValidObjectId(consultationId)) {
+      return NextResponse.json(
+        { success: false, message: "Valid consultation ID is required" },
+        { status: 400 }
+      );
+    }
+    if (!formData || typeof formData !== "object") {
+      return NextResponse.json(
+        { success: false, message: "formData is required" },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    const consultation = await ConsultationCosmetology.findById(consultationId);
+    if (!consultation) {
+      return NextResponse.json(
+        { success: false, message: "Consultation not found" },
+        { status: 404 }
+      );
+    }
+    if (consultation.clinicId.toString() !== auth.clinicId) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
+    // For multi-issue, the structured top-level fields mirror Issue 0's form data.
+    const isMulti = formData?._multiIssue === true && Array.isArray(formData?._issues);
+    const primary = isMulti ? (formData._issues[0]?.formData || {}) : formData;
+
+    consultation.patientInfo = {
+      ...consultation.patientInfo,
+      skinType: primary.skinType ?? consultation.patientInfo?.skinType,
+      primaryConcern: primary.primaryConcern ?? consultation.patientInfo?.primaryConcern,
+    };
+    consultation.assessment = {
+      findings: primary.findings,
+      diagnosis: primary.diagnosis,
+      baselineEvaluation: primary.baselineEvaluation,
+      contraindicationsCheck: primary.contraindicationsCheck,
+    };
+
+    const basePrice =
+      primary.basePrice != null && primary.basePrice !== ""
+        ? Number(primary.basePrice)
+        : undefined;
+    const gstRate =
+      primary.gstRate != null && primary.gstRate !== ""
+        ? Number(primary.gstRate)
+        : undefined;
+    const gstAmount =
+      basePrice != null && gstRate != null ? (basePrice * gstRate) / 100 : undefined;
+    const totalAmount =
+      basePrice != null ? basePrice + (gstAmount || 0) : undefined;
+    consultation.procedure = {
+      name: primary.procedureName || primary.name,
+      goals: primary.goals,
+      sessionNumber:
+        primary.sessionNumber && !isNaN(parseInt(primary.sessionNumber))
+          ? parseInt(primary.sessionNumber)
+          : undefined,
+      package: primary.package,
+      productsAndParameters: primary.productsAndParameters,
+      immediateOutcome: primary.immediateOutcome,
+      procedureId:
+        primary.procedureId && isValidObjectId(primary.procedureId)
+          ? primary.procedureId
+          : undefined,
+      basePrice,
+      gstRate,
+      gstAmount,
+      totalAmount,
+    } as any;
+
+    consultation.aftercare = {
+      instructions: primary.instructions,
+      homeProducts: primary.homeProducts,
+      followUpDate: primary.followUpDate ? new Date(primary.followUpDate) : undefined,
+      expectedResults: primary.expectedResults,
+    };
+    consultation.consent = {
+      risksExplained: primary.risksExplained,
+      consentConfirmed:
+        primary.consentConfirmed === true || primary.consentConfirmed === "true",
+    };
+
+    consultation.customFields = formData;
+    consultation.markModified("customFields");
+
+    await consultation.save();
+
+    auditLog({
+      clinicId: auth.clinicId,
+      userId: auth.userId,
+      userEmail: auth.email,
+      role: "doctor",
+      action: "CONSULTATION_UPDATE",
+      resourceType: "consultation",
+      resourceId: consultation._id.toString(),
+      details: { type: "cosmetology" },
+    }).catch(() => {});
+
+    return NextResponse.json({
+      success: true,
+      message: "Consultation updated successfully",
+      data: { consultationId: consultation._id },
+    });
+  } catch (error: any) {
+    console.error("Update cosmetology consultation error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to update consultation",
+        error: error.message,
+      },
+      { status: 500 }
+    );
+  }
+}

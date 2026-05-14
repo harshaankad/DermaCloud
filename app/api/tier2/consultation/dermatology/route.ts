@@ -9,6 +9,7 @@ import { connectDB } from "@/lib/db/connection";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 import Patient from "@/models/Patient";
 import Clinic from "@/models/Clinic";
+import Appointment from "@/models/Appointment";
 import { getSignedUrl } from "@/lib/aws/signed-url";
 import { isValidObjectId } from "@/lib/sanitize";
 import { auditLog } from "@/lib/audit";
@@ -305,6 +306,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       patientId,
+      appointmentId,
       formData,
       aiAnalysis,
       dermoscopeImageUrls,
@@ -391,6 +393,7 @@ export async function POST(request: NextRequest) {
         clinicId: auth.clinicId,
         patientId: patient._id,
         doctorId: auth.userId,
+        appointmentId: appointmentId || undefined,
         consultationDate: new Date(),
         patientInfo: {
           name: formData.patientName || patient.name,
@@ -449,6 +452,20 @@ export async function POST(request: NextRequest) {
       });
 
       console.log("Consultation created successfully with ID:", consultation._id);
+
+      // Link consultation back to the appointment so the doctor's dashboard
+      // can switch from "Start" to "View Report". We do NOT mutate the
+      // appointment's status — that stays under frontdesk control.
+      if (appointmentId && isValidObjectId(appointmentId)) {
+        try {
+          await Appointment.findOneAndUpdate(
+            { _id: appointmentId, clinicId: auth.clinicId },
+            { $set: { consultationId: consultation._id } }
+          );
+        } catch (linkErr: any) {
+          console.error("Error linking consultation to appointment:", linkErr?.message);
+        }
+      }
 
       auditLog({ clinicId: auth.clinicId, userId: auth.userId, userEmail: auth.email, role: "doctor", action: "CONSULTATION_CREATE", resourceType: "consultation", resourceId: consultation._id.toString(), details: { patientId: patient._id.toString(), type: "dermatology" } }).catch(() => {});
 
@@ -689,6 +706,154 @@ export async function GET(request: NextRequest) {
         message: "Failed to fetch consultation",
         error: error.message,
         stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT endpoint to update consultation form data ("All Details" edit)
+// Only mutates form-derived fields (patientInfo / clinicalExamination / dermoscopeFindings.finalInterpretation /
+// diagnosis / treatmentPlan / followUp / customFields). Leaves images, AI predictions, AI summary,
+// status, ownership fields untouched.
+export async function PUT(request: NextRequest) {
+  try {
+    const auth = await verifyTier2Request(request);
+    if (!auth.success) {
+      return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
+    }
+    if (auth.role !== "doctor") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { consultationId, formData } = body;
+
+    if (!consultationId || !isValidObjectId(consultationId)) {
+      return NextResponse.json(
+        { success: false, message: "Valid consultation ID is required" },
+        { status: 400 }
+      );
+    }
+    if (!formData || typeof formData !== "object") {
+      return NextResponse.json(
+        { success: false, message: "formData is required" },
+        { status: 400 }
+      );
+    }
+    if (
+      formData?._multiIssue === true &&
+      Array.isArray(formData?._issues) &&
+      formData._issues.length > 2
+    ) {
+      return NextResponse.json(
+        { success: false, message: "Maximum 2 issues are allowed per consultation" },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    const consultation = await ConsultationDermatology.findById(consultationId);
+    if (!consultation) {
+      return NextResponse.json(
+        { success: false, message: "Consultation not found" },
+        { status: 404 }
+      );
+    }
+    if (consultation.clinicId.toString() !== auth.clinicId) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
+    // For multi-issue, the structured top-level fields mirror Issue 0's form data.
+    // For single-issue, they mirror the flat form data.
+    const primary =
+      formData?._multiIssue === true && Array.isArray(formData?._issues)
+        ? (formData._issues[0]?.formData || {})
+        : formData;
+
+    consultation.patientInfo = {
+      ...consultation.patientInfo,
+      complaint: primary.complaint || primary.chiefComplaint || consultation.patientInfo?.complaint,
+      duration: primary.duration ?? consultation.patientInfo?.duration,
+      previousTreatment: primary.previousTreatment ?? consultation.patientInfo?.previousTreatment,
+    };
+    consultation.clinicalExamination = {
+      lesionSite: primary.lesionSite,
+      morphology: primary.morphology,
+      distribution: primary.distribution,
+      severity: primary.severity,
+    };
+    // Preserve aiResults (frozen AI predictions); only update doctor-typed finalInterpretation.
+    const existingDermo: any =
+      (consultation.dermoscopeFindings as any)?.toObject?.() ||
+      consultation.dermoscopeFindings ||
+      {};
+    consultation.dermoscopeFindings = {
+      ...existingDermo,
+      finalInterpretation: primary.finalInterpretation || primary.dermoscopicFindings,
+    };
+    const diffSource = primary.differentials || primary.differentialDiagnosis;
+    consultation.diagnosis = {
+      provisional: primary.provisional || primary.provisionalDiagnosis,
+      differentials: diffSource
+        ? (Array.isArray(diffSource)
+            ? diffSource
+            : String(diffSource).split(",").map((d: string) => d.trim()).filter(Boolean))
+        : [],
+    };
+    const existingTx: any =
+      (consultation.treatmentPlan as any)?.toObject?.() ||
+      consultation.treatmentPlan ||
+      {};
+    consultation.treatmentPlan = {
+      ...existingTx,
+      topicals: primary.topicals || primary.topicalMedications,
+      orals: primary.orals || primary.oralMedications,
+      lifestyleChanges: primary.lifestyleChanges || primary.lifestyleAdvice,
+      investigations: primary.investigations,
+    };
+    const fuDate = primary.date || primary.followUpDate;
+    if (fuDate) {
+      consultation.followUp = {
+        date: new Date(fuDate),
+        reason: primary.reason || primary.followUpReason,
+      };
+    } else {
+      consultation.followUp = undefined as any;
+    }
+
+    consultation.customFields = formData;
+    consultation.markModified("customFields");
+
+    await consultation.save();
+
+    auditLog({
+      clinicId: auth.clinicId,
+      userId: auth.userId,
+      userEmail: auth.email,
+      role: "doctor",
+      action: "CONSULTATION_UPDATE",
+      resourceType: "consultation",
+      resourceId: consultation._id.toString(),
+      details: { type: "dermatology" },
+    }).catch(() => {});
+
+    return NextResponse.json({
+      success: true,
+      message: "Consultation updated successfully",
+      data: { consultationId: consultation._id },
+    });
+  } catch (error: any) {
+    console.error("Update dermatology consultation error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to update consultation",
+        error: error.message,
       },
       { status: 500 }
     );

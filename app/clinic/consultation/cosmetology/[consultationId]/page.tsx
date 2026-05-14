@@ -355,7 +355,48 @@ export default function CosmetologyConsultationDetailsPage() {
   const [translatedExplanation, setTranslatedExplanation] = useState<string | null>(null);
 
   // Form sections config for "All Details" display
-  const [formSections, setFormSections] = useState<Array<{ sectionLabel: string; fields: Array<{ fieldName: string; label: string; type: string }> }>>([]);
+  const [formSections, setFormSections] = useState<Array<{ sectionLabel: string; fields: Array<{ fieldName: string; label: string; type: string; options?: string[]; placeholder?: string }> }>>([]);
+
+  // ── "All Details" edit state ────────────────────────────────────────────────
+  const [editingIssueIdx, setEditingIssueIdx] = useState<number | null>(null);
+  const [editedFormData, setEditedFormData] = useState<Record<string, any>>({});
+  const [savingAllDetails, setSavingAllDetails] = useState(false);
+
+  // Medicine search (prescription autocomplete in edit mode)
+  const [medSearchResults, setMedSearchResults] = useState<any[]>([]);
+  const [medSearchActive, setMedSearchActive] = useState<string | null>(null);
+  const medSearchTimerRef = (typeof window !== "undefined" ? (window as any) : {}) as any;
+  const searchMedicines = (query: string, key: string) => {
+    setMedSearchActive(key);
+    if (medSearchTimerRef.__medTimer) clearTimeout(medSearchTimerRef.__medTimer);
+    if (query.length < 2) { setMedSearchResults([]); return; }
+    medSearchTimerRef.__medTimer = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`/api/tier2/inventory/search?q=${encodeURIComponent(query)}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (data.success) setMedSearchResults(data.data);
+      } catch { setMedSearchResults([]); }
+    }, 300);
+  };
+
+  // Procedure search (cosmetology procedure autocomplete in edit mode)
+  const [procSearchResults, setProcSearchResults] = useState<any[]>([]);
+  const [procSearchActive, setProcSearchActive] = useState<string | null>(null);
+  const procSearchTimerRef = (typeof window !== "undefined" ? (window as any) : {}) as any;
+  const searchProcedures = (query: string, key: string) => {
+    setProcSearchActive(key);
+    if (procSearchTimerRef.__procTimer) clearTimeout(procSearchTimerRef.__procTimer);
+    if (query.length < 1) { setProcSearchResults([]); return; }
+    procSearchTimerRef.__procTimer = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`/api/tier2/cosmetology-procedures?search=${encodeURIComponent(query)}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (data.success) setProcSearchResults(data.data);
+      } catch { setProcSearchResults([]); }
+    }, 300);
+  };
 
   const activeExplanation =
     consultation?.patientSummary?.doctorEdited || consultation?.patientSummary?.aiGenerated;
@@ -402,7 +443,13 @@ export default function CosmetologyConsultationDetailsPage() {
           if (formData2.success) {
             setFormSections(formData2.data.sections.map((s: any) => ({
               sectionLabel: s.sectionLabel,
-              fields: s.fields.filter((f: any) => f.enabled).map((f: any) => ({ fieldName: f.fieldName, label: f.label, type: f.type })),
+              fields: s.fields.filter((f: any) => f.enabled).map((f: any) => ({
+                fieldName: f.fieldName,
+                label: f.label,
+                type: f.type,
+                options: f.options,
+                placeholder: f.placeholder,
+              })),
             })));
           }
         } catch {}
@@ -413,6 +460,80 @@ export default function CosmetologyConsultationDetailsPage() {
       showToast("error", "Failed to load consultation details");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── "All Details" edit handlers ────────────────────────────────────────────
+  const beginEditAllDetails = (issueIdx: number) => {
+    if (!consultation) return;
+    const cf: any = consultation.customFields || {};
+    const isMulti = cf._multiIssue === true && Array.isArray(cf._issues);
+    const initial = isMulti
+      ? { ...(cf._issues?.[issueIdx]?.formData || {}) }
+      : { ...(cf._issues?.[0]?.formData || cf) };
+    setEditedFormData(initial);
+    setEditingIssueIdx(issueIdx);
+  };
+
+  const cancelEditAllDetails = () => {
+    setEditingIssueIdx(null);
+    setEditedFormData({});
+    setMedSearchActive(null);
+    setMedSearchResults([]);
+    setProcSearchActive(null);
+    setProcSearchResults([]);
+  };
+
+  const updateEditedField = (fieldName: string, value: any) => {
+    setEditedFormData((prev) => ({ ...prev, [fieldName]: value }));
+  };
+
+  const saveAllDetails = async () => {
+    if (!consultation || editingIssueIdx === null) return;
+    setSavingAllDetails(true);
+    try {
+      const token = localStorage.getItem("token");
+      const cf: any = consultation.customFields || {};
+      const isMulti = cf._multiIssue === true && Array.isArray(cf._issues);
+
+      let payload: Record<string, any>;
+      if (isMulti) {
+        const newIssues = cf._issues.map((iss: any, idx: number) =>
+          idx === editingIssueIdx
+            ? { ...iss, formData: editedFormData }
+            : iss
+        );
+        payload = { ...cf, _issues: newIssues, _multiIssue: true };
+      } else {
+        payload = { ...editedFormData };
+        if (cf._issues) payload._issues = cf._issues;
+        if (cf._multiIssue !== undefined) payload._multiIssue = cf._multiIssue;
+      }
+
+      const res = await fetch("/api/tier2/consultation/cosmetology", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ consultationId, formData: payload }),
+      });
+      const result = await res.json();
+      if (!result.success) {
+        throw new Error(result.message || "Failed to update");
+      }
+      showToast("success", "Consultation updated");
+      setEditingIssueIdx(null);
+      setEditedFormData({});
+      setMedSearchActive(null);
+      setMedSearchResults([]);
+      setProcSearchActive(null);
+      setProcSearchResults([]);
+      await fetchConsultation();
+    } catch (err: any) {
+      showToast("error", err.message || "Failed to update consultation");
+    } finally {
+      setSavingAllDetails(false);
     }
   };
 
@@ -715,6 +836,229 @@ export default function CosmetologyConsultationDetailsPage() {
       showToast("error", error instanceof Error ? error.message : "Failed to share via WhatsApp");
     } finally {
       setSharingWhatsApp(false);
+    }
+  };
+
+  // Field editor for "All Details" edit mode. Renders an input matching field.type.
+  // Cosmetology-specific: the procedure-name field (fieldName === "name" or "procedureName" with
+  // "procedure" in the label) gets the procedure search autocomplete that auto-fills price/GST.
+  const renderEditField = (field: { fieldName: string; label: string; type: string; options?: string[]; placeholder?: string }, issueIdx: number) => {
+    const inputClass = "w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none";
+    const value = editedFormData[field.fieldName];
+
+    // Procedure-name field with search dropdown + price/GST auto-fill.
+    const isProcedureField =
+      (field.fieldName === "name" || field.fieldName === "procedureName") &&
+      typeof field.label === "string" &&
+      field.label.toLowerCase().includes("procedure");
+    if (isProcedureField) {
+      const searchKey = `proc-${issueIdx}-${field.fieldName}`;
+      return (
+        <div className="relative">
+          <input
+            type="text"
+            value={value || ""}
+            onChange={(e) => { updateEditedField(field.fieldName, e.target.value); searchProcedures(e.target.value, searchKey); }}
+            onFocus={() => { if ((value || "").length >= 1) searchProcedures(value, searchKey); }}
+            onBlur={() => setTimeout(() => { if (procSearchActive === searchKey) { setProcSearchActive(null); setProcSearchResults([]); } }, 200)}
+            placeholder={field.placeholder || "Search or type procedure name..."}
+            className={inputClass}
+            autoComplete="off"
+          />
+          {procSearchActive === searchKey && procSearchResults.length > 0 && (
+            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+              {procSearchResults.map((proc: any) => {
+                const gstAmt = proc.basePrice * proc.gstRate / 100;
+                const total = proc.basePrice + gstAmt;
+                return (
+                  <button
+                    key={proc._id}
+                    type="button"
+                    className="w-full text-left px-3 py-2.5 hover:bg-purple-50 transition-colors border-b border-gray-50 last:border-0"
+                    onClick={() => {
+                      setEditedFormData((prev) => ({
+                        ...prev,
+                        [field.fieldName]: proc.name,
+                        procedureId: proc._id,
+                        basePrice: proc.basePrice,
+                        gstRate: proc.gstRate,
+                        gstAmount: gstAmt,
+                        totalAmount: total,
+                      }));
+                      setProcSearchActive(null);
+                      setProcSearchResults([]);
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900">{proc.name}</span>
+                      <span className="text-sm font-bold text-purple-600">{"₹"}{proc.basePrice.toLocaleString()}{proc.gstRate > 0 ? ` +${proc.gstRate}% GST` : ""}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[11px] text-gray-400 capitalize">{proc.category}</span>
+                      {proc.gstRate > 0 && <span className="text-[11px] text-purple-500">Total: {"₹"}{total.toLocaleString()}</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    switch (field.type) {
+      case "textarea":
+        return (
+          <textarea
+            value={value || ""}
+            onChange={(e) => updateEditedField(field.fieldName, e.target.value)}
+            placeholder={field.placeholder || ""}
+            rows={3}
+            className={inputClass}
+          />
+        );
+      case "number":
+        return (
+          <input
+            type="number"
+            value={value ?? ""}
+            onChange={(e) => updateEditedField(field.fieldName, e.target.value)}
+            placeholder={field.placeholder || ""}
+            className={inputClass}
+          />
+        );
+      case "date":
+        return (
+          <input
+            type="date"
+            value={value ? String(value).substring(0, 10) : ""}
+            onChange={(e) => updateEditedField(field.fieldName, e.target.value)}
+            className={inputClass}
+          />
+        );
+      case "select":
+        return (
+          <select
+            value={value || ""}
+            onChange={(e) => updateEditedField(field.fieldName, e.target.value)}
+            className={inputClass}
+          >
+            <option value="">-- Select --</option>
+            {(field.options || []).map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        );
+      case "checkbox":
+        return (
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={value === true || value === "true"}
+              onChange={(e) => updateEditedField(field.fieldName, e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            />
+            <span className="text-sm text-gray-700">{field.label}</span>
+          </label>
+        );
+      case "prescription": {
+        const meds: Array<{ name: string; dosage: string; route: string; frequency: string; duration: string; instructions: string; quantity: string }> =
+          Array.isArray(value) ? value : [];
+        const updateMed = (idx: number, key: string, val: string) => {
+          const updated = [...meds];
+          updated[idx] = { ...updated[idx], [key]: val };
+          updateEditedField(field.fieldName, updated);
+        };
+        const addMed = () => updateEditedField(field.fieldName, [...meds, { name: "", dosage: "", route: "", frequency: "", duration: "", instructions: "", quantity: "" }]);
+        const removeMed = (idx: number) => updateEditedField(field.fieldName, meds.filter((_, i) => i !== idx));
+        return (
+          <div className="space-y-3">
+            {meds.map((med, idx) => (
+              <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 relative group">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Rx {idx + 1}</span>
+                  <button type="button" onClick={() => removeMed(idx)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded-lg transition-all" title="Remove">
+                    <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2 relative">
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Medicine Name</label>
+                    <input
+                      type="text"
+                      value={med.name || ""}
+                      onChange={(e) => { updateMed(idx, "name", e.target.value); searchMedicines(e.target.value, `rx-${issueIdx}-${idx}`); }}
+                      onFocus={() => { if ((med.name || "").length >= 2) searchMedicines(med.name, `rx-${issueIdx}-${idx}`); }}
+                      onBlur={() => setTimeout(() => { if (medSearchActive === `rx-${issueIdx}-${idx}`) { setMedSearchActive(null); setMedSearchResults([]); } }, 200)}
+                      placeholder="e.g. Tab. Azithromycin"
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                      autoComplete="off"
+                    />
+                    {medSearchActive === `rx-${issueIdx}-${idx}` && medSearchResults.length > 0 && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                        {medSearchResults.map((item: any) => (
+                          <button key={item._id} type="button" className="w-full text-left px-3 py-2.5 hover:bg-purple-50 transition-colors border-b border-gray-50 last:border-0" onClick={() => { updateMed(idx, "name", item.name); setMedSearchActive(null); setMedSearchResults([]); }}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${item.currentStock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                                {item.currentStock > 0 ? `${item.currentStock} ${item.unit}` : "Out of stock"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {item.genericName && <span className="text-[11px] text-gray-400">{item.genericName}</span>}
+                              {item.manufacturer && <span className="text-[11px] text-gray-400">• {item.manufacturer}</span>}
+                              {item.packing && <span className="text-[11px] text-gray-400">• {item.packing}</span>}
+                              <span className="text-[11px] text-purple-600 font-medium">{"₹"}{item.sellingPrice}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Dosage</label>
+                    <input type="text" value={med.dosage || ""} onChange={(e) => updateMed(idx, "dosage", e.target.value)} placeholder="e.g. 500mg" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Route</label>
+                    <input type="text" value={med.route || ""} onChange={(e) => updateMed(idx, "route", e.target.value)} placeholder="e.g. Oral, Topical" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Frequency</label>
+                    <input type="text" value={med.frequency || ""} onChange={(e) => updateMed(idx, "frequency", e.target.value)} placeholder="e.g. BD, TID, OD" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Duration</label>
+                    <input type="text" value={med.duration || ""} onChange={(e) => updateMed(idx, "duration", e.target.value)} placeholder="e.g. 7 days, 1 month" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Quantity</label>
+                    <input type="text" value={med.quantity || ""} onChange={(e) => updateMed(idx, "quantity", e.target.value)} placeholder="e.g. 10, 1 strip" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Instructions</label>
+                    <input type="text" value={med.instructions || ""} onChange={(e) => updateMed(idx, "instructions", e.target.value)} placeholder="e.g. After food" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none" />
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button type="button" onClick={addMed} className="w-full py-2.5 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 text-sm font-semibold hover:border-purple-500 hover:bg-purple-50 transition-all flex items-center justify-center space-x-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              <span>Add Medicine</span>
+            </button>
+          </div>
+        );
+      }
+      default:
+        return (
+          <input
+            type="text"
+            value={value || ""}
+            onChange={(e) => updateEditedField(field.fieldName, e.target.value)}
+            placeholder={field.placeholder || ""}
+            className={inputClass}
+          />
+        );
     }
   };
 
@@ -1348,13 +1692,63 @@ export default function CosmetologyConsultationDetailsPage() {
                 const fd = iss._rawFormData;
                 const skipKeys = ["_multiIssue", "_issues"];
                 const hasData = Object.entries(fd).some(([key, val]) => !skipKeys.includes(key) && val && (typeof val === "string" ? val.trim() : true));
-                if (!hasData) return null;
+                if (!hasData && editingIssueIdx !== issueIdx) return null;
                 return (
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
                       <div className="w-1.5 h-5 rounded-full bg-gradient-to-b from-indigo-500 to-violet-500"></div>
                       <h2 className="text-sm font-bold text-gray-800">All Details</h2>
+                      {editingIssueIdx !== issueIdx && (
+                        <button
+                          onClick={() => beginEditAllDetails(issueIdx)}
+                          className="ml-auto px-3 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors flex items-center gap-1"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          Edit
+                        </button>
+                      )}
                     </div>
+                    {editingIssueIdx === issueIdx ? (
+                      <div className="p-5 space-y-4 bg-purple-50/30">
+                        {formSections.map((section) => {
+                          const sectionFields = section.fields;
+                          if (sectionFields.length === 0) return null;
+                          return (
+                            <div key={section.sectionLabel}>
+                              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{section.sectionLabel}</p>
+                              <div className="space-y-3">
+                                {sectionFields.map((f) => (
+                                  <div key={f.fieldName}>
+                                    {f.type !== "checkbox" && (
+                                      <label className="block text-xs text-gray-500 mb-1">{f.label}</label>
+                                    )}
+                                    {renderEditField(f, issueIdx)}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-purple-100">
+                          <button
+                            onClick={cancelEditAllDetails}
+                            disabled={savingAllDetails}
+                            className="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={saveAllDetails}
+                            disabled={savingAllDetails}
+                            className="px-5 py-2 text-sm font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {savingAllDetails ? (
+                              <><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />Saving...</>
+                            ) : "Save Changes"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
                     <div className="p-5 space-y-5">
                       {formSections.map((section) => {
                         const sectionFields = section.fields.filter((f) => {
@@ -1398,6 +1792,7 @@ export default function CosmetologyConsultationDetailsPage() {
                         );
                       })()}
                     </div>
+                    )}
                   </div>
                 );
               })()}
