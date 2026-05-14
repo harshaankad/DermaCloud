@@ -133,7 +133,7 @@ export async function PUT(
       );
     }
 
-    const updateData = { ...validationResult.data };
+    const updateData: any = { ...validationResult.data };
 
     // Handle status changes
     if (updateData.status) {
@@ -141,6 +141,26 @@ export async function PUT(
       switch (updateData.status) {
         case "checked-in":
           updateData.checkedInAt = now;
+          // Assign appointment token at check-in (separate sequence per day per clinic
+          // for walkIn:false rows). Only assign if not already set.
+          if (!appointment.tokenNumber) {
+            const dayStart = new Date(appointment.appointmentDate);
+            dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(dayStart);
+            dayEnd.setHours(23, 59, 59, 999);
+            const maxToken = await Appointment.findOne(
+              {
+                clinicId: auth.clinicId,
+                appointmentDate: { $gte: dayStart, $lte: dayEnd },
+                walkIn: { $ne: true },
+                tokenNumber: { $exists: true, $ne: null },
+                status: { $nin: ["cancelled"] },
+              },
+              { tokenNumber: 1 },
+              { sort: { tokenNumber: -1 } }
+            ).lean() as { tokenNumber?: number } | null;
+            updateData.tokenNumber = (maxToken?.tokenNumber || 0) + 1;
+          }
           break;
         case "in-progress":
           updateData.startedAt = now;

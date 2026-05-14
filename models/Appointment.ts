@@ -11,6 +11,7 @@ export interface IAppointment extends Document {
   duration: number; // in minutes
   type: "dermatology" | "cosmetology" | "follow-up" | "consultation";
   status: "scheduled" | "confirmed" | "checked-in" | "in-progress" | "completed" | "cancelled" | "no-show";
+  walkIn: boolean;
   reason?: string;
   notes?: string;
   bookedBy: {
@@ -20,6 +21,15 @@ export interface IAppointment extends Document {
   };
   consultationId?: mongoose.Types.ObjectId;
   consultationFee?: number;
+  paymentMode?: "cash" | "card" | "upi" | "insurance" | "credit";
+  // Procedure pricing — set when the visit reason is a cosmetology procedure.
+  // procedureName is a snapshot so analytics survive procedure renames/edits later.
+  procedureId?: mongoose.Types.ObjectId;
+  procedureName?: string;
+  basePrice?: number;
+  gstRate?: number;
+  gstAmount?: number;
+  totalAmount?: number;
   checkedInAt?: Date;
   startedAt?: Date;
   completedAt?: Date;
@@ -77,6 +87,10 @@ const AppointmentSchema = new Schema<IAppointment>(
       enum: ["scheduled", "confirmed", "checked-in", "in-progress", "completed", "cancelled", "no-show"],
       default: "scheduled",
     },
+    walkIn: {
+      type: Boolean,
+      default: false,
+    },
     reason: {
       type: String,
       trim: true,
@@ -109,6 +123,19 @@ const AppointmentSchema = new Schema<IAppointment>(
       type: Number,
       min: 0,
     },
+    paymentMode: {
+      type: String,
+      enum: ["cash", "card", "upi", "insurance", "credit"],
+    },
+    procedureId: {
+      type: Schema.Types.ObjectId,
+      ref: "CosmetologyProcedure",
+    },
+    procedureName: { type: String, trim: true },
+    basePrice: { type: Number, min: 0 },
+    gstRate: { type: Number, min: 0 },
+    gstAmount: { type: Number, min: 0 },
+    totalAmount: { type: Number, min: 0 },
     checkedInAt: Date,
     startedAt: Date,
     completedAt: Date,

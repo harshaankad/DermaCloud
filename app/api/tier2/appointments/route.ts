@@ -197,21 +197,9 @@ export async function POST(request: NextRequest) {
     const appointmentDateObj = new Date(appointmentDate);
     appointmentDateObj.setHours(0, 0, 0, 0);
 
-    // Auto-assign token number for this day
-    const endOfDay = new Date(appointmentDateObj);
-    endOfDay.setHours(23, 59, 59, 999);
-    const maxTokenResult = await Appointment.findOne(
-      {
-        clinicId: auth.clinicId,
-        appointmentDate: { $gte: appointmentDateObj, $lte: endOfDay },
-        status: { $nin: ["cancelled"] },
-        tokenNumber: { $exists: true },
-      },
-      { tokenNumber: 1 },
-      { sort: { tokenNumber: -1 } }
-    );
-    const tokenNumber = (maxTokenResult?.tokenNumber || 0) + 1;
-
+    // Token is intentionally NOT assigned here — it is assigned when the patient
+    // is checked in (see PUT handler in [id]/route.ts). Walk-ins get their own
+    // token sequence via the walk-in endpoint.
     const appointment = new Appointment({
       patientId,
       doctorId: auth.doctorId,
@@ -223,7 +211,6 @@ export async function POST(request: NextRequest) {
       reason,
       notes,
       consultationFee: consultationFee ?? undefined,
-      tokenNumber,
       bookedBy: {
         id: auth.userId,
         name: auth.name,
