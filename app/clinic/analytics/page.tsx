@@ -294,8 +294,17 @@ export default function AnalyticsPage() {
                 </p>
               </div>
 
-              {/* Range + Refresh */}
+              {/* Range + Refresh + Daily link */}
               <div className="flex items-center gap-2 flex-shrink-0">
+                <Link
+                  href="/clinic/analytics/daily"
+                  className="px-3 py-1.5 bg-teal-50 text-teal-700 border border-teal-200 rounded-xl text-sm font-semibold hover:bg-teal-100 transition-colors flex items-center gap-1.5"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Daily Revenue
+                </Link>
                 <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5">
                   {([7, 30, 90, 180] as const).map((r) => (
                     <button
