@@ -45,6 +45,9 @@ function PatientProfilePageInner() {
   // Edit drawer state
   const [showEditDrawer, setShowEditDrawer] = useState(false);
   const [editForm, setEditForm] = useState({
+    name: "",
+    phone: "",
+    gender: "",
     allergies: "",
     medicalHistory: "",
     age: "",
@@ -101,6 +104,9 @@ function PatientProfilePageInner() {
   const openEditDrawer = () => {
     if (!patient) return;
     setEditForm({
+      name: patient.name || "",
+      phone: patient.phone || "",
+      gender: patient.gender || "",
       allergies: patient.allergies?.join(", ") || "",
       medicalHistory: patient.medicalHistory || "",
       age: patient.age?.toString() || "",
@@ -113,6 +119,20 @@ function PatientProfilePageInner() {
   const handleUpdatePatient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!patient) return;
+
+    if (!editForm.name.trim()) {
+      showToast("error", "Name is required");
+      return;
+    }
+    if (!/^[0-9]{10}$/.test(editForm.phone.trim())) {
+      showToast("error", "Phone must be a 10-digit number");
+      return;
+    }
+    if (!editForm.gender) {
+      showToast("error", "Gender is required");
+      return;
+    }
+
     setEditLoading(true);
 
     try {
@@ -124,6 +144,9 @@ function PatientProfilePageInner() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          name: editForm.name.trim(),
+          phone: editForm.phone.trim(),
+          gender: editForm.gender,
           allergies: editForm.allergies
             ? editForm.allergies.split(",").map((a) => a.trim()).filter(Boolean)
             : [],
@@ -589,7 +612,7 @@ function PatientProfilePageInner() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Update Medical Info</h3>
+                  <h3 className="text-lg font-bold text-gray-900">Edit Patient Info</h3>
                   <p className="text-sm text-gray-500">{patient.name}</p>
                 </div>
               </div>
@@ -625,6 +648,65 @@ function PatientProfilePageInner() {
 
             {/* Edit Form */}
             <form onSubmit={handleUpdatePatient} className="px-6 py-5 space-y-5">
+              {/* Name */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                  <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
+                  placeholder="Full name"
+                  required
+                />
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                  <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
+                  placeholder="10-digit mobile number"
+                  inputMode="numeric"
+                  pattern="[0-9]{10}"
+                  required
+                />
+              </div>
+
+              {/* Gender */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                  <svg className="w-4 h-4 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 014-4h0M16 3.13a4 4 0 010 7.75M12 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  Gender
+                </label>
+                <select
+                  value={editForm.gender}
+                  onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-base bg-gray-50"
+                  required
+                >
+                  <option value="">Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
               {/* Allergies */}
               <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1.5">

@@ -7,6 +7,9 @@ import ConsultationCosmetology from "@/models/ConsultationCosmetology";
 import { z } from "zod";
 
 const updatePatientSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  phone: z.string().trim().regex(/^[0-9]{10}$/, "Please enter a valid 10-digit phone number").optional(),
+  gender: z.enum(["male", "female", "other"]).optional(),
   allergies: z.array(z.string()).optional(),
   medicalHistory: z.string().optional(),
   age: z.number().min(0).max(150).optional(),
@@ -159,6 +162,9 @@ export async function PUT(
     }
 
     const updates = validation.data;
+    if (updates.name !== undefined) patient.name = updates.name;
+    if (updates.phone !== undefined) patient.phone = updates.phone;
+    if (updates.gender !== undefined) patient.gender = updates.gender;
     if (updates.allergies !== undefined) patient.allergies = updates.allergies;
     if (updates.medicalHistory !== undefined) patient.medicalHistory = updates.medicalHistory;
     if (updates.age !== undefined) patient.age = updates.age;
