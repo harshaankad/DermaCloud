@@ -108,12 +108,13 @@ export async function GET(request: NextRequest) {
         },
       ]),
 
-      // Today's sales stats
+      // Today's sales stats — exclude drafts (unfinished sales)
       Sale.aggregate([
         {
           $match: {
             clinicId: clinicObjectId,
             createdAt: { $gte: today, $lt: tomorrow },
+            status: { $ne: "draft" },
           },
         },
         {

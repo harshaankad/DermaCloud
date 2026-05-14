@@ -22,38 +22,14 @@ interface SaleItem {
   total: number;
 }
 
-interface PrescriptionData {
-  type: "dermatology" | "cosmetology";
-  consultation: {
-    treatmentPlan?: {
-      medications?: { name: string; dosage: string; frequency: string; duration: string; quantity?: string }[];
-      topicals?: string;
-      orals?: string;
-      lifestyleChanges?: string;
-      investigations?: string;
-    };
-    procedure?: {
-      name?: string;
-      productsAndParameters?: string;
-      basePrice?: number;
-      gstRate?: number;
-      gstAmount?: number;
-      totalAmount?: number;
-    };
-    aftercare?: {
-      homeProducts?: string;
-      instructions?: string;
-    };
-    customFields?: Record<string, any>;
-  };
-}
-
 interface Sale {
   _id: string;
   saleId: string;
   invoiceNumber?: string;
   patientName: string;
   patientPhone?: string;
+  doctorName?: string;
+  city?: string;
   totalAmount: number;
   subtotal: number;
   discountAmount: number;
@@ -62,6 +38,9 @@ interface Sale {
   amountDue: number;
   paymentMethod: string;
   paymentStatus: string;
+  status?: "draft" | "completed";
+  isInterstate?: boolean;
+  roundingAmount?: number;
   createdAt: string;
   items: SaleItem[];
   notes?: string;
@@ -74,13 +53,13 @@ export default function FrontdeskSalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
-  const EMPTY_SALE_ITEM = { itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, gstRate: 0, total: 0 };
+  const EMPTY_SALE_ITEM = { itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, discountPct: 0, gstRate: 0, total: 0 };
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
   const [invSuggestions, setInvSuggestions] = useState<any[]>([]);
   const [saleForm, setSaleForm] = useState({
     patientName: "", patientPhone: "", doctorName: "", city: "",
     modeOfPayment: "cash", isInterstate: false, roundingAmount: 0,
-    items: [{ itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, gstRate: 0, total: 0 }],
+    items: [{ itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, discountPct: 0, gstRate: 0, total: 0 }],
   });
   const [submitting, setSubmitting] = useState(false);
   const [lastSale, setLastSale] = useState<any>(null);
@@ -93,10 +72,10 @@ export default function FrontdeskSalesPage() {
   const [collectingPayment, setCollectingPayment] = useState(false);
   const [collectAmount, setCollectAmount] = useState("");
 
-  const [prescription, setPrescription] = useState<PrescriptionData | null>(null);
-  const [loadingPrescription, setLoadingPrescription] = useState(false);
-  const [prescriptionChecked, setPrescriptionChecked] = useState(false);
   const [linkedAppointmentId, setLinkedAppointmentId] = useState<string | undefined>(undefined);
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
   const [salesTab, setSalesTab] = useState<"sales" | "returns">("sales");
   const [salesReturns, setSalesReturns] = useState<any[]>([]);
   const [loadingSalesReturns, setLoadingSalesReturns] = useState(false);
@@ -115,6 +94,7 @@ export default function FrontdeskSalesPage() {
     invoiceNo: "", invoiceDate: "", modeOfPayment: "cash", partyName: "", city: "",
     isInterstate: false,
     grossValue: 0, discount: 0, roundingAmount: 0, netAmount: 0, reason: "",
+    originalSaleId: "",
     items: [{ itemId: "", itemName: "", quantity: 1, unitPrice: 0, discount: 0, gstRate: 0, total: 0, restock: true }],
   });
 
@@ -193,6 +173,19 @@ export default function FrontdeskSalesPage() {
     return { gst0: gst[0], gst5: gst[5], gst12: gst[12], gst18: gst[18], gst28: gst[28], totalGst };
   };
 
+  // Per-item discount is entered as % in the UI but stored as a ₹ amount on the sale
+  // (so print bills, PDFs, reports, and returns keep working unchanged). This helper
+  // recomputes the ₹ discount and line total from mrp/qty/discountPct, so any change
+  // to mrp or qty also updates the rupee discount in lockstep with the chosen %.
+  const recalcSaleItem = (item: typeof EMPTY_SALE_ITEM) => {
+    const mrp = Number(item.mrp) || 0;
+    const qty = Number(item.qty) || 0;
+    const pct = Number(item.discountPct) || 0;
+    const discount = +(mrp * qty * pct / 100).toFixed(2);
+    const total = +(mrp * qty - discount).toFixed(2);
+    return { ...item, discount, total };
+  };
+
   const recomputeSrTotals = (items: typeof srForm.items, discount: number, roundingAmount: number) => {
     const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2);
     const totalGst = +items.reduce((s, it) => s + it.total * (it.gstRate || 0) / 100, 0).toFixed(2);
@@ -207,7 +200,8 @@ export default function FrontdeskSalesPage() {
     setSrSubmitting(true);
     try {
       const { gst0, gst5, gst12, gst18, gst28, totalGst } = computeGstBreakdowns(srForm.items);
-      const body = { ...srForm, gst0, gst5, gst12, gst18, gst28, totalGst };
+      const body: any = { ...srForm, gst0, gst5, gst12, gst18, gst28, totalGst };
+      if (!body.originalSaleId) delete body.originalSaleId;
       const res = await fetch("/api/tier2/sales-returns", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -219,32 +213,125 @@ export default function FrontdeskSalesPage() {
       if (data.success) {
         showToast("success", "Sales return recorded");
         setShowAddSrModal(false);
-        setSrForm({ invoiceNo: "", invoiceDate: "", modeOfPayment: "cash", partyName: "", city: "", isInterstate: false, grossValue: 0, discount: 0, roundingAmount: 0, netAmount: 0, reason: "", items: [{ itemId: "", itemName: "", quantity: 1, unitPrice: 0, discount: 0, gstRate: 0, total: 0, restock: true }] });
+        setSrForm({ invoiceNo: "", invoiceDate: "", modeOfPayment: "cash", partyName: "", city: "", isInterstate: false, grossValue: 0, discount: 0, roundingAmount: 0, netAmount: 0, reason: "", originalSaleId: "", items: [{ itemId: "", itemName: "", quantity: 1, unitPrice: 0, discount: 0, gstRate: 0, total: 0, restock: true }] });
         fetchSalesReturns(srFrom, srTo);
       } else { showToast("error", data.message || "Failed"); }
     } catch (err: any) { showToast("error", err?.message || "Failed to save"); }
     finally { setSrSubmitting(false); }
   };
 
-  const fetchPrescription = async (patientId: string, date?: string, appointmentId?: string) => {
-    setLoadingPrescription(true);
-    setPrescription(null);
-    setPrescriptionChecked(false);
+  // Prefill the sales-return form from an existing sale and open the return modal.
+  // Defaults each item's qty to the full original qty; user can edit down for partial returns.
+  // The server enforces that total returned qty per item never exceeds qty sold.
+  const openReturnForSale = (sale: any) => {
+    const dateSrc = sale.invoiceDate || sale.createdAt;
+    const isoDate = dateSrc ? new Date(dateSrc).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+    const allowedModes = ["cash", "card", "upi", "credit"];
+    const mop = allowedModes.includes(sale.paymentMethod) ? sale.paymentMethod : "cash";
+    const items = (sale.items || []).map((it: any) => {
+      const quantity = Number(it.quantity) || 1;
+      const unitPrice = Number(it.unitPrice) || 0;
+      const discount = Number(it.discount) || 0;
+      return {
+        itemId: it.itemId ? String(it.itemId) : "",
+        itemName: it.itemName || "",
+        quantity,
+        unitPrice,
+        discount,
+        gstRate: Number(it.gstRate) || 0,
+        total: +(unitPrice * quantity - discount).toFixed(2),
+        restock: true,
+      };
+    });
+    const grossValue = +items.reduce((s: number, it: any) => s + it.total, 0).toFixed(2);
+    const totalGst = +items.reduce((s: number, it: any) => s + it.total * (it.gstRate || 0) / 100, 0).toFixed(2);
+    const netAmount = +(grossValue + totalGst).toFixed(2);
+    setSrForm({
+      invoiceNo: sale.invoiceNumber || sale.saleId || "",
+      invoiceDate: isoDate,
+      modeOfPayment: mop,
+      partyName: sale.patientName || "",
+      city: sale.city || "",
+      isInterstate: !!sale.isInterstate,
+      grossValue,
+      discount: 0,
+      roundingAmount: 0,
+      netAmount,
+      reason: "",
+      originalSaleId: sale._id,
+      items: items.length > 0 ? items : [{ itemId: "", itemName: "", quantity: 1, unitPrice: 0, discount: 0, gstRate: 0, total: 0, restock: true }],
+    });
+    setSelectedSale(null);
+    setSalesTab("returns");
+    setShowAddSrModal(true);
+  };
+
+  // Fetch the patient's prescription AND the inventory list in parallel, then
+  // autofill the sale form items. Names that don't match an inventory item are
+  // added as empty rows so the user gets the existing "not found" inline error
+  // next to them and can pick a replacement or remove the row.
+  const autofillFromPrescription = async (patientId: string, date?: string, appointmentId?: string) => {
     const token = localStorage.getItem("frontdeskToken");
+    if (!token) return;
+    setAutofilling(true);
     try {
-      const url = `/api/tier2/sales/prescription?patientId=${patientId}${date ? `&date=${date}` : ""}${appointmentId ? `&appointmentId=${appointmentId}` : ""}`;
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      if (data.success && data.data) {
-        setPrescription(data.data);
+      const rxUrl = `/api/tier2/sales/prescription?patientId=${patientId}${date ? `&date=${date}` : ""}${appointmentId ? `&appointmentId=${appointmentId}` : ""}`;
+      const [invRes, rxRes] = await Promise.all([
+        fetch("/api/tier2/inventory?limit=2000", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(rxUrl, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const invData = await invRes.json();
+      const rxData = await rxRes.json();
+      const invList: any[] = invData.success ? (invData.data.items || []) : [];
+      setInvSuggestions(invList);
+
+      if (!rxData.success || !rxData.data) return;
+
+      const cf = rxData.data.consultation?.customFields;
+      const isMulti = cf?._multiIssue === true && Array.isArray(cf._issues) && cf._issues.length > 0;
+      const meds: any[] = [];
+      if (isMulti) {
+        cf._issues.forEach((issue: any) => {
+          const rx = issue.formData?.prescription;
+          if (Array.isArray(rx)) meds.push(...rx);
+        });
+      } else {
+        const rx = cf?._issues?.[0]?.formData?.prescription || cf?.prescription;
+        if (Array.isArray(rx)) meds.push(...rx);
       }
+      const namedMeds = meds.filter((m: any) => m?.name?.trim());
+      if (namedMeds.length === 0) return;
+
+      const items = namedMeds.map((med: any) => {
+        const name = med.name.trim();
+        const match = invList.find((inv: any) => inv.name?.toLowerCase() === name.toLowerCase());
+        const parsedQty = parseInt(String(med.quantity ?? ""), 10);
+        const qty = Number.isFinite(parsedQty) && parsedQty > 0 ? parsedQty : 1;
+        if (match) {
+          const mrp = match.sellingPrice || 0;
+          return {
+            itemId: match._id,
+            itemName: match.name,
+            hsnCode: match.hsnCode || "",
+            packing: match.packing || "",
+            manufacturer: match.manufacturer || "",
+            batchNo: match.batchNumber || "",
+            expiryDate: match.expiryDate ? new Date(match.expiryDate).toISOString().split("T")[0] : "",
+            mrp,
+            qty,
+            discount: 0,
+            discountPct: 0,
+            gstRate: match.gstRate || 0,
+            total: +(qty * mrp).toFixed(2),
+          };
+        }
+        return { ...EMPTY_SALE_ITEM, itemName: name, qty };
+      });
+      setSaleForm((f) => ({ ...f, items }));
     } catch (error) {
-      console.error("[Prescription] Fetch error:", error);
+      console.error("[Autofill] Fetch error:", error);
     } finally {
-      setLoadingPrescription(false);
-      setPrescriptionChecked(true);
+      setAutofilling(false);
     }
   };
 
@@ -285,7 +372,7 @@ export default function FrontdeskSalesPage() {
         patientName: pname,
         patientPhone: pphone,
       }));
-      fetchPrescription(pid, aptDate, aptId);
+      autofillFromPrescription(pid, aptDate, aptId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -330,21 +417,48 @@ export default function FrontdeskSalesPage() {
     if (showNewSaleModal || showAddSrModal) fetchInvSuggestions();
   }, [showNewSaleModal, showAddSrModal, fetchInvSuggestions]);
 
-  const handleCreateSale = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Auto-round the net amount whenever sale items change. Standard half-up rounding
+  // (≥0.5 → up, <0.5 → down) via Math.round. The Rounding input remains editable
+  // for manual overrides — it just gets refreshed on every item change.
+  useEffect(() => {
+    if (!showNewSaleModal) return;
+    const gross = saleForm.items.reduce((s, it) => s + (it.total || 0), 0);
+    const auto = +(Math.round(gross) - gross).toFixed(2);
+    setSaleForm(f => f.roundingAmount === auto ? f : { ...f, roundingAmount: auto });
+  }, [saleForm.items, showNewSaleModal]);
+
+  // Handles all four submit flows:
+  //   - new sale → POST (status omitted, defaults to completed)
+  //   - new draft → POST with status="draft"
+  //   - edit draft (stay draft) → PATCH without status
+  //   - complete draft → PATCH with status="completed"
+  const submitSale = async (mode: "complete" | "draft") => {
     const token = localStorage.getItem("frontdeskToken"); if (!token) return;
-    setSubmitting(true);
+    const isEdit = !!editingSaleId;
+    const draftish = mode === "draft";
+    draftish ? setSavingDraft(true) : setSubmitting(true);
     try {
-      const res = await fetch("/api/tier2/sales", {
-        method: "POST",
+      const url = isEdit ? `/api/tier2/sales/${editingSaleId}` : "/api/tier2/sales";
+      const method = isEdit ? "PATCH" : "POST";
+      const body: any = { ...saleForm };
+      if (!isEdit && linkedAppointmentId) body.appointmentId = linkedAppointmentId;
+      if (isEdit) {
+        // PATCH: explicit status — "completed" finalizes, otherwise stays draft
+        if (!draftish) body.status = "completed";
+      } else if (draftish) {
+        body.status = "draft";
+      }
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...saleForm, ...(linkedAppointmentId && { appointmentId: linkedAppointmentId }) }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.success) {
-        showToast("success", `Sale saved — ${data.data.invoiceNumber || data.data.saleId}`);
+        const label = draftish ? "Draft saved" : `Sale ${isEdit ? "completed" : "saved"} — ${data.data.invoiceNumber || data.data.saleId}`;
+        showToast("success", label);
         setShowNewSaleModal(false);
-        setLastSale(data.data);
+        if (!draftish) setLastSale(data.data);
         resetSaleForm();
         fetchSales(token);
       } else {
@@ -353,20 +467,83 @@ export default function FrontdeskSalesPage() {
     } catch {
       showToast("error", "Error saving sale");
     } finally {
+      setSavingDraft(false);
       setSubmitting(false);
     }
   };
 
+  const handleCreateSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitSale("complete");
+  };
+
+  const openDraftForEdit = (sale: any) => {
+    setEditingSaleId(sale._id);
+    setLinkedAppointmentId(sale.appointmentId?._id || sale.appointmentId || undefined);
+    setSaleForm({
+      patientName: sale.patientName || "",
+      patientPhone: sale.patientPhone || "",
+      doctorName: sale.doctorName || "",
+      city: sale.city || "",
+      modeOfPayment: sale.paymentMethod || "cash",
+      isInterstate: !!sale.isInterstate,
+      roundingAmount: sale.roundingAmount || 0,
+      items: (sale.items || []).map((it: any) => {
+        const mrp = it.unitPrice || 0;
+        const qty = it.quantity || 1;
+        const discount = it.discount || 0;
+        const base = mrp * qty;
+        const discountPct = base > 0 ? +((discount / base) * 100).toFixed(2) : 0;
+        return {
+          itemId: it.itemId?.toString() || "",
+          itemName: it.itemName || "",
+          hsnCode: it.hsnCode || "",
+          packing: it.packing || "",
+          manufacturer: it.manufacturer || "",
+          batchNo: it.batchNo || "",
+          expiryDate: it.expiryDate ? new Date(it.expiryDate).toISOString().split("T")[0] : "",
+          mrp,
+          qty,
+          discount,
+          discountPct,
+          gstRate: it.gstRate || 0,
+          total: it.total || 0,
+        };
+      }),
+    });
+    setSelectedSale(null);
+    setShowNewSaleModal(true);
+  };
+
   const resetSaleForm = () => {
-    setPrescription(null);
-    setPrescriptionChecked(false);
+    setEditingSaleId(null);
+    setLinkedAppointmentId(undefined);
     setSaleForm({ patientName: "", patientPhone: "", doctorName: "", city: "", modeOfPayment: "cash", isInterstate: false, roundingAmount: 0, items: [{ ...EMPTY_SALE_ITEM }] });
   };
 
   const openSaleDetail = async (sale: Sale) => {
+    // Drafts open straight into the editable sale form
+    if (sale.status === "draft") {
+      // Make sure we have full item details before populating the form
+      let full: any = sale;
+      if (!sale.items?.length || !sale.items[0]?.itemName) {
+        const token = localStorage.getItem("frontdeskToken");
+        try {
+          const response = await fetch(`/api/tier2/sales/${sale._id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await response.json();
+          if (data.success) full = data.data;
+        } catch (error) {
+          console.error("Error fetching draft detail:", error);
+        }
+      }
+      openDraftForEdit(full);
+      return;
+    }
+
     setSelectedSale(sale);
     setCollectAmount("");
-    // Fetch full detail if items don't have full info
     if (sale.items.length > 0 && sale.items[0].itemName) return;
     setLoadingSaleDetail(true);
     const token = localStorage.getItem("frontdeskToken");
@@ -550,6 +727,7 @@ export default function FrontdeskSalesPage() {
               { label: "Patients", href: "/frontdesk/patients" },
               { label: "Pharmacy", href: "/frontdesk/pharmacy" },
               { label: "Sales", href: "/frontdesk/sales", active: true },
+              { label: "Procedures", href: "/frontdesk/procedures" },
             ].map((item) => (
               <Link
                 key={item.href}
@@ -845,9 +1023,11 @@ export default function FrontdeskSalesPage() {
           ) : filteredSales.length > 0 ? (
             <div className="divide-y divide-gray-50">
               {filteredSales.map((sale) => {
-                const statusAccent =
-                  sale.paymentStatus === "paid" ? "border-l-emerald-400" :
-                  sale.paymentStatus === "pending" ? "border-l-red-400" : "border-l-amber-400";
+                const isDraft = sale.status === "draft";
+                const statusAccent = isDraft
+                  ? "border-l-amber-500"
+                  : sale.paymentStatus === "paid" ? "border-l-emerald-400" :
+                    sale.paymentStatus === "pending" ? "border-l-red-400" : "border-l-amber-400";
                 return (
                   <div
                     key={sale._id}
@@ -879,12 +1059,20 @@ export default function FrontdeskSalesPage() {
                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                         <span className="text-base font-bold text-gray-900">₹{sale.totalAmount.toLocaleString()}</span>
                         <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${getPaymentMethodStyle(sale.paymentMethod)}`}>
-                            {sale.paymentMethod.toUpperCase()}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${getPaymentStatusStyle(sale.paymentStatus)}`}>
-                            {sale.paymentStatus.charAt(0).toUpperCase() + sale.paymentStatus.slice(1)}
-                          </span>
+                          {isDraft ? (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-300">
+                              DRAFT
+                            </span>
+                          ) : (
+                            <>
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${getPaymentMethodStyle(sale.paymentMethod)}`}>
+                                {sale.paymentMethod.toUpperCase()}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${getPaymentStatusStyle(sale.paymentStatus)}`}>
+                                {sale.paymentStatus.charAt(0).toUpperCase() + sale.paymentStatus.slice(1)}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -1155,6 +1343,10 @@ export default function FrontdeskSalesPage() {
                   <p className="text-base font-bold text-gray-900 font-mono">{selectedSale.invoiceNumber || selectedSale.saleId}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button onClick={() => openReturnForSale(selectedSale)} className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-semibold hover:bg-orange-100 transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h13a4 4 0 010 8h-3m3-8l-4-4m4 4l-4 4" /></svg>
+                    Return
+                  </button>
                   <button onClick={() => printSaleBill(selectedSale)} className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 transition-colors">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                     Print
@@ -1308,170 +1500,13 @@ export default function FrontdeskSalesPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full overflow-hidden flex flex-col max-w-5xl" style={{ maxHeight: "92vh" }}>
 
-            {/* TOP: Prescription pane — fixed */}
-            {(prescription || loadingPrescription || prescriptionChecked) && (
-              <div className="flex-shrink-0 border-b border-gray-200 bg-amber-50/30 max-h-[40vh] overflow-y-auto">
-                <div className="px-5 py-3">
-                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    Prescription
-                  </p>
-                  {loadingPrescription && (
-                    <div className="flex items-center gap-2 py-3 text-xs text-amber-700">
-                      <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />Loading...
-                    </div>
-                  )}
-                  {!loadingPrescription && prescriptionChecked && !prescription && (
-                    <p className="text-xs text-gray-400 text-center py-3">No consultation recorded for this date</p>
-                  )}
-                  {prescription && (() => {
-                    const cf = prescription.consultation.customFields;
-                    const isMulti = cf?._multiIssue === true && Array.isArray(cf._issues) && cf._issues.length > 0;
-                    const fd = isMulti ? (cf._issues[0]?.formData || {}) : (cf?._issues?.[0]?.formData || cf || {});
-
-                    // Collect prescription meds
-                    const allRx: { label?: string; meds: any[] }[] = [];
-                    if (isMulti) {
-                      cf._issues.forEach((issue: any, idx: number) => {
-                        const rx = issue.formData?.prescription;
-                        if (Array.isArray(rx) && rx.some((m: any) => m.name?.trim())) {
-                          allRx.push({ label: issue.label || `Issue ${idx + 1}`, meds: rx.filter((m: any) => m.name?.trim()) });
-                        }
-                      });
-                    } else {
-                      const rx = cf?._issues?.[0]?.formData?.prescription || cf?.prescription;
-                      if (Array.isArray(rx) && rx.some((m: any) => m.name?.trim())) {
-                        allRx.push({ meds: rx.filter((m: any) => m.name?.trim()) });
-                      }
-                    }
-
-                    // Lifestyle & Investigations from customFields or treatmentPlan
-                    const tp = prescription.consultation.treatmentPlan;
-                    const lifestyle = fd.lifestyleChanges || tp?.lifestyleChanges;
-                    const investigations = fd.investigations || tp?.investigations;
-
-                    // Legacy fields
-                    const legacyTopicals = tp?.topicals;
-                    const legacyOrals = tp?.orals;
-
-                    // Cosmetology fields
-                    const proc = prescription.consultation.procedure;
-                    const ac = prescription.consultation.aftercare;
-                    const cosmoFields: { label: string; value: string; color: string; bg: string; border: string }[] = [];
-                    if (proc?.name) {
-                      const priceSuffix = proc.basePrice && proc.basePrice > 0
-                        ? `  ·  \u20B9${Number(proc.basePrice).toLocaleString("en-IN")}${proc.gstRate && proc.gstRate > 0 ? ` + ${proc.gstRate}% GST = \u20B9${Number(proc.totalAmount || 0).toLocaleString("en-IN")}` : ""}`
-                        : "";
-                      cosmoFields.push({ label: "Procedure", value: `${proc.name}${priceSuffix}`, color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-100" });
-                    }
-                    if (proc?.productsAndParameters) cosmoFields.push({ label: "Products", value: proc.productsAndParameters, color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-100" });
-                    if (ac?.homeProducts) cosmoFields.push({ label: "Home Care", value: ac.homeProducts, color: "text-pink-600", bg: "bg-pink-50", border: "border-pink-100" });
-                    if (ac?.instructions) cosmoFields.push({ label: "Aftercare", value: ac.instructions, color: "text-pink-600", bg: "bg-pink-50", border: "border-pink-100" });
-
-                    const hasAnything = allRx.length > 0 || lifestyle || investigations || legacyTopicals || legacyOrals || cosmoFields.length > 0;
-                    if (!hasAnything) {
-                      return <p className="text-xs text-gray-400 text-center py-4">No prescription data found</p>;
-                    }
-
-                    return (
-                      <div className="space-y-4">
-                        {/* Prescription table — teal */}
-                        {allRx.length > 0 && (
-                          <div>
-                            <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
-                              Prescription
-                            </p>
-                            {allRx.map((group, gi) => (
-                              <div key={gi} className={gi > 0 ? "mt-2" : ""}>
-                                {group.label && <p className="text-[10px] font-semibold text-teal-600 mb-1">{group.label}</p>}
-                                <div className="overflow-x-auto rounded-lg border border-teal-100">
-                                  <table className="w-full text-xs">
-                                    <thead>
-                                      <tr className="bg-teal-50">
-                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">#</th>
-                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Medicine</th>
-                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Dosage</th>
-                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Route</th>
-                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Freq</th>
-                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Duration</th>
-                                        <th className="px-2.5 py-1.5 text-left text-[9px] font-bold text-teal-600 uppercase">Qty</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {group.meds.map((med: any, mi: number) => (
-                                        <tr key={mi} className="border-t border-teal-50 bg-white">
-                                          <td className="px-2.5 py-1.5 text-teal-600 font-bold">{mi + 1}</td>
-                                          <td className="px-2.5 py-1.5 font-semibold text-gray-800">{med.name}</td>
-                                          <td className="px-2.5 py-1.5 text-gray-600">{med.dosage || "—"}</td>
-                                          <td className="px-2.5 py-1.5 text-gray-600">{med.route || "—"}</td>
-                                          <td className="px-2.5 py-1.5 text-gray-600">{med.frequency || "—"}</td>
-                                          <td className="px-2.5 py-1.5 text-gray-600">{med.duration || "—"}</td>
-                                          <td className="px-2.5 py-1.5 text-gray-600">{med.quantity || "—"}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Legacy topicals/orals — blue */}
-                        {(legacyTopicals || legacyOrals) && (
-                          <div>
-                            <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                              Medications
-                            </p>
-                            <div className="space-y-1.5">
-                              {legacyTopicals && <p className="text-xs text-gray-700 bg-blue-50 rounded-lg p-2 border border-blue-100"><span className="font-semibold text-blue-700">Topicals:</span> {legacyTopicals}</p>}
-                              {legacyOrals && <p className="text-xs text-gray-700 bg-blue-50 rounded-lg p-2 border border-blue-100"><span className="font-semibold text-blue-700">Orals:</span> {legacyOrals}</p>}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Lifestyle — orange */}
-                        {lifestyle && (
-                          <div>
-                            <p className="text-[10px] font-bold text-orange-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-                              Lifestyle Changes
-                            </p>
-                            <p className="text-xs text-gray-700 bg-orange-50 rounded-lg p-2 border border-orange-100">{lifestyle}</p>
-                          </div>
-                        )}
-
-                        {/* Investigations — purple */}
-                        {investigations && (
-                          <div>
-                            <p className="text-[10px] font-bold text-purple-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                              Investigations
-                            </p>
-                            <p className="text-xs text-gray-700 bg-purple-50 rounded-lg p-2 border border-purple-100">{investigations}</p>
-                          </div>
-                        )}
-
-                        {/* Cosmetology fields — violet/pink */}
-                        {cosmoFields.map((f, i) => (
-                          <div key={i}>
-                            <p className={`text-[10px] font-bold ${f.color} uppercase tracking-widest mb-2 flex items-center gap-1.5`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${f.bg.replace("bg-", "bg-").replace("/50", "-500")}`}></span>
-                              {f.label}
-                            </p>
-                            <p className={`text-xs text-gray-700 ${f.bg} rounded-lg p-2 border ${f.border}`}>{f.value}</p>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
+            {autofilling && (
+              <div className="flex-shrink-0 border-b border-gray-200 bg-amber-50/40 px-5 py-2 flex items-center gap-2 text-xs text-amber-700">
+                <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                Loading prescribed items…
               </div>
             )}
 
-            {/* BELOW: New Bill Form — scrollable */}
             <form onSubmit={handleCreateSale} className="flex-1 flex flex-col min-w-0 overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
                 <div className="flex items-center gap-3">
@@ -1479,8 +1514,8 @@ export default function FrontdeskSalesPage() {
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">New Sale</h2>
-                    <p className="text-xs text-gray-400">Record a prescription or OTC sale</p>
+                    <h2 className="text-lg font-bold text-gray-900">{editingSaleId ? "Edit Draft Sale" : "New Sale"}</h2>
+                    <p className="text-xs text-gray-400">{editingSaleId ? "Review items, then complete or save as draft" : "Record a prescription or OTC sale"}</p>
                   </div>
                 </div>
                 <button type="button" onClick={() => { setShowNewSaleModal(false); resetSaleForm(); }} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -1561,7 +1596,7 @@ export default function FrontdeskSalesPage() {
                               onChange={(e) => {
                                 const name = e.target.value;
                                 const match = invSuggestions.find(inv => inv.name.toLowerCase() === name.toLowerCase());
-                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : {
+                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : recalcSaleItem({
                                   ...it, itemName: name, itemId: match?._id || "",
                                   mrp: match?.sellingPrice ?? it.mrp, gstRate: match?.gstRate ?? it.gstRate,
                                   manufacturer: match?.manufacturer || it.manufacturer,
@@ -1569,8 +1604,7 @@ export default function FrontdeskSalesPage() {
                                   expiryDate: match?.expiryDate ? new Date(match.expiryDate).toISOString().split("T")[0] : it.expiryDate,
                                   hsnCode: match?.hsnCode || it.hsnCode,
                                   packing: match?.packing || it.packing,
-                                  total: +((it.qty * (match?.sellingPrice ?? it.mrp)) - it.discount).toFixed(2),
-                                })}));
+                                }))}));
                               }}
                               className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none"
                               required />
@@ -1585,9 +1619,9 @@ export default function FrontdeskSalesPage() {
                           <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
                             <div><label className="block text-[10px] text-gray-400 mb-0.5">Batch</label><input type="text" value={item.batchNo} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, batchNo: e.target.value }) }))} className={ic} /></div>
                             <div><label className="block text-[10px] text-gray-400 mb-0.5">Expiry</label><input type="date" value={item.expiryDate} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, expiryDate: e.target.value }) }))} className={ic} /></div>
-                            <div><label className="block text-[10px] text-gray-400 mb-0.5">MRP ₹ <span className="text-red-400">*</span></label><input type="number" min={0} step="0.01" value={item.mrp} onChange={(e) => { const mrp = Number(e.target.value) || 0; setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, mrp, total: +(it.qty * mrp - it.discount).toFixed(2) }) })); }} className={ic} required /></div>
-                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="number" min={1} value={item.qty} onChange={(e) => { const qty = Number(e.target.value) || 0; setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, qty, total: +(qty * it.mrp - it.discount).toFixed(2) }) })); }} className={ic} required /></div>
-                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Disc ₹</label><input type="number" min={0} step="0.01" value={item.discount} onChange={(e) => { const discount = Number(e.target.value) || 0; setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, discount, total: +(it.qty * it.mrp - discount).toFixed(2) }) })); }} className={ic} /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">MRP ₹ <span className="text-red-400">*</span></label><input type="number" min={0} step="0.01" value={item.mrp} onChange={(e) => { const mrp = Number(e.target.value) || 0; setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : recalcSaleItem({ ...it, mrp })) })); }} className={ic} required /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="number" min={1} value={item.qty} onChange={(e) => { const qty = Number(e.target.value) || 0; setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : recalcSaleItem({ ...it, qty })) })); }} className={ic} required /></div>
+                            <div><label className="block text-[10px] text-gray-400 mb-0.5">Disc %</label><input type="number" min={0} max={100} step="0.01" value={item.discountPct} onChange={(e) => { const discountPct = Math.min(100, Math.max(0, Number(e.target.value) || 0)); setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : recalcSaleItem({ ...it, discountPct })) })); }} className={ic} /></div>
                             <div><label className="block text-[10px] text-gray-400 mb-0.5">GST%</label><input type="number" min={0} max={100} step="0.01" value={item.gstRate} onChange={(e) => setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, gstRate: Number(e.target.value) || 0 }) }))} className={ic} /></div>
                             <div><label className="block text-[10px] text-gray-400 mb-0.5">Total ₹</label><input type="number" value={item.total} readOnly className="w-full border border-teal-200 bg-teal-50 text-teal-700 rounded-lg px-2 py-1.5 text-xs font-bold outline-none cursor-default" /></div>
                           </div>
@@ -1642,7 +1676,8 @@ export default function FrontdeskSalesPage() {
 
               <div className="flex gap-3 px-5 py-4 border-t border-gray-100 flex-shrink-0">
                 <button type="button" onClick={() => { setShowNewSaleModal(false); resetSaleForm(); }} className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors">Cancel</button>
-                <button type="submit" disabled={submitting} className="flex-[2] px-8 py-3 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60 transition-colors">{submitting ? "Saving..." : "Save Sale"}</button>
+                <button type="button" onClick={() => submitSale("draft")} disabled={savingDraft || submitting} className="flex-1 px-4 py-3 border border-amber-300 text-amber-700 bg-amber-50 rounded-xl font-semibold text-sm hover:bg-amber-100 disabled:opacity-60 transition-colors">{savingDraft ? "Saving..." : "Save as Draft"}</button>
+                <button type="submit" disabled={submitting || savingDraft} className="flex-[2] px-8 py-3 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60 transition-colors">{submitting ? "Saving..." : (editingSaleId ? "Complete Sale" : "Create Sale")}</button>
               </div>
             </form>
           </div>

@@ -61,7 +61,12 @@ export async function POST(request: NextRequest) {
       patientName, patientPhone, doctorName, city,
       modeOfPayment, isInterstate = false,
       roundingAmount = 0, items,
+      appointmentId,
+      status: rawStatus,
     } = body;
+
+    const status: "draft" | "completed" = rawStatus === "draft" ? "draft" : "completed";
+    const isDraft = status === "draft";
 
     if (!patientName?.trim()) return NextResponse.json({ success: false, message: "Party name is required" }, { status: 400 });
     if (!items?.length) return NextResponse.json({ success: false, message: "At least one item is required" }, { status: 400 });
@@ -103,7 +108,8 @@ export async function POST(request: NextRequest) {
       }
 
       if (!invItem) return NextResponse.json({ success: false, message: `Item not found: ${item.itemName}` }, { status: 400 });
-      if (invItem.currentStock < qty) {
+      // Drafts don't reserve stock — only completed sales must have sufficient inventory.
+      if (!isDraft && invItem.currentStock < qty) {
         return NextResponse.json({
           success: false,
           message: `Insufficient stock for ${invItem.name}. Available: ${invItem.currentStock}`,
@@ -176,9 +182,11 @@ export async function POST(request: NextRequest) {
       taxPercentage: 0,
       totalAmount: netAmount,
       paymentMethod: modeOfPayment || "cash",
-      paymentStatus: "paid",
-      amountPaid: netAmount,
-      amountDue: 0,
+      paymentStatus: isDraft ? "pending" : "paid",
+      amountPaid: isDraft ? 0 : netAmount,
+      amountDue: isDraft ? netAmount : 0,
+      status,
+      appointmentId: appointmentId || undefined,
       grossValue,
       gst0:  { taxable: round(gstBuckets[0].taxable),  cgst: round(gstBuckets[0].cgst),  sgst: round(gstBuckets[0].sgst),  igst: round(gstBuckets[0].igst)  },
       gst5:  { taxable: round(gstBuckets[5].taxable),  cgst: round(gstBuckets[5].cgst),  sgst: round(gstBuckets[5].sgst),  igst: round(gstBuckets[5].igst)  },
@@ -192,6 +200,15 @@ export async function POST(request: NextRequest) {
       clinicPhone: clinic?.phone || undefined,
       soldBy: performedBy,
     });
+
+    // Drafts skip the inventory transaction — stock is only deducted when the
+    // draft is completed via PATCH /api/tier2/sales/[id].
+    if (isDraft) {
+      await sale.save();
+      const saleObj = sale.toObject();
+      (saleObj as any).clinicName = clinic?.clinicName || auth.clinicName || "Pharmacy";
+      return NextResponse.json({ success: true, message: "Draft saved", data: saleObj }, { status: 201 });
+    }
 
     const session = await mongoose.startSession();
     try {

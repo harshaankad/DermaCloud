@@ -123,8 +123,9 @@ async function migrateInventory() {
       if (!name) continue;
 
       const stock = Number(row["Units in Stock"]) || 0;
-      const costPrice = roundTo2(Number(row["Pack(Price)"]) || 0);
-      const sellingPrice = roundTo2(Number(row["Pack(MRP)"]) || Number(row["Units(Price)"]) || 0);
+      const unitsPerPack = Number(row["Units(Per Pack)"]) || 1;
+      const costPrice = roundTo2((Number(row["Pack(Price)"]) || 0) / unitsPerPack);
+      const sellingPrice = roundTo2(Number(row["Units(Price)"]) || 0);
       const batch = row.Batch ? String(row.Batch) : "";
       const expiry = parseExpiry(row.Expiry);
       const gstRate = toGstSlab(Number(row["%(GST)"]) || 0);

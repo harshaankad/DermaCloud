@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get("from");
     const to = searchParams.get("to");
 
-    const query: any = { clinicId: auth.clinicId };
+    // Exclude drafts — they're unfinished sales with no invoice number and no
+    // inventory impact; they'd corrupt the GST register if included.
+    const query: any = { clinicId: auth.clinicId, status: { $ne: "draft" } };
     if (from || to) {
       query.createdAt = {};
       if (from) query.createdAt.$gte = new Date(from);

@@ -106,7 +106,7 @@ export default function DoctorPharmacyPage() {
   });
 
   // Sales state
-  const EMPTY_SALE_ITEM = { itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, gstRate: 0, total: 0 };
+  const EMPTY_SALE_ITEM = { itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, discountPct: 0, gstRate: 0, total: 0 };
   const [sales, setSales] = useState<any[]>([]);
   const [loadingSales, setLoadingSales] = useState(false);
   const [loadingMoreSales, setLoadingMoreSales] = useState(false);
@@ -119,11 +119,13 @@ export default function DoctorPharmacyPage() {
   const [salesTo, setSalesTo] = useState("");
   const [showAddSaleModal, setShowAddSaleModal] = useState(false);
   const [saleSubmitting, setSaleSubmitting] = useState(false);
+  const [saleDraftSaving, setSaleDraftSaving] = useState(false);
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [lastSale, setLastSale] = useState<any>(null);
   const [saleForm, setSaleForm] = useState({
     patientName: "", patientPhone: "", doctorName: "", city: "",
     modeOfPayment: "cash", isInterstate: false, roundingAmount: 0,
-    items: [{ itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, gstRate: 0, total: 0 }],
+    items: [{ itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, discountPct: 0, gstRate: 0, total: 0 }],
   });
 
   // Sales Returns state
@@ -139,11 +141,27 @@ export default function DoctorPharmacyPage() {
   const [showAddSrModal, setShowAddSrModal] = useState(false);
   const [srSubmitting, setSrSubmitting] = useState(false);
   const [selectedSalesReturn, setSelectedSalesReturn] = useState<any>(null);
+
+  // Delete-sale confirm dialog state
+  const [deleteSaleTarget, setDeleteSaleTarget] = useState<any>(null);
+  const [deleteSaleRestock, setDeleteSaleRestock] = useState(true);
+  const [deletingSale, setDeletingSale] = useState(false);
+
+  // Delete-sales-return confirm dialog state
+  const [deleteSrTarget, setDeleteSrTarget] = useState<any>(null);
+  const [deleteSrRemoveRestock, setDeleteSrRemoveRestock] = useState(true);
+  const [deletingSr, setDeletingSr] = useState(false);
+
+  // Delete-purchase confirm dialog state
+  const [deletePurchaseTarget, setDeletePurchaseTarget] = useState<any>(null);
+  const [deletePurchaseReverseStock, setDeletePurchaseReverseStock] = useState(true);
+  const [deletingPurchase, setDeletingPurchase] = useState(false);
   const EMPTY_SR_ITEM = { itemId: "", itemName: "", quantity: 1, unitPrice: 0, discount: 0, gstRate: 0, total: 0, restock: true };
   const [srForm, setSrForm] = useState({
     invoiceNo: "", invoiceDate: "", modeOfPayment: "cash", partyName: "", city: "",
     isInterstate: false,
     grossValue: 0, discount: 0, roundingAmount: 0, netAmount: 0, reason: "",
+    originalSaleId: "",
     items: [{ itemId: "", itemName: "", quantity: 1, unitPrice: 0, discount: 0, gstRate: 0, total: 0, restock: true }],
   });
 
@@ -358,6 +376,19 @@ export default function DoctorPharmacyPage() {
     return { gst0: gst[0], gst5: gst[5], gst12: gst[12], gst18: gst[18], gst28: gst[28], totalGst };
   };
 
+  // Per-item discount is entered as % in the UI but stored as a ₹ amount on the sale
+  // (so print bills, PDFs, reports, and returns keep working unchanged). This helper
+  // recomputes the ₹ discount and line total from mrp/qty/discountPct, so any change
+  // to mrp or qty also updates the rupee discount in lockstep with the chosen %.
+  const recalcSaleItem = (item: typeof EMPTY_SALE_ITEM) => {
+    const mrp = Number(item.mrp) || 0;
+    const qty = Number(item.qty) || 0;
+    const pct = Number(item.discountPct) || 0;
+    const discount = +(mrp * qty * pct / 100).toFixed(2);
+    const total = +(mrp * qty - discount).toFixed(2);
+    return { ...item, discount, total };
+  };
+
   const recomputeSrTotals = (items: typeof srForm.items, discount: number, roundingAmount: number) => {
     const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2);
     const totalGst = +items.reduce((s, it) => s + it.total * (it.gstRate || 0) / 100, 0).toFixed(2);
@@ -372,7 +403,8 @@ export default function DoctorPharmacyPage() {
     setSrSubmitting(true);
     try {
       const { gst0, gst5, gst12, gst18, gst28, totalGst } = computeGstBreakdowns(srForm.items);
-      const body = { ...srForm, gst0, gst5, gst12, gst18, gst28, totalGst };
+      const body: any = { ...srForm, gst0, gst5, gst12, gst18, gst28, totalGst };
+      if (!body.originalSaleId) delete body.originalSaleId;
       const res = await fetch("/api/tier2/sales-returns", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -384,11 +416,57 @@ export default function DoctorPharmacyPage() {
       if (data.success) {
         showToast("success", "Sales return recorded");
         setShowAddSrModal(false);
-        setSrForm({ invoiceNo: "", invoiceDate: "", modeOfPayment: "cash", partyName: "", city: "", isInterstate: false, grossValue: 0, discount: 0, roundingAmount: 0, netAmount: 0, reason: "", items: [{ ...EMPTY_SR_ITEM }] });
+        setSrForm({ invoiceNo: "", invoiceDate: "", modeOfPayment: "cash", partyName: "", city: "", isInterstate: false, grossValue: 0, discount: 0, roundingAmount: 0, netAmount: 0, reason: "", originalSaleId: "", items: [{ ...EMPTY_SR_ITEM }] });
         fetchSalesReturns(srFrom, srTo);
       } else { showToast("error", data.message || "Failed"); }
     } catch (err: any) { showToast("error", err?.message || "Failed to save"); }
     finally { setSrSubmitting(false); }
+  };
+
+  // Prefill the sales-return form from an existing sale and open the return modal.
+  // Defaults each item's qty to the full original qty; user can edit down for partial returns.
+  // The server enforces that total returned qty per item never exceeds qty sold.
+  const openReturnForSale = (sale: any) => {
+    const dateSrc = sale.invoiceDate || sale.createdAt;
+    const isoDate = dateSrc ? new Date(dateSrc).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+    const allowedModes = ["cash", "card", "upi", "credit"];
+    const mop = allowedModes.includes(sale.paymentMethod) ? sale.paymentMethod : "cash";
+    const items = (sale.items || []).map((it: any) => {
+      const quantity = Number(it.quantity) || 1;
+      const unitPrice = Number(it.unitPrice) || 0;
+      const discount = Number(it.discount) || 0;
+      return {
+        itemId: it.itemId ? String(it.itemId) : "",
+        itemName: it.itemName || "",
+        quantity,
+        unitPrice,
+        discount,
+        gstRate: Number(it.gstRate) || 0,
+        total: +(unitPrice * quantity - discount).toFixed(2),
+        restock: true,
+      };
+    });
+    const grossValue = +items.reduce((s: number, it: any) => s + it.total, 0).toFixed(2);
+    const totalGst = +items.reduce((s: number, it: any) => s + it.total * (it.gstRate || 0) / 100, 0).toFixed(2);
+    const netAmount = +(grossValue + totalGst).toFixed(2);
+    setSrForm({
+      invoiceNo: sale.invoiceNumber || sale.saleId || "",
+      invoiceDate: isoDate,
+      modeOfPayment: mop,
+      partyName: sale.patientName || "",
+      city: sale.city || "",
+      isInterstate: !!sale.isInterstate,
+      grossValue,
+      discount: 0,
+      roundingAmount: 0,
+      netAmount,
+      reason: "",
+      originalSaleId: sale._id,
+      items: items.length > 0 ? items : [{ ...EMPTY_SR_ITEM }],
+    });
+    setSelectedSale(null);
+    setActiveTab("sales-returns");
+    setShowAddSrModal(true);
   };
 
   const calcTotalGst = (cgst: number, sgst: number, igst: number) =>
@@ -463,27 +541,181 @@ export default function DoctorPharmacyPage() {
     finally { setPrSubmitting(false); }
   };
 
-  const handleAddSale = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const resetSaleForm = () => {
+    setEditingSaleId(null);
+    setSaleForm({ patientName: "", patientPhone: "", doctorName: "", city: "", modeOfPayment: "cash", isInterstate: false, roundingAmount: 0, items: [{ ...EMPTY_SALE_ITEM }] });
+  };
+
+  // Unified submitter:
+  //   - new sale → POST (completed, deducts inventory)
+  //   - new draft → POST status="draft" (no inventory change)
+  //   - edit draft → PATCH (stays draft)
+  //   - complete draft → PATCH status="completed"
+  const submitSale = async (mode: "complete" | "draft") => {
     const token = getToken(); if (!token) return;
-    setSaleSubmitting(true);
+    const isEdit = !!editingSaleId;
+    const draftish = mode === "draft";
+    if (draftish) setSaleDraftSaving(true); else setSaleSubmitting(true);
     try {
-      const res = await fetch("/api/tier2/sales", {
-        method: "POST",
+      const body: any = { ...saleForm };
+      if (isEdit) {
+        if (!draftish) body.status = "completed";
+      } else if (draftish) {
+        body.status = "draft";
+      }
+      const url = isEdit ? `/api/tier2/sales/${editingSaleId}` : "/api/tier2/sales";
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(saleForm),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.success) {
-        showToast("success", "Sale recorded");
+        showToast("success", draftish ? "Draft saved" : `Sale ${isEdit ? "completed" : "recorded"}`);
         setShowAddSaleModal(false);
-        setLastSale(data.data);
-        setSaleForm({ patientName: "", patientPhone: "", doctorName: "", city: "", modeOfPayment: "cash", isInterstate: false, roundingAmount: 0, items: [{ ...EMPTY_SALE_ITEM }] });
+        if (!draftish) setLastSale(data.data);
+        resetSaleForm();
         fetchSales(salesFrom, salesTo);
-        fetchInventory();
+        if (!draftish) fetchInventory();
       } else { showToast("error", data.message || "Failed to save"); }
     } catch { showToast("error", "Failed to save sale"); }
-    finally { setSaleSubmitting(false); }
+    finally { setSaleDraftSaving(false); setSaleSubmitting(false); }
+  };
+
+  const handleAddSale = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitSale("complete");
+  };
+
+  const openDraftForEdit = async (sale: any) => {
+    let full: any = sale;
+    if (!sale.items?.length || !sale.items[0]?.itemName) {
+      const token = getToken();
+      if (token) {
+        try {
+          const res = await fetch(`/api/tier2/sales/${sale._id}`, { headers: { Authorization: `Bearer ${token}` } });
+          const data = await res.json();
+          if (data.success) full = data.data;
+        } catch { /* ignore */ }
+      }
+    }
+    setEditingSaleId(full._id);
+    setSaleForm({
+      patientName: full.patientName || "",
+      patientPhone: full.patientPhone || "",
+      doctorName: full.doctorName || "",
+      city: full.city || "",
+      modeOfPayment: full.paymentMethod || "cash",
+      isInterstate: !!full.isInterstate,
+      roundingAmount: full.roundingAmount || 0,
+      items: (full.items || []).map((it: any) => {
+        const mrp = it.unitPrice || 0;
+        const qty = it.quantity || 1;
+        const discount = it.discount || 0;
+        const base = mrp * qty;
+        const discountPct = base > 0 ? +((discount / base) * 100).toFixed(2) : 0;
+        return {
+          itemId: it.itemId?.toString?.() || it.itemId || "",
+          itemName: it.itemName || "",
+          hsnCode: it.hsnCode || "",
+          packing: it.packing || "",
+          manufacturer: it.manufacturer || "",
+          batchNo: it.batchNo || "",
+          expiryDate: it.expiryDate ? new Date(it.expiryDate).toISOString().split("T")[0] : "",
+          mrp,
+          qty,
+          discount,
+          discountPct,
+          gstRate: it.gstRate || 0,
+          total: it.total || 0,
+        };
+      }),
+    });
+    setSelectedSale(null);
+    setShowAddSaleModal(true);
+  };
+
+  const handleDeleteSale = async () => {
+    if (!deleteSaleTarget) return;
+    const token = getToken(); if (!token) return;
+    setDeletingSale(true);
+    try {
+      const res = await fetch(`/api/tier2/sales/${deleteSaleTarget._id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ restock: deleteSaleRestock }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("success", data.message || "Sale deleted");
+        setDeleteSaleTarget(null);
+        setSelectedSale(null);
+        if (lastSale && lastSale._id === deleteSaleTarget._id) setLastSale(null);
+        fetchSales(salesFrom, salesTo);
+        fetchInventory();
+      } else {
+        showToast("error", data.message || "Failed to delete sale");
+      }
+    } catch {
+      showToast("error", "Failed to delete sale");
+    } finally {
+      setDeletingSale(false);
+    }
+  };
+
+  const handleDeletePurchase = async () => {
+    if (!deletePurchaseTarget) return;
+    const token = getToken(); if (!token) return;
+    setDeletingPurchase(true);
+    try {
+      const res = await fetch(`/api/tier2/purchases/${deletePurchaseTarget._id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reverseStock: deletePurchaseReverseStock }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("success", data.message || "Purchase deleted");
+        setDeletePurchaseTarget(null);
+        setSelectedPurchase(null);
+        fetchPurchases(purchaseFrom, purchaseTo);
+        fetchInventory();
+      } else {
+        showToast("error", data.message || "Failed to delete purchase");
+      }
+    } catch {
+      showToast("error", "Failed to delete purchase");
+    } finally {
+      setDeletingPurchase(false);
+    }
+  };
+
+  const handleDeleteSalesReturn = async () => {
+    if (!deleteSrTarget) return;
+    const token = getToken(); if (!token) return;
+    setDeletingSr(true);
+    try {
+      const res = await fetch(`/api/tier2/sales-returns/${deleteSrTarget._id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ removeRestock: deleteSrRemoveRestock }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("success", data.message || "Sales return deleted");
+        setDeleteSrTarget(null);
+        setSelectedSalesReturn(null);
+        fetchSalesReturns(srFrom, srTo);
+        fetchInventory();
+      } else {
+        showToast("error", data.message || "Failed to delete sales return");
+      }
+    } catch {
+      showToast("error", "Failed to delete sales return");
+    } finally {
+      setDeletingSr(false);
+    }
   };
 
   useEffect(() => {
@@ -584,6 +816,16 @@ export default function DoctorPharmacyPage() {
   useEffect(() => {
     if (showAddPurchaseModal || showAddPrModal || showAddSaleModal || showAddSrModal) fetchInvSuggestions();
   }, [showAddPurchaseModal, showAddPrModal, showAddSaleModal, showAddSrModal, fetchInvSuggestions]);
+
+  // Auto-round the net amount whenever sale items change. Standard half-up rounding
+  // (≥0.5 → up, <0.5 → down) via Math.round. The Rounding input remains editable
+  // for manual overrides — it just gets refreshed on every item change.
+  useEffect(() => {
+    if (!showAddSaleModal) return;
+    const gross = saleForm.items.reduce((s, it) => s + (it.total || 0), 0);
+    const auto = +(Math.round(gross) - gross).toFixed(2);
+    setSaleForm(f => f.roundingAmount === auto ? f : { ...f, roundingAmount: auto });
+  }, [saleForm.items, showAddSaleModal]);
 
   const openItemDetail = (item: InventoryItem) => {
     setDetailItem(item);
@@ -1203,28 +1445,38 @@ export default function DoctorPharmacyPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-100">
                       <tr>
-                        {["Invoice No", "Date", "Party Name", "City", "Mode", "Items", "GST", "Net Amount"].map((h) => (
+                        {["Invoice No", "Status", "Date", "Party Name", "City", "Mode", "Items", "GST", "Net Amount"].map((h) => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {sales.map((s: any) => (
-                        <tr key={s._id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelectedSale(s)}>
-                          <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{s.invoiceNumber || s.saleId || "—"}</td>
-                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{new Date(s.createdAt).toLocaleDateString("en-IN")}</td>
-                          <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{s.patientName}</td>
-                          <td className="px-4 py-3 text-gray-500">{s.city || "—"}</td>
-                          <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium uppercase">{s.paymentMethod}</span></td>
-                          <td className="px-4 py-3 text-gray-500">{s.items?.length || 0} item{s.items?.length !== 1 ? "s" : ""}</td>
-                          <td className="px-4 py-3 text-blue-600">₹{(s.totalGst || s.taxAmount || 0).toFixed(2)}</td>
-                          <td className="px-4 py-3 font-semibold text-gray-900">₹{(s.totalAmount || 0).toFixed(2)}</td>
-                        </tr>
-                      ))}
+                      {sales.map((s: any) => {
+                        const isDraft = s.status === "draft";
+                        return (
+                          <tr key={s._id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => isDraft ? openDraftForEdit(s) : setSelectedSale(s)}>
+                            <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{s.invoiceNumber || s.saleId || "—"}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {isDraft ? (
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-300 rounded text-xs font-bold">DRAFT</span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-xs font-medium">Completed</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{new Date(s.createdAt).toLocaleDateString("en-IN")}</td>
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{s.patientName}</td>
+                            <td className="px-4 py-3 text-gray-500">{s.city || "—"}</td>
+                            <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium uppercase">{s.paymentMethod}</span></td>
+                            <td className="px-4 py-3 text-gray-500">{s.items?.length || 0} item{s.items?.length !== 1 ? "s" : ""}</td>
+                            <td className="px-4 py-3 text-blue-600">₹{(s.totalGst || s.taxAmount || 0).toFixed(2)}</td>
+                            <td className="px-4 py-3 font-semibold text-gray-900">₹{(s.totalAmount || 0).toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                     <tfoot className="bg-gray-50 border-t border-gray-200">
                       <tr>
-                        <td colSpan={6} className="px-4 py-3 text-sm font-semibold text-gray-700">Totals</td>
+                        <td colSpan={7} className="px-4 py-3 text-sm font-semibold text-gray-700">Totals</td>
                         <td className="px-4 py-3 font-semibold text-blue-600">₹{sales.reduce((s: number, x: any) => s + (x.totalGst || x.taxAmount || 0), 0).toFixed(2)}</td>
                         <td className="px-4 py-3 font-semibold text-gray-900">₹{sales.reduce((s: number, x: any) => s + (x.totalAmount || 0), 0).toFixed(2)}</td>
                       </tr>
@@ -1594,7 +1846,16 @@ export default function DoctorPharmacyPage() {
                 <h2 className="text-lg font-bold text-gray-900">Purchase Details</h2>
                 <p className="text-xs text-gray-400 mt-0.5">Inv. {selectedPurchase.supplierInvNo}</p>
               </div>
-              <button onClick={() => setSelectedPurchase(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors text-lg font-bold">×</button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setDeletePurchaseReverseStock(true); setDeletePurchaseTarget(selectedPurchase); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Delete
+                </button>
+                <button onClick={() => setSelectedPurchase(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors text-lg font-bold">×</button>
+              </div>
             </div>
             <div className="p-6 space-y-5">
               {/* Supplier Info */}
@@ -1752,10 +2013,10 @@ export default function DoctorPharmacyPage() {
                       <div key={i} className="border border-gray-200 rounded-xl p-3 bg-white">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Item {i + 1}</span>
-                          {purchaseForm.items.length > 1 && <button type="button" onClick={() => { const items = purchaseForm.items.filter((_, j) => j !== i); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-5 h-5 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>}
+                          {purchaseForm.items.length > 1 && <button type="button" onClick={() => { const items = purchaseForm.items.filter((_, j) => j !== i); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-5 h-5 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>}
                         </div>
                         <div className="mb-2">
-                          <input list="purchase-inv-list" placeholder="Type medicine name to search..." required value={item.itemName} onChange={(e) => { const val = e.target.value; const items = [...purchaseForm.items]; items[i].itemName = val; const match = invSuggestions.find(inv => inv.name.toLowerCase() === val.toLowerCase()); if (match) { items[i].unitPrice = match.costPrice || 0; items[i].mrp = match.sellingPrice || 0; items[i].total = +(match.costPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); } else { setPurchaseForm(f => ({ ...f, items })); } }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                          <input list="purchase-inv-list" placeholder="Type medicine name to search..." required value={item.itemName} onChange={(e) => { const val = e.target.value; const items = [...purchaseForm.items]; items[i].itemName = val; const match = invSuggestions.find(inv => inv.name.toLowerCase() === val.toLowerCase()); if (match) { items[i].unitPrice = match.costPrice || 0; items[i].mrp = match.sellingPrice || 0; items[i].total = +(match.costPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); } else { setPurchaseForm(f => ({ ...f, items })); } }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
                           {isNewItem && <p className="text-[10px] text-emerald-600 mt-0.5 px-0.5">+ Will be saved as a new item</p>}
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
@@ -1766,12 +2027,12 @@ export default function DoctorPharmacyPage() {
                           <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Expiry Date</label><input type="date" value={item.expiryDate} onChange={(e) => { const items = [...purchaseForm.items]; items[i].expiryDate = e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
                         </div>
                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="1" required value={item.quantity || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...purchaseForm.items]; items[i].quantity = val === "" ? 0 : +val; items[i].total = +(items[i].unitPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="1" required value={item.quantity || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...purchaseForm.items]; items[i].quantity = val === "" ? 0 : +val; items[i].total = +(items[i].unitPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
                           <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Free</label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="0" value={item.freeQty || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...purchaseForm.items]; items[i].freeQty = val === "" ? 0 : +val; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
                           <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">MRP ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.mrp || ""} onChange={(e) => { const items = [...purchaseForm.items]; items[i].mrp = +e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic} /></div>
-                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Rate ₹ <span className="text-red-400">*</span></label><input type="number" placeholder="0.00" min={0} step="0.01" required value={item.unitPrice || ""} onChange={(e) => { const items = [...purchaseForm.items]; items[i].unitPrice = +e.target.value; items[i].total = +(+e.target.value * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Rate ₹ <span className="text-red-400">*</span></label><input type="number" placeholder="0.00" min={0} step="0.01" required value={item.unitPrice || ""} onChange={(e) => { const items = [...purchaseForm.items]; items[i].unitPrice = +e.target.value; items[i].total = +(+e.target.value * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
                           <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">GST%</label><select value={item.gstRate} onChange={(e) => { const items = [...purchaseForm.items]; items[i].gstRate = +e.target.value; setPurchaseForm(f => ({ ...f, items })); }} className={ic}><option value={0}>0%</option><option value={5}>5%</option><option value={12}>12%</option><option value={18}>18%</option><option value={28}>28%</option></select></div>
-                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Total ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.total} onChange={(e) => { const items = [...purchaseForm.items]; items[i].total = +e.target.value; const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-full border border-teal-200 bg-teal-50 rounded-lg px-2 py-1.5 text-xs font-semibold text-teal-700 focus:ring-1 focus:ring-teal-500/30 focus:border-teal-400 outline-none" /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Total ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.total} onChange={(e) => { const items = [...purchaseForm.items]; items[i].total = +e.target.value; const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPurchaseForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-full border border-teal-200 bg-teal-50 rounded-lg px-2 py-1.5 text-xs font-semibold text-teal-700 focus:ring-1 focus:ring-teal-500/30 focus:border-teal-400 outline-none" /></div>
                         </div>
                       </div>
                     );
@@ -1798,7 +2059,7 @@ export default function DoctorPharmacyPage() {
                         <p className="text-sm text-gray-700 font-medium">{label}</p>
                         {hint && <p className="text-[10px] text-gray-400">{hint}</p>}
                       </div>
-                      <input type="number" min={0} step="0.01" value={purchaseForm[key] as number} onChange={(e) => setPurchaseForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                      <input type="number" min={0} step="0.01" value={purchaseForm[key] as number} onChange={(e) => setPurchaseForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
                     </div>
                   ))}
                   <div className="border-t border-gray-200 pt-3 space-y-3">
@@ -1810,7 +2071,7 @@ export default function DoctorPharmacyPage() {
                     ] as { label: string; key: keyof typeof purchaseForm }[]).map(({ label, key }) => (
                       <div key={String(key)} className="flex items-center gap-4">
                         <div className="w-32 shrink-0"><p className="text-sm text-gray-700 font-medium">{label}</p></div>
-                        <input type="number" min={0} step="0.01" value={purchaseForm[key] as number} onChange={(e) => setPurchaseForm(f => ({ ...f, [key]: +e.target.value }))} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                        <input type="number" min={0} step="0.01" value={purchaseForm[key] as number} onChange={(e) => setPurchaseForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
                       </div>
                     ))}
                     <div className="flex items-center gap-4">
@@ -2006,10 +2267,10 @@ export default function DoctorPharmacyPage() {
                       <div key={i} className="border border-gray-200 rounded-xl p-3 bg-white">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Item {i + 1}</span>
-                          {prForm.items.length > 1 && <button type="button" onClick={() => { const items = prForm.items.filter((_, j) => j !== i); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-5 h-5 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>}
+                          {prForm.items.length > 1 && <button type="button" onClick={() => { const items = prForm.items.filter((_, j) => j !== i); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-5 h-5 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>}
                         </div>
                         <div className="mb-2">
-                          <input list="pr-inv-list" placeholder="Type medicine name to search..." required value={item.itemName} onChange={(e) => { const val = e.target.value; const items = [...prForm.items]; items[i].itemName = val; const match = invSuggestions.find(inv => inv.name.toLowerCase() === val.toLowerCase()); if (match) { items[i].unitPrice = match.costPrice || 0; items[i].mrp = match.sellingPrice || 0; items[i].total = +(match.costPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); } else { setPrForm(f => ({ ...f, items })); } }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                          <input list="pr-inv-list" placeholder="Type medicine name to search..." required value={item.itemName} onChange={(e) => { const val = e.target.value; const items = [...prForm.items]; items[i].itemName = val; const match = invSuggestions.find(inv => inv.name.toLowerCase() === val.toLowerCase()); if (match) { items[i].unitPrice = match.costPrice || 0; items[i].mrp = match.sellingPrice || 0; items[i].total = +(match.costPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); } else { setPrForm(f => ({ ...f, items })); } }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
                           {isNewItem && <p className="text-[10px] text-emerald-600 mt-0.5 px-0.5">+ Will be saved as a new item</p>}
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2">
@@ -2020,12 +2281,12 @@ export default function DoctorPharmacyPage() {
                           <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Expiry Date</label><input type="date" value={item.expiryDate} onChange={(e) => { const items = [...prForm.items]; items[i].expiryDate = e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
                         </div>
                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="1" required value={item.quantity || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...prForm.items]; items[i].quantity = val === "" ? 0 : +val; items[i].total = +(items[i].unitPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Qty <span className="text-red-400">*</span></label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="1" required value={item.quantity || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...prForm.items]; items[i].quantity = val === "" ? 0 : +val; items[i].total = +(items[i].unitPrice * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
                           <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Free</label><input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="0" value={item.freeQty || ""} onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); const items = [...prForm.items]; items[i].freeQty = val === "" ? 0 : +val; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
                           <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">MRP ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.mrp || ""} onChange={(e) => { const items = [...prForm.items]; items[i].mrp = +e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic} /></div>
-                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Rate ₹ <span className="text-red-400">*</span></label><input type="number" placeholder="0.00" min={0} step="0.01" required value={item.unitPrice || ""} onChange={(e) => { const items = [...prForm.items]; items[i].unitPrice = +e.target.value; items[i].total = +(+e.target.value * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Rate ₹ <span className="text-red-400">*</span></label><input type="number" placeholder="0.00" min={0} step="0.01" required value={item.unitPrice || ""} onChange={(e) => { const items = [...prForm.items]; items[i].unitPrice = +e.target.value; items[i].total = +(+e.target.value * items[i].quantity).toFixed(2); const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className={ic} /></div>
                           <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">GST%</label><select value={item.gstRate} onChange={(e) => { const items = [...prForm.items]; items[i].gstRate = +e.target.value; setPrForm(f => ({ ...f, items })); }} className={ic}><option value={0}>0%</option><option value={5}>5%</option><option value={12}>12%</option><option value={18}>18%</option><option value={28}>28%</option></select></div>
-                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Total ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.total} onChange={(e) => { const items = [...prForm.items]; items[i].total = +e.target.value; const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-full border border-teal-200 bg-teal-50 rounded-lg px-2 py-1.5 text-xs font-semibold text-teal-700 focus:ring-1 focus:ring-teal-500/30 focus:border-teal-400 outline-none" /></div>
+                          <div><label className="block text-[10px] font-semibold text-gray-400 mb-0.5">Total ₹</label><input type="number" placeholder="0.00" min={0} step="0.01" value={item.total} onChange={(e) => { const items = [...prForm.items]; items[i].total = +e.target.value; const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2); setPrForm(f => { const u = { ...f, items, grossValue: gross }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; }); }} className="w-full border border-teal-200 bg-teal-50 rounded-lg px-2 py-1.5 text-xs font-semibold text-teal-700 focus:ring-1 focus:ring-teal-500/30 focus:border-teal-400 outline-none" /></div>
                         </div>
                       </div>
                     );
@@ -2052,7 +2313,7 @@ export default function DoctorPharmacyPage() {
                         <p className="text-sm text-gray-700 font-medium">{label}</p>
                         {hint && <p className="text-[10px] text-gray-400">{hint}</p>}
                       </div>
-                      <input type="number" min={0} step="0.01" value={prForm[key] as number} onChange={(e) => setPrForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                      <input type="number" min={0} step="0.01" value={prForm[key] as number} onChange={(e) => setPrForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
                     </div>
                   ))}
                   <div className="border-t border-gray-200 pt-3 space-y-3">
@@ -2064,7 +2325,7 @@ export default function DoctorPharmacyPage() {
                     ] as { label: string; key: keyof typeof prForm }[]).map(({ label, key }) => (
                       <div key={String(key)} className="flex items-center gap-4">
                         <div className="w-32 shrink-0"><p className="text-sm text-gray-700 font-medium">{label}</p></div>
-                        <input type="number" min={0} step="0.01" value={prForm[key] as number} onChange={(e) => setPrForm(f => ({ ...f, [key]: +e.target.value }))} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
+                        <input type="number" min={0} step="0.01" value={prForm[key] as number} onChange={(e) => setPrForm(f => { const u = { ...f, [key]: +e.target.value }; u.netAmount = +(u.grossValue + u.cgst + u.sgst + u.igst - u.discount + u.adding - u.less + u.roundingAmount).toFixed(2); return u; })} className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
                       </div>
                     ))}
                     <div className="flex items-center gap-4">
@@ -2101,9 +2362,20 @@ export default function DoctorPharmacyPage() {
                 <p className="text-xs text-gray-400 mt-0.5">{selectedSale.invoiceNumber || selectedSale.saleId}</p>
               </div>
               <div className="flex items-center gap-2">
+                <button onClick={() => openReturnForSale(selectedSale)} className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-semibold hover:bg-orange-100 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h13a4 4 0 010 8h-3m3-8l-4-4m4 4l-4 4" /></svg>
+                  Return
+                </button>
                 <button onClick={() => printSaleBill(selectedSale)} className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                   Print Bill
+                </button>
+                <button
+                  onClick={() => { setDeleteSaleRestock(true); setDeleteSaleTarget(selectedSale); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Delete
                 </button>
                 <button onClick={() => setSelectedSale(null)} className="p-2 hover:bg-gray-100 rounded-lg">
                   <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2197,9 +2469,18 @@ export default function DoctorPharmacyPage() {
                 <h2 className="text-lg font-bold text-gray-900">Sales Return Details</h2>
                 <p className="text-xs text-gray-400 mt-0.5">{selectedSalesReturn.invoiceNo}</p>
               </div>
-              <button onClick={() => setSelectedSalesReturn(null)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setDeleteSrRemoveRestock(true); setDeleteSrTarget(selectedSalesReturn); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Delete
+                </button>
+                <button onClick={() => setSelectedSalesReturn(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
             </div>
             <div className="p-5 space-y-5">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -2283,11 +2564,11 @@ export default function DoctorPharmacyPage() {
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">New Sale</h2>
-                  <p className="text-xs text-gray-400">Record an OTC or prescription sale</p>
+                  <h2 className="text-lg font-bold text-gray-900">{editingSaleId ? "Edit Draft Sale" : "New Sale"}</h2>
+                  <p className="text-xs text-gray-400">{editingSaleId ? "Review items, then complete or save as draft" : "Record an OTC or prescription sale"}</p>
                 </div>
               </div>
-              <button onClick={() => setShowAddSaleModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => { setShowAddSaleModal(false); resetSaleForm(); }} className="p-2 hover:bg-gray-100 rounded-lg">
                 <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -2367,7 +2648,7 @@ export default function DoctorPharmacyPage() {
                               const match = invSuggestions.find(inv => inv.name.toLowerCase() === name.toLowerCase());
                               setSaleForm(f => ({
                                 ...f,
-                                items: f.items.map((it, j) => j !== i ? it : {
+                                items: f.items.map((it, j) => j !== i ? it : recalcSaleItem({
                                   ...it,
                                   itemName: name,
                                   itemId: match?._id || "",
@@ -2378,8 +2659,7 @@ export default function DoctorPharmacyPage() {
                                   expiryDate: match?.expiryDate ? new Date(match.expiryDate).toISOString().split("T")[0] : it.expiryDate,
                                   hsnCode: match?.hsnCode || it.hsnCode,
                                   packing: match?.packing || it.packing,
-                                  total: +((it.qty * (match?.sellingPrice ?? it.mrp)) - it.discount).toFixed(2),
-                                }),
+                                })),
                               }));
                             }}
                             className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none"
@@ -2431,7 +2711,7 @@ export default function DoctorPharmacyPage() {
                             <input type="number" min={0} step="0.01" value={item.mrp}
                               onChange={(e) => {
                                 const mrp = Number(e.target.value) || 0;
-                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, mrp, total: +(it.qty * mrp - it.discount).toFixed(2) }) }));
+                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : recalcSaleItem({ ...it, mrp })) }));
                               }}
                               className={ic} required />
                           </div>
@@ -2440,16 +2720,16 @@ export default function DoctorPharmacyPage() {
                             <input type="number" min={1} value={item.qty}
                               onChange={(e) => {
                                 const qty = Number(e.target.value) || 0;
-                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, qty, total: +(qty * it.mrp - it.discount).toFixed(2) }) }));
+                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : recalcSaleItem({ ...it, qty })) }));
                               }}
                               className={ic} required />
                           </div>
                           <div>
-                            <label className="block text-[10px] text-gray-400 mb-0.5">Disc ₹</label>
-                            <input type="number" min={0} step="0.01" value={item.discount}
+                            <label className="block text-[10px] text-gray-400 mb-0.5">Disc %</label>
+                            <input type="number" min={0} max={100} step="0.01" value={item.discountPct}
                               onChange={(e) => {
-                                const discount = Number(e.target.value) || 0;
-                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : { ...it, discount, total: +(it.qty * it.mrp - discount).toFixed(2) }) }));
+                                const discountPct = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                                setSaleForm(f => ({ ...f, items: f.items.map((it, j) => j !== i ? it : recalcSaleItem({ ...it, discountPct })) }));
                               }}
                               className={ic} />
                           </div>
@@ -2522,8 +2802,9 @@ export default function DoctorPharmacyPage() {
               </div>
 
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setShowAddSaleModal(false)} className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors">Cancel</button>
-                <button type="submit" disabled={saleSubmitting} className="flex-[2] px-8 py-3 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60 transition-colors">{saleSubmitting ? "Saving..." : "Save Sale"}</button>
+                <button type="button" onClick={() => { setShowAddSaleModal(false); resetSaleForm(); }} className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="button" onClick={() => submitSale("draft")} disabled={saleDraftSaving || saleSubmitting} className="flex-1 px-4 py-3 border border-amber-300 text-amber-700 bg-amber-50 rounded-xl font-semibold text-sm hover:bg-amber-100 disabled:opacity-60 transition-colors">{saleDraftSaving ? "Saving..." : "Save as Draft"}</button>
+                <button type="submit" disabled={saleSubmitting || saleDraftSaving} className="flex-[2] px-8 py-3 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60 transition-colors">{saleSubmitting ? "Saving..." : (editingSaleId ? "Complete Sale" : "Create Sale")}</button>
               </div>
             </form>
           </div>
@@ -2655,6 +2936,182 @@ export default function DoctorPharmacyPage() {
                 <button type="submit" disabled={srSubmitting} className="flex-1 px-4 py-2.5 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 disabled:opacity-60">{srSubmitting ? "Saving..." : "Save Return"}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Sale Confirmation Dialog */}
+      {deleteSaleTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Delete this sale?</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{deleteSaleTarget.invoiceNumber || deleteSaleTarget.saleId} · {deleteSaleTarget.patientName}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                This will permanently remove the sale from the database. It will no longer appear in lists, exports, or reports.
+              </p>
+              <label className="flex items-start gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={deleteSaleRestock}
+                  onChange={(e) => setDeleteSaleRestock(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded accent-teal-600"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Restock items back into inventory</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Returns {deleteSaleTarget.items?.length || 0} item{(deleteSaleTarget.items?.length || 0) !== 1 ? "s" : ""} to stock. Leave unchecked if items were genuinely sold and shouldn't return.
+                  </p>
+                </div>
+              </label>
+            </div>
+            <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteSaleTarget(null)}
+                disabled={deletingSale}
+                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-white transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSale}
+                disabled={deletingSale}
+                className="px-5 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {deletingSale ? (
+                  <><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />Deleting...</>
+                ) : "Delete Sale"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Purchase Confirmation Dialog */}
+      {deletePurchaseTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Delete this purchase?</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Inv. {deletePurchaseTarget.supplierInvNo || "—"} · {deletePurchaseTarget.supplierName || "—"}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                This will permanently remove the purchase from the database. It will no longer appear in lists, exports, or reports.
+              </p>
+              <label className="flex items-start gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={deletePurchaseReverseStock}
+                  onChange={(e) => setDeletePurchaseReverseStock(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded accent-teal-600"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Reverse stock from inventory</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Subtracts the {deletePurchaseTarget.items?.length || 0} item{(deletePurchaseTarget.items?.length || 0) !== 1 ? "s" : ""} from current stock (capped at 0 if already sold). Leave unchecked if you only want to remove the record.
+                  </p>
+                </div>
+              </label>
+            </div>
+            <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                onClick={() => setDeletePurchaseTarget(null)}
+                disabled={deletingPurchase}
+                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-white transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeletePurchase}
+                disabled={deletingPurchase}
+                className="px-5 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {deletingPurchase ? (
+                  <><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />Deleting...</>
+                ) : "Delete Purchase"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Sales Return Confirmation Dialog */}
+      {deleteSrTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Delete this sales return?</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{deleteSrTarget.invoiceNo} · {deleteSrTarget.partyName}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                This will permanently remove the sales return from the database. It will no longer appear in lists, exports, or reports.
+              </p>
+              {(() => {
+                const restockedCount = (deleteSrTarget.items || []).filter((it: any) => it.restock).length;
+                return (
+                  <label className={`flex items-start gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl ${restockedCount > 0 ? "cursor-pointer hover:bg-gray-100" : "opacity-60"} transition-colors`}>
+                    <input
+                      type="checkbox"
+                      checked={deleteSrRemoveRestock}
+                      onChange={(e) => setDeleteSrRemoveRestock(e.target.checked)}
+                      disabled={restockedCount === 0}
+                      className="w-4 h-4 mt-0.5 rounded accent-teal-600"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Reverse the inventory restock</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {restockedCount > 0
+                          ? `Removes ${restockedCount} restocked item${restockedCount !== 1 ? "s" : ""} from inventory. Leave unchecked if items have already been physically returned to the customer.`
+                          : "No items in this return were restocked — nothing to reverse."}
+                      </p>
+                    </div>
+                  </label>
+                );
+              })()}
+            </div>
+            <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteSrTarget(null)}
+                disabled={deletingSr}
+                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-white transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSalesReturn}
+                disabled={deletingSr}
+                className="px-5 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {deletingSr ? (
+                  <><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />Deleting...</>
+                ) : "Delete Return"}
+              </button>
+            </div>
           </div>
         </div>
       )}

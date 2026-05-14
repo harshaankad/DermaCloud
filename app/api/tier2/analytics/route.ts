@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
       // Sales — only run when clinicId is available
       clinicId
         ? Sale.aggregate([
-            { $match: { clinicId, createdAt: { $gte: monthStart } } },
+            { $match: { clinicId, createdAt: { $gte: monthStart }, status: { $ne: "draft" } } },
             {
               $facet: {
                 summary: [

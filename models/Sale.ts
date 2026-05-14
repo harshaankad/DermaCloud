@@ -40,6 +40,7 @@ export interface ISale extends Document {
   totalAmount: number;
   paymentMethod: "cash" | "card" | "upi" | "insurance" | "credit";
   paymentStatus: "paid" | "pending" | "partial" | "refunded";
+  status: "draft" | "completed";
   amountPaid: number;
   amountDue: number;
   soldBy: {
@@ -209,6 +210,12 @@ const SaleSchema = new Schema<ISale>(
       enum: ["paid", "pending", "partial", "refunded"],
       default: "paid",
     },
+    status: {
+      type: String,
+      enum: ["draft", "completed"],
+      default: "completed",
+      index: true,
+    },
     amountPaid: {
       type: Number,
       required: true,
@@ -273,7 +280,8 @@ SaleSchema.pre("save", async function (next) {
     this.saleId = `SALE-${String(lastSeq + 1).padStart(6, "0")}`;
   }
 
-  if (!this.invoiceNumber) {
+  // Drafts don't get an invoice number until completed
+  if (!this.invoiceNumber && this.status !== "draft") {
     const today = new Date();
     const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
     const last = await mongoose.models.Sale
