@@ -9,6 +9,9 @@
 # Learning docs (local only)
 /docs/learning/
 
+# Local Claude Code slash commands (personal dev workflow, not project code)
+/.claude/commands/
+
 # dependencies
 /node_modules
 /.pnp
