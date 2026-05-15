@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { printSaleBill } from "@/lib/printBill";
+import PatientPicker, { PickedPatient } from "@/components/PatientPicker";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -57,10 +58,11 @@ export default function FrontdeskSalesPage() {
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
   const [invSuggestions, setInvSuggestions] = useState<any[]>([]);
   const [saleForm, setSaleForm] = useState({
-    patientName: "", patientPhone: "", doctorName: "", city: "",
+    patientName: "", patientPhone: "", patientId: "", patientCode: "", doctorName: "", city: "",
     modeOfPayment: "cash", isInterstate: false, roundingAmount: 0,
     items: [{ itemId: "", itemName: "", hsnCode: "", packing: "", manufacturer: "", batchNo: "", expiryDate: "", mrp: 0, qty: 1, discount: 0, discountPct: 0, gstRate: 0, total: 0 }],
   });
+  const [selectedPatient, setSelectedPatient] = useState<PickedPatient | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastSale, setLastSale] = useState<any>(null);
   const [todayStats, setTodayStats] = useState<any>(null);
@@ -159,13 +161,17 @@ export default function FrontdeskSalesPage() {
     } catch { showToast("error", "Download failed"); }
   };
 
+  // MRP is GST-inclusive in this codebase — extract the GST out of item.total
+  // instead of adding it on top. Mirrors the sale POST math in app/api/tier2/sales/route.ts.
   const computeGstBreakdowns = (items: any[]) => {
     const empty = () => ({ taxable: 0, cgst: 0, sgst: 0, igst: 0 });
     const gst: Record<number, any> = { 0: empty(), 5: empty(), 12: empty(), 18: empty(), 28: empty() };
     for (const item of items) {
       const rate = item.gstRate || 0;
-      const taxable = item.total || 0;
-      const half = parseFloat(((taxable * rate) / 200).toFixed(2));
+      const total = item.total || 0;
+      const taxable = rate > 0 ? +(total * 100 / (100 + rate)).toFixed(2) : total;
+      const gstOnItem = +(total - taxable).toFixed(2);
+      const half = +(gstOnItem / 2).toFixed(2);
       if (!gst[rate]) gst[rate] = empty();
       gst[rate].taxable += taxable; gst[rate].cgst += half; gst[rate].sgst += half;
     }
@@ -187,9 +193,9 @@ export default function FrontdeskSalesPage() {
   };
 
   const recomputeSrTotals = (items: typeof srForm.items, discount: number, roundingAmount: number) => {
+    // item.total already includes GST (MRP is GST-inclusive). Net = gross − discount + rounding.
     const gross = +items.reduce((s, it) => s + it.total, 0).toFixed(2);
-    const totalGst = +items.reduce((s, it) => s + it.total * (it.gstRate || 0) / 100, 0).toFixed(2);
-    const net = +(gross + totalGst - discount + roundingAmount).toFixed(2);
+    const net = +(gross - discount + roundingAmount).toFixed(2);
     return { grossValue: gross, netAmount: net };
   };
 
@@ -244,8 +250,10 @@ export default function FrontdeskSalesPage() {
       };
     });
     const grossValue = +items.reduce((s: number, it: any) => s + it.total, 0).toFixed(2);
-    const totalGst = +items.reduce((s: number, it: any) => s + it.total * (it.gstRate || 0) / 100, 0).toFixed(2);
-    const netAmount = +(grossValue + totalGst).toFixed(2);
+    // MRP is GST-inclusive on the sale — don't re-add GST. Inherit the original sale's
+    // rounding so the prefilled Net Amount matches the original bill's payable total.
+    const roundingAmount = +((Number(sale.roundingAmount) || 0)).toFixed(2);
+    const netAmount = +(grossValue + roundingAmount).toFixed(2);
     setSrForm({
       invoiceNo: sale.invoiceNumber || sale.saleId || "",
       invoiceDate: isoDate,
@@ -255,7 +263,7 @@ export default function FrontdeskSalesPage() {
       isInterstate: !!sale.isInterstate,
       grossValue,
       discount: 0,
-      roundingAmount: 0,
+      roundingAmount,
       netAmount,
       reason: "",
       originalSaleId: sale._id,
@@ -270,12 +278,21 @@ export default function FrontdeskSalesPage() {
   // autofill the sale form items. Names that don't match an inventory item are
   // added as empty rows so the user gets the existing "not found" inline error
   // next to them and can pick a replacement or remove the row.
-  const autofillFromPrescription = async (patientId: string, date?: string, appointmentId?: string) => {
+  const autofillFromPrescription = async (
+    patientId: string,
+    date?: string,
+    appointmentId?: string,
+    opts?: { latest?: boolean; notifyEmpty?: boolean }
+  ) => {
     const token = localStorage.getItem("frontdeskToken");
     if (!token) return;
     setAutofilling(true);
     try {
-      const rxUrl = `/api/tier2/sales/prescription?patientId=${patientId}${date ? `&date=${date}` : ""}${appointmentId ? `&appointmentId=${appointmentId}` : ""}`;
+      const params = new URLSearchParams({ patientId });
+      if (date) params.set("date", date);
+      if (appointmentId) params.set("appointmentId", appointmentId);
+      if (opts?.latest) params.set("latest", "true");
+      const rxUrl = `/api/tier2/sales/prescription?${params.toString()}`;
       const [invRes, rxRes] = await Promise.all([
         fetch("/api/tier2/inventory?limit=2000", { headers: { Authorization: `Bearer ${token}` } }),
         fetch(rxUrl, { headers: { Authorization: `Bearer ${token}` } }),
@@ -285,7 +302,10 @@ export default function FrontdeskSalesPage() {
       const invList: any[] = invData.success ? (invData.data.items || []) : [];
       setInvSuggestions(invList);
 
-      if (!rxData.success || !rxData.data) return;
+      if (!rxData.success || !rxData.data) {
+        if (opts?.notifyEmpty) showToast("info", "No previous prescription exists for this patient");
+        return;
+      }
 
       const cf = rxData.data.consultation?.customFields;
       const isMulti = cf?._multiIssue === true && Array.isArray(cf._issues) && cf._issues.length > 0;
@@ -300,7 +320,10 @@ export default function FrontdeskSalesPage() {
         if (Array.isArray(rx)) meds.push(...rx);
       }
       const namedMeds = meds.filter((m: any) => m?.name?.trim());
-      if (namedMeds.length === 0) return;
+      if (namedMeds.length === 0) {
+        if (opts?.notifyEmpty) showToast("info", "No previous prescription exists for this patient");
+        return;
+      }
 
       const items = namedMeds.map((med: any) => {
         const name = med.name.trim();
@@ -367,11 +390,30 @@ export default function FrontdeskSalesPage() {
       const aptDate = params.get("aptDate") || undefined;
       const aptId = params.get("appointmentId") || undefined;
       if (aptId) setLinkedAppointmentId(aptId);
-      setSaleForm((prev) => ({
-        ...prev,
-        patientName: pname,
-        patientPhone: pphone,
-      }));
+      // Fetch the full patient doc so the picker shows the chip with patient code
+      (async () => {
+        const token = localStorage.getItem("frontdeskToken");
+        if (!token) return;
+        try {
+          const res = await fetch(`/api/tier2/patients/${pid}`, { headers: { Authorization: `Bearer ${token}` } });
+          const data = await res.json();
+          if (data.success && data.data?.patient) {
+            const p = data.data.patient;
+            setSelectedPatient({ _id: p._id, patientId: p.patientId, name: p.name, phone: p.phone, age: p.age, gender: p.gender });
+            setSaleForm((prev) => ({
+              ...prev,
+              patientId: p._id,
+              patientCode: p.patientId,
+              patientName: p.name,
+              patientPhone: p.phone,
+            }));
+          } else {
+            setSaleForm((prev) => ({ ...prev, patientName: pname, patientPhone: pphone }));
+          }
+        } catch {
+          setSaleForm((prev) => ({ ...prev, patientName: pname, patientPhone: pphone }));
+        }
+      })();
       autofillFromPrescription(pid, aptDate, aptId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -434,6 +476,10 @@ export default function FrontdeskSalesPage() {
   //   - complete draft → PATCH with status="completed"
   const submitSale = async (mode: "complete" | "draft") => {
     const token = localStorage.getItem("frontdeskToken"); if (!token) return;
+    if (!saleForm.patientId) {
+      showToast("error", "Please select or add a patient before saving");
+      return;
+    }
     const isEdit = !!editingSaleId;
     const draftish = mode === "draft";
     draftish ? setSavingDraft(true) : setSubmitting(true);
@@ -480,9 +526,23 @@ export default function FrontdeskSalesPage() {
   const openDraftForEdit = (sale: any) => {
     setEditingSaleId(sale._id);
     setLinkedAppointmentId(sale.appointmentId?._id || sale.appointmentId || undefined);
+    const patIdRaw = sale.patientId;
+    const patientObjectId = typeof patIdRaw === "string" ? patIdRaw : patIdRaw?._id || patIdRaw?.toString?.() || "";
+    if (patientObjectId && sale.patientName) {
+      setSelectedPatient({
+        _id: patientObjectId,
+        patientId: sale.patientCode || "",
+        name: sale.patientName,
+        phone: sale.patientPhone || "",
+      });
+    } else {
+      setSelectedPatient(null);
+    }
     setSaleForm({
       patientName: sale.patientName || "",
       patientPhone: sale.patientPhone || "",
+      patientId: patientObjectId,
+      patientCode: sale.patientCode || "",
       doctorName: sale.doctorName || "",
       city: sale.city || "",
       modeOfPayment: sale.paymentMethod || "cash",
@@ -518,7 +578,8 @@ export default function FrontdeskSalesPage() {
   const resetSaleForm = () => {
     setEditingSaleId(null);
     setLinkedAppointmentId(undefined);
-    setSaleForm({ patientName: "", patientPhone: "", doctorName: "", city: "", modeOfPayment: "cash", isInterstate: false, roundingAmount: 0, items: [{ ...EMPTY_SALE_ITEM }] });
+    setSaleForm({ patientName: "", patientPhone: "", patientId: "", patientCode: "", doctorName: "", city: "", modeOfPayment: "cash", isInterstate: false, roundingAmount: 0, items: [{ ...EMPTY_SALE_ITEM }] });
+    setSelectedPatient(null);
   };
 
   const openSaleDetail = async (sale: Sale) => {
@@ -1291,8 +1352,11 @@ export default function FrontdeskSalesPage() {
                   srForm.items.forEach(it => {
                     const r = it.gstRate || 0;
                     if (r > 0) {
-                      if (srForm.isInterstate) igst += it.total * r / 100;
-                      else { cgst += it.total * r / 200; sgst += it.total * r / 200; }
+                      // MRP is GST-inclusive — extract GST from it.total instead of adding on top.
+                      const taxable = it.total * 100 / (100 + r);
+                      const gstOnItem = it.total - taxable;
+                      if (srForm.isInterstate) igst += gstOnItem;
+                      else { cgst += gstOnItem / 2; sgst += gstOnItem / 2; }
                     }
                   });
                   const totalGst = srForm.isInterstate ? +igst.toFixed(2) : +(cgst + sgst).toFixed(2);
@@ -1407,7 +1471,12 @@ export default function FrontdeskSalesPage() {
                         <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 items-center">
                           <div>
                             <p className="font-semibold text-gray-900 text-sm">{item.itemName}</p>
-                            <p className="text-[11px] text-gray-400">₹{item.unitPrice} each{item.discount > 0 ? ` · -₹${item.discount} off` : ""}</p>
+                            {(() => {
+                              const gross = (item.unitPrice || 0) * (item.quantity || 0);
+                              const pct = gross > 0 && item.discount > 0 ? (item.discount / gross) * 100 : 0;
+                              const pctText = pct > 0 ? `${pct.toFixed(2).replace(/\.?0+$/, "")}% off` : "";
+                              return <p className="text-[11px] text-gray-400">₹{item.unitPrice} each{pctText ? ` · ${pctText}` : ""}</p>;
+                            })()}
                           </div>
                           <p className="text-sm font-semibold text-gray-600 text-center">{item.quantity}</p>
                           <p className="text-sm font-bold text-gray-900 text-right">₹{item.total.toLocaleString()}</p>
@@ -1435,7 +1504,7 @@ export default function FrontdeskSalesPage() {
                     })()}
                     {selectedSale.discountAmount > 0 && (
                       <div className="flex justify-between items-center px-4 py-3 text-sm">
-                        <span className="text-gray-500">Discount ({selectedSale.discountPercentage}%)</span>
+                        <span className="text-gray-500">Discount</span>
                         <span className="font-medium text-red-500">-₹{selectedSale.discountAmount.toLocaleString()}</span>
                       </div>
                     )}
@@ -1527,23 +1596,39 @@ export default function FrontdeskSalesPage() {
                 {/* Bill Info */}
                 <div>
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Bill Info</p>
+                  <div className="mb-3">
+                    <label className="block text-xs text-gray-500 mb-1">Patient <span className="text-red-400">*</span></label>
+                    <PatientPicker
+                      tokenKey="frontdeskToken"
+                      value={selectedPatient}
+                      onChange={(p) => {
+                        setSelectedPatient(p);
+                        setSaleForm((f) => ({
+                          ...f,
+                          patientId: p?._id || "",
+                          patientCode: p?.patientId || "",
+                          patientName: p?.name || "",
+                          patientPhone: p?.phone || "",
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <button
+                      type="button"
+                      disabled={!saleForm.patientId || autofilling}
+                      onClick={() => autofillFromPrescription(saleForm.patientId, undefined, undefined, { latest: true, notifyEmpty: true })}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-teal-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      {autofilling ? "Loading…" : "Add Previous Prescription"}
+                    </button>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Patient Name <span className="text-red-400">*</span></label>
-                      <input type="text" required placeholder="Patient / customer name" value={saleForm.patientName}
-                        onChange={(e) => setSaleForm(f => ({ ...f, patientName: e.target.value }))}
-                        className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
-                    </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Doctor Name</label>
                       <input type="text" placeholder="Optional" value={saleForm.doctorName}
                         onChange={(e) => setSaleForm(f => ({ ...f, doctorName: e.target.value }))}
-                        className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Phone</label>
-                      <input type="tel" placeholder="Optional" value={saleForm.patientPhone}
-                        onChange={(e) => setSaleForm(f => ({ ...f, patientPhone: e.target.value }))}
                         className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none" />
                     </div>
                     <div>

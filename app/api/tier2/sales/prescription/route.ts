@@ -52,30 +52,31 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fallback: search by patient + date
-    const dateParam = searchParams.get("date");
-    const targetDate = dateParam ? new Date(dateParam) : new Date();
-    targetDate.setHours(0, 0, 0, 0);
-    const nextDay = new Date(targetDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-    const dateFilter = { $gte: targetDate, $lt: nextDay };
+    // "latest=true" mode: ignore date, return the most recent consultation
+    // (across derm + cosmo) for this patient. Used by the "Add Previous
+    // Prescription" button on the Sales pages.
+    const latest = searchParams.get("latest") === "true";
 
-    // Check both consultation types in parallel
+    let dateFilter: any = undefined;
+    if (!latest) {
+      const dateParam = searchParams.get("date");
+      const targetDate = dateParam ? new Date(dateParam) : new Date();
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      dateFilter = { $gte: targetDate, $lt: nextDay };
+    }
+
+    const baseFilter: any = { patientId, clinicId: auth.clinicId };
+    if (dateFilter) baseFilter.consultationDate = dateFilter;
+
     const [dermConsultation, cosmoConsultation] = await Promise.all([
-      ConsultationDermatology.findOne({
-        patientId,
-        clinicId: auth.clinicId,
-        consultationDate: dateFilter,
-      })
-        .select("treatmentPlan customFields patientInfo")
+      ConsultationDermatology.findOne(baseFilter)
+        .select("treatmentPlan customFields patientInfo consultationDate")
         .sort({ consultationDate: -1 })
         .lean(),
-      ConsultationCosmetology.findOne({
-        patientId,
-        clinicId: auth.clinicId,
-        consultationDate: dateFilter,
-      })
-        .select("procedure aftercare customFields patientInfo")
+      ConsultationCosmetology.findOne(baseFilter)
+        .select("procedure aftercare customFields patientInfo consultationDate")
         .sort({ consultationDate: -1 })
         .lean(),
     ]);
@@ -84,9 +85,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: null });
     }
 
-    // Prefer dermatology if both exist on the same day (fallback only)
-    const type = dermConsultation ? "dermatology" : "cosmetology";
-    const consultation = dermConsultation || cosmoConsultation;
+    // Pick the newer of the two when latest mode is requested; otherwise
+    // (same-day fallback) prefer dermatology as before.
+    let type: "dermatology" | "cosmetology";
+    let consultation: any;
+    if (latest && dermConsultation && cosmoConsultation) {
+      const dermDate = new Date((dermConsultation as any).consultationDate).getTime();
+      const cosmoDate = new Date((cosmoConsultation as any).consultationDate).getTime();
+      if (cosmoDate > dermDate) {
+        type = "cosmetology";
+        consultation = cosmoConsultation;
+      } else {
+        type = "dermatology";
+        consultation = dermConsultation;
+      }
+    } else {
+      type = dermConsultation ? "dermatology" : "cosmetology";
+      consultation = dermConsultation || cosmoConsultation;
+    }
 
     return NextResponse.json({ success: true, data: { type, consultation } });
   } catch (error: any) {

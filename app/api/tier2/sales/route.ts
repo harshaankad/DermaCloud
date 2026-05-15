@@ -6,6 +6,7 @@ import Sale from "@/models/Sale";
 import InventoryItem from "@/models/InventoryItem";
 import InventoryTransaction from "@/models/InventoryTransaction";
 import Clinic from "@/models/Clinic";
+import Patient from "@/models/Patient";
 
 // GET - List sales
 export async function GET(request: NextRequest) {
@@ -37,10 +38,33 @@ export async function GET(request: NextRequest) {
       Sale.countDocuments(query),
     ]);
 
-    // Add clinicName for print bill
-    const clinic = await Clinic.findById(auth.clinicId, { clinicName: 1 }).lean() as any;
+    // Enrich bills with clinic name + current GSTIN (fallback for sales saved
+    // before clinicGstin/patientCode snapshot fields existed) so the print bill
+    // shows the right header and patient ID even on older records.
+    const clinic = await Clinic.findById(auth.clinicId, { clinicName: 1, gstin: 1 }).lean() as any;
     const clinicName = clinic?.clinicName || auth.clinicName || "Pharmacy";
-    const enrichedSales = sales.map((s: any) => ({ ...s, clinicName }));
+    const clinicGstin = clinic?.gstin || "";
+
+    const patientIdsToLookup = sales
+      .filter((s: any) => s.patientId && !s.patientCode)
+      .map((s: any) => s.patientId);
+    let patientCodeMap: Record<string, string> = {};
+    if (patientIdsToLookup.length > 0) {
+      const patients: any[] = await Patient
+        .find({ _id: { $in: patientIdsToLookup }, clinicId: auth.clinicId }, { patientId: 1 })
+        .lean();
+      patientCodeMap = patients.reduce((acc: Record<string, string>, p: any) => {
+        acc[String(p._id)] = p.patientId;
+        return acc;
+      }, {});
+    }
+
+    const enrichedSales = sales.map((s: any) => ({
+      ...s,
+      clinicName,
+      clinicGstin: s.clinicGstin || clinicGstin || undefined,
+      patientCode: s.patientCode || (s.patientId ? patientCodeMap[String(s.patientId)] : undefined),
+    }));
 
     return NextResponse.json({ success: true, data: { sales: enrichedSales, pagination: { page, limit, total, pages: Math.ceil(total / limit) } } });
   } catch (error: any) {
@@ -58,12 +82,20 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
+      patientId: rawPatientId,
       patientName, patientPhone, doctorName, city,
       modeOfPayment, isInterstate = false,
       roundingAmount = 0, items,
       appointmentId,
       status: rawStatus,
     } = body;
+
+    let patientDoc: { _id: mongoose.Types.ObjectId; patientId: string; name: string; phone: string } | null = null;
+    if (rawPatientId && mongoose.Types.ObjectId.isValid(rawPatientId)) {
+      patientDoc = await Patient.findOne({ _id: rawPatientId, clinicId: auth.clinicId })
+        .select("patientId name phone")
+        .lean() as any;
+    }
 
     const status: "draft" | "completed" = rawStatus === "draft" ? "draft" : "completed";
     const isDraft = status === "draft";
@@ -74,7 +106,7 @@ export async function POST(request: NextRequest) {
     const performedBy = { id: auth.userId, name: auth.name, role: auth.role };
 
     // Fetch clinic info for bill storage
-    const clinic = await Clinic.findById(auth.clinicId, { clinicName: 1, address: 1, phone: 1 }).lean() as any;
+    const clinic = await Clinic.findById(auth.clinicId, { clinicName: 1, address: 1, phone: 1, gstin: 1 }).lean() as any;
 
     // GST buckets for per-rate breakdown
     const gstBuckets: Record<number, { taxable: number; cgst: number; sgst: number; igst: number }> = {
@@ -169,8 +201,10 @@ export async function POST(request: NextRequest) {
 
     const sale = new Sale({
       clinicId: auth.clinicId,
-      patientName: patientName.trim(),
-      patientPhone: patientPhone || undefined,
+      patientId: patientDoc?._id,
+      patientCode: patientDoc?.patientId,
+      patientName: patientDoc?.name || patientName.trim(),
+      patientPhone: patientDoc?.phone || patientPhone || undefined,
       doctorName: doctorName?.trim() || undefined,
       city: city || undefined,
       isInterstate,
@@ -198,6 +232,7 @@ export async function POST(request: NextRequest) {
       roundingAmount,
       clinicAddress: clinic?.address || undefined,
       clinicPhone: clinic?.phone || undefined,
+      clinicGstin: clinic?.gstin || undefined,
       soldBy: performedBy,
     });
 
@@ -207,6 +242,10 @@ export async function POST(request: NextRequest) {
       await sale.save();
       const saleObj = sale.toObject();
       (saleObj as any).clinicName = clinic?.clinicName || auth.clinicName || "Pharmacy";
+      // Read-time fallbacks for envs where the Mongoose model cache still has
+      // the pre-snapshot schema and silently strips the new fields on save.
+      if (!(saleObj as any).clinicGstin && clinic?.gstin) (saleObj as any).clinicGstin = clinic.gstin;
+      if (!(saleObj as any).patientCode && patientDoc?.patientId) (saleObj as any).patientCode = patientDoc.patientId;
       return NextResponse.json({ success: true, message: "Draft saved", data: saleObj }, { status: 201 });
     }
 
@@ -253,6 +292,8 @@ export async function POST(request: NextRequest) {
 
     const saleObj = sale.toObject();
     (saleObj as any).clinicName = clinic?.clinicName || auth.clinicName || "Pharmacy";
+    if (!(saleObj as any).clinicGstin && clinic?.gstin) (saleObj as any).clinicGstin = clinic.gstin;
+    if (!(saleObj as any).patientCode && patientDoc?.patientId) (saleObj as any).patientCode = patientDoc.patientId;
 
     return NextResponse.json({ success: true, message: "Sale recorded", data: saleObj }, { status: 201 });
   } catch (error: any) {

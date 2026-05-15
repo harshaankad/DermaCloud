@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request } from "@/lib/auth/verify-request";
 import SalesReturn from "@/models/SalesReturn";
 import Sale from "@/models/Sale";
+import Patient from "@/models/Patient";
 import InventoryItem from "@/models/InventoryItem";
 import InventoryTransaction from "@/models/InventoryTransaction";
 
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
   await connectDB();
   const body = await request.json();
 
+  let inheritedPatient: { patientId?: mongoose.Types.ObjectId; patientCode?: string; patientPhone?: string; partyName?: string } = {};
+
   // Over-return guard: if linked to an original sale, ensure total returned qty per item
   // never exceeds the qty actually sold on that invoice (counting prior returns too).
   if (body.originalSaleId) {
@@ -62,6 +65,13 @@ export async function POST(request: NextRequest) {
     if (!originalSale) {
       return NextResponse.json({ success: false, message: "Original sale not found" }, { status: 404 });
     }
+
+    inheritedPatient = {
+      patientId: originalSale.patientId,
+      patientCode: originalSale.patientCode,
+      patientPhone: originalSale.patientPhone,
+      partyName: originalSale.patientName,
+    };
 
     const soldById: Record<string, number> = {};
     const soldByName: Record<string, number> = {};
@@ -108,6 +118,20 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // For standalone returns (no original sale), resolve patient from body.patientId if provided.
+  if (!body.originalSaleId && body.patientId && mongoose.Types.ObjectId.isValid(body.patientId)) {
+    const patientDoc: any = await Patient.findOne({ _id: body.patientId, clinicId: auth.clinicId })
+      .select("patientId name phone").lean();
+    if (patientDoc) {
+      inheritedPatient = {
+        patientId: patientDoc._id,
+        patientCode: patientDoc.patientId,
+        patientPhone: patientDoc.phone,
+        partyName: patientDoc.name,
+      };
+    }
+  }
+
   const session = await mongoose.startSession();
   try {
     let savedReturn: any;
@@ -120,7 +144,17 @@ export async function POST(request: NextRequest) {
       };
 
       const [salesReturn] = await SalesReturn.create(
-        [{ ...body, clinicId: auth.clinicId, createdBy: auth.doctorId || auth.userId }],
+        [{
+          ...body,
+          ...(inheritedPatient.patientId ? {
+            patientId: inheritedPatient.patientId,
+            patientCode: inheritedPatient.patientCode,
+            patientPhone: inheritedPatient.patientPhone,
+            partyName: inheritedPatient.partyName || body.partyName,
+          } : {}),
+          clinicId: auth.clinicId,
+          createdBy: auth.doctorId || auth.userId,
+        }],
         { session }
       );
 

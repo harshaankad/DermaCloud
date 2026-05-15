@@ -65,6 +65,8 @@ export interface ISale extends Document {
   igst: number;
   clinicAddress?: string;
   clinicPhone?: string;
+  clinicGstin?: string;
+  patientCode?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -263,6 +265,8 @@ const SaleSchema = new Schema<ISale>(
     igst: { type: Number, default: 0 },
     clinicAddress: { type: String, trim: true },
     clinicPhone: { type: String, trim: true },
+    clinicGstin: { type: String, trim: true, uppercase: true },
+    patientCode: { type: String, trim: true },
   },
   {
     timestamps: true,

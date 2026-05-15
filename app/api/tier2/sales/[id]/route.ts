@@ -53,10 +53,13 @@ export async function GET(
       );
     }
 
-    // Add clinicName for print bill
-    const saleObj = sale.toObject();
-    const clinic = await Clinic.findById(auth.clinicId, { clinicName: 1 }).lean() as any;
-    (saleObj as any).clinicName = clinic?.clinicName || auth.clinicName || "Pharmacy";
+    // Enrich for print bill: clinic name, GSTIN (fallback for old sales without
+    // snapshot), and patient code from the populated patient if missing.
+    const saleObj = sale.toObject() as any;
+    const clinic = await Clinic.findById(auth.clinicId, { clinicName: 1, gstin: 1 }).lean() as any;
+    saleObj.clinicName = clinic?.clinicName || auth.clinicName || "Pharmacy";
+    if (!saleObj.clinicGstin && clinic?.gstin) saleObj.clinicGstin = clinic.gstin;
+    if (!saleObj.patientCode && saleObj.patientId?.patientId) saleObj.patientCode = saleObj.patientId.patientId;
 
     return NextResponse.json({
       success: true,

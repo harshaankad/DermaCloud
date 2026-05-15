@@ -20,6 +20,9 @@ export interface ISalesReturn extends Document {
   invoiceDate: Date;
   modeOfPayment: "cash" | "card" | "upi" | "credit";
   partyName: string;
+  patientId?: mongoose.Types.ObjectId;
+  patientCode?: string;
+  patientPhone?: string;
   city?: string;
   items: ISalesReturnItem[];
   grossValue: number;
@@ -75,6 +78,9 @@ const SalesReturnSchema = new Schema<ISalesReturn>(
       required: true,
     },
     partyName: { type: String, required: true, trim: true },
+    patientId: { type: Schema.Types.ObjectId, ref: "Patient" },
+    patientCode: { type: String, trim: true },
+    patientPhone: { type: String, trim: true },
     city: { type: String, trim: true },
     items: {
       type: [SalesReturnItemSchema],
