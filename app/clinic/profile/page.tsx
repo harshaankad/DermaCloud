@@ -27,6 +27,12 @@ export default function ProfilePage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
+  // GSTIN state
+  const [gstin, setGstin] = useState("");
+  const [editingGstin, setEditingGstin] = useState(false);
+  const [gstinDraft, setGstinDraft] = useState("");
+  const [gstinSaving, setGstinSaving] = useState(false);
+
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
@@ -50,7 +56,42 @@ export default function ProfilePage() {
       createdAt: user.createdAt || new Date().toISOString(),
     });
     setLoading(false);
+
+    const token = localStorage.getItem("token");
+    fetch("/api/tier2/clinic/gstin", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) setGstin(data.data.gstin || "");
+      })
+      .catch(() => {});
   }, [router]);
+
+  const handleSaveGstin = async () => {
+    const trimmed = gstinDraft.trim().toUpperCase();
+    setGstinSaving(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/tier2/clinic/gstin", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ gstin: trimmed }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setGstin(trimmed);
+        setEditingGstin(false);
+        showToast("success", trimmed ? "GSTIN saved" : "GSTIN cleared");
+      } else {
+        showToast("error", data.message || "Failed to save GSTIN");
+      }
+    } catch {
+      showToast("error", "Failed to save GSTIN");
+    } finally {
+      setGstinSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -224,6 +265,95 @@ export default function ProfilePage() {
                   <p className="text-sm font-semibold text-gray-900">{profile.phone}</p>
                 </div>
               )}
+
+              {/* GSTIN */}
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-3-3v6m-9 1V7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                    </svg>
+                    GSTIN
+                  </p>
+                  {gstin && !editingGstin && (
+                    <button
+                      onClick={() => {
+                        setGstinDraft(gstin);
+                        setEditingGstin(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors"
+                      title="Edit GSTIN"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit
+                    </button>
+                  )}
+                </div>
+                {editingGstin ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={gstinDraft}
+                      onChange={(e) => setGstinDraft(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveGstin();
+                        if (e.key === "Escape") {
+                          setEditingGstin(false);
+                          setGstinDraft(gstin);
+                        }
+                      }}
+                      autoFocus
+                      maxLength={20}
+                      placeholder="29ABCDE1234F1Z5"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-sm bg-white font-mono tracking-wider placeholder:font-sans placeholder:tracking-normal placeholder:text-gray-300"
+                    />
+                    <button
+                      onClick={handleSaveGstin}
+                      disabled={gstinSaving}
+                      className="p-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
+                      title="Save"
+                    >
+                      {gstinSaving ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingGstin(false);
+                        setGstinDraft(gstin);
+                      }}
+                      disabled={gstinSaving}
+                      className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Cancel"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : gstin ? (
+                  <p className="text-sm font-semibold text-gray-900 font-mono tracking-wider">{gstin}</p>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setGstinDraft("");
+                      setEditingGstin(true);
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-dashed border-teal-300 text-teal-600 hover:text-teal-700 hover:bg-teal-50 hover:border-teal-400 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add GSTIN
+                  </button>
+                )}
+              </div>
 
               {profile.clinicName && (
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
