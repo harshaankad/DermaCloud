@@ -208,11 +208,11 @@ function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
     { label: "Qty",          w: 38  },
     { label: "Instructions", w: CW - 22 - 110 - 55 - 50 - 65 - 55 - 38 },
   ];
-  const rowH = 20;
+  const minRowH = 20;
   const headerH = 18;
   const pad = 5;
 
-  ensureSpace(doc, headerH + rowH * Math.min(meds.length, 1) + 10);
+  ensureSpace(doc, headerH + minRowH + 10);
   const startY = doc.y;
 
   let x = ML;
@@ -230,9 +230,6 @@ function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
   doc.y = startY + headerH;
 
   meds.forEach((med: any, idx: number) => {
-    ensureSpace(doc, rowH + 2);
-    const y = doc.y;
-    x = ML;
     const vals = [
       String(idx + 1),
       med.name || "—",
@@ -243,10 +240,24 @@ function prescriptionTable(doc: PDFKit.PDFDocument, meds: any[]) {
       med.quantity || "—",
       med.instructions || "—",
     ];
+
+    // Pre-measure each cell's wrapped height; row grows to fit the tallest cell.
+    let maxTextH = 0;
+    vals.forEach((val, ci) => {
+      const isName = ci === 1;
+      doc.font(isName ? "Helvetica-Bold" : "Helvetica").fontSize(8.5);
+      const h = doc.heightOfString(val, { width: cols[ci].w - pad * 2 });
+      if (h > maxTextH) maxTextH = h;
+    });
+    const rowH = Math.max(minRowH, Math.ceil(maxTextH) + pad * 2);
+
+    ensureSpace(doc, rowH + 2);
+    const y = doc.y;
+    x = ML;
     vals.forEach((val, ci) => {
       const isName = ci === 1;
       doc.fillColor(BLACK).font(isName ? "Helvetica-Bold" : "Helvetica").fontSize(8.5)
-         .text(val, x + pad, y + 5, { width: cols[ci].w - pad * 2, lineBreak: false });
+         .text(val, x + pad, y + pad, { width: cols[ci].w - pad * 2 });
       x += cols[ci].w;
     });
 
