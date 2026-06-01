@@ -650,8 +650,18 @@ function FrontdeskAppointmentsPageInner() {
                       {/* Time */}
                       <div className="min-w-[60px] text-center flex-shrink-0">
                         <div className="inline-flex flex-col items-center px-2.5 py-1.5 bg-gradient-to-b from-teal-50 to-cyan-50 rounded-xl border border-teal-100">
-                          <span className="text-sm font-bold text-teal-700 leading-tight">{apt.appointmentTime}</span>
-                          <span className="text-[9px] text-teal-500 font-medium">{parseInt(apt.appointmentTime) >= 12 ? "PM" : "AM"}</span>
+                          {(() => {
+                            const [hStr, mStr] = (apt.appointmentTime || "0:00").split(":");
+                            const h = parseInt(hStr, 10);
+                            const hour12 = h % 12 || 12;
+                            const period = h >= 12 ? "PM" : "AM";
+                            return (
+                              <>
+                                <span className="text-sm font-bold text-teal-700 leading-tight">{hour12}:{mStr}</span>
+                                <span className="text-[9px] text-teal-500 font-medium">{period}</span>
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
 

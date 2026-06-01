@@ -39,6 +39,15 @@ vi.mock("@/models/InventoryTransaction", () => ({
   default: { create: vi.fn() },
 }));
 
+vi.mock("@/models/Patient", () => ({
+  default: {
+    findOne: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+    }),
+    find: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+  },
+}));
+
 vi.mock("mongoose", async (importOriginal) => {
   const actual = await importOriginal<typeof import("mongoose")>();
   return {
@@ -59,7 +68,10 @@ vi.mock("mongoose", async (importOriginal) => {
 import { verifyTier2Request } from "@/lib/auth/verify-request";
 import Sale from "@/models/Sale";
 import InventoryItem from "@/models/InventoryItem";
+import Patient from "@/models/Patient";
 import { GET, POST } from "@/app/api/tier2/sales/route";
+
+const VALID_PATIENT_ID = "507f1f77bcf86cd799439077";
 
 describe("GET /api/tier2/sales", () => {
   beforeEach(() => {
@@ -105,6 +117,31 @@ describe("GET /api/tier2/sales", () => {
         }),
       })
     );
+  });
+
+  it("backfills patientCode from Patient records for sales missing it", async () => {
+    (Sale as any)._chainable.lean.mockResolvedValue([{ _id: "s1", patientId: "p1" }]);
+    (Sale.countDocuments as any).mockResolvedValue(1);
+    (Patient.find as any).mockReturnValue({
+      lean: vi.fn().mockResolvedValue([{ _id: "p1", patientId: "P-100" }]),
+    });
+
+    const res = await GET(getRequest("/api/tier2/sales"));
+    const body = await parseJson(res);
+
+    expect(res.status).toBe(200);
+    expect(body.data.sales[0].patientCode).toBe("P-100");
+  });
+
+  it("does not look up patients when sales already carry a patientCode", async () => {
+    (Sale as any)._chainable.lean.mockResolvedValue([{ _id: "s1", patientId: "p1", patientCode: "P-EXISTING" }]);
+    (Sale.countDocuments as any).mockResolvedValue(1);
+
+    const res = await GET(getRequest("/api/tier2/sales"));
+    const body = await parseJson(res);
+
+    expect(body.data.sales[0].patientCode).toBe("P-EXISTING");
+    expect(Patient.find).not.toHaveBeenCalled();
   });
 });
 
@@ -226,6 +263,69 @@ describe("POST /api/tier2/sales", () => {
     expect(body.success).toBe(true);
     expect(mockInvItem.save).toHaveBeenCalled();
     expect(mockInvItem.currentStock).toBe(40);
+  });
+
+  it("links the sale to a patient when a valid patientId is provided", async () => {
+    (InventoryItem.findOne as any).mockResolvedValue({
+      _id: "item1", name: "Cream", currentStock: 50, status: "active",
+      clinicId: MOCK_CLINIC_ID, save: vi.fn().mockResolvedValue(undefined),
+    });
+    (Patient.findOne as any).mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue({
+          _id: VALID_PATIENT_ID, patientId: "P-200", name: "Asha Devi", phone: "9000000000",
+        }),
+      }),
+    });
+
+    const mockSaleInstance = {
+      _id: "sale1",
+      save: vi.fn().mockResolvedValue(undefined),
+      toObject: vi.fn().mockReturnValue({ _id: "sale1", patientCode: "P-200", patientName: "Asha Devi" }),
+    };
+    const SaleDefault = (await import("@/models/Sale")).default as any;
+    SaleDefault.mockImplementation(function (this: any, data: any) {
+      Object.assign(this, data, mockSaleInstance);
+      return this;
+    });
+
+    const res = await POST(postRequest("/api/tier2/sales", {
+      patientId: VALID_PATIENT_ID,
+      patientName: "fallback name",
+      items: [{ itemName: "Cream", qty: 1, mrp: 100, gstRate: 0, total: 100 }],
+    }));
+    const body = await parseJson(res);
+
+    expect(res.status).toBe(201);
+    expect(Patient.findOne).toHaveBeenCalled();
+    expect(body.data.patientName).toBe("Asha Devi");
+  });
+
+  it("ignores an invalid patientId and uses the supplied party name", async () => {
+    (InventoryItem.findOne as any).mockResolvedValue({
+      _id: "item1", name: "Cream", currentStock: 50, status: "active",
+      clinicId: MOCK_CLINIC_ID, save: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const mockSaleInstance = {
+      _id: "sale2",
+      save: vi.fn().mockResolvedValue(undefined),
+      toObject: vi.fn().mockReturnValue({ _id: "sale2" }),
+    };
+    const SaleDefault = (await import("@/models/Sale")).default as any;
+    SaleDefault.mockImplementation(function (this: any, data: any) {
+      Object.assign(this, data, mockSaleInstance);
+      return this;
+    });
+
+    const res = await POST(postRequest("/api/tier2/sales", {
+      patientId: "not-an-object-id",
+      patientName: "Walk-in",
+      items: [{ itemName: "Cream", qty: 1, mrp: 100, gstRate: 0, total: 100 }],
+    }));
+
+    expect(res.status).toBe(201);
+    expect(Patient.findOne).not.toHaveBeenCalled();
   });
 
   it("sets item to out-of-stock when stock reaches zero", async () => {

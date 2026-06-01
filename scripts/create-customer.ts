@@ -11,11 +11,11 @@ import Subscription from "../models/Subscription";
 const MONGODB_URI = process.env.MONGODB_URI || "";
 
 const CUSTOMER = {
-  name: "Varsha Koti",
-  email: "rajvarsha02@gmail.com",
-  password: "Varsha@123",
-  phone: "8147971814",
-  clinicName: "Prashali Skin Sciences",
+  name: "Ashwini M Shetty",
+  email: "ash6780in@yahoo.com",
+  password: "Ashwini@123",
+  phone: "9845611559",
+  clinicName: "Apollo Hospital",
 };
 
 async function createCustomer() {
