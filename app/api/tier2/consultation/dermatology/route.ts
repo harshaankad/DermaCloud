@@ -14,6 +14,44 @@ import { getSignedUrl } from "@/lib/aws/signed-url";
 import { isValidObjectId } from "@/lib/sanitize";
 import { auditLog } from "@/lib/audit";
 
+// Coerce a possibly-string/null/undefined value to a finite 0-1 probability.
+// The model layer rejects NaN, so anything non-finite is dropped (returns null).
+function clampProbability(value: any): number | null {
+  const n = typeof value === "string" ? parseFloat(value) : value;
+  if (typeof n !== "number" || !Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(1, n));
+}
+
+// Build the dermoscopeFindings sub-document from the AI payload the frontend sent.
+// Expected shape (from /api/tier2/upload finalResult):
+//   { predictions: Array<{condition, probability:0-1}>, topPrediction: {condition, probability:0-1} }
+function buildDermoscopeFindings(aiAnalysis: any, formData: any) {
+  const finalInterpretation = formData.finalInterpretation || formData.dermoscopicFindings;
+  const rawPredictions = Array.isArray(aiAnalysis?.predictions) ? aiAnalysis.predictions : [];
+  const predictions = rawPredictions
+    .map((p: any) => {
+      const probability = clampProbability(p?.probability);
+      if (probability === null || !p?.condition) return null;
+      return { condition: String(p.condition), probability };
+    })
+    .filter(Boolean);
+
+  if (predictions.length === 0) {
+    return { finalInterpretation };
+  }
+
+  const topConfidence = clampProbability(aiAnalysis?.topPrediction?.probability);
+  return {
+    aiResults: {
+      predictions,
+      topPrediction: aiAnalysis?.topPrediction?.condition || predictions[0].condition,
+      confidence: topConfidence ?? predictions[0].probability,
+      timestamp: new Date(),
+    },
+    finalInterpretation,
+  };
+}
+
 // Common skin condition causes database for generating patient explanations
 const conditionCauses: Record<string, { causes: string[]; tips: string[] }> = {
   eczema: {
@@ -409,24 +447,7 @@ export async function POST(request: NextRequest) {
           distribution: formData.distribution,
           severity: formData.severity,
         },
-        dermoscopeFindings: aiAnalysis
-          ? {
-              aiResults: {
-                predictions: Object.keys(aiAnalysis)
-                  .filter((key) => key !== "topPrediction")
-                  .map((key) => ({
-                    condition: key,
-                    probability: aiAnalysis[key] / 100,
-                  })),
-                topPrediction: aiAnalysis.topPrediction?.condition || "",
-                confidence: aiAnalysis.topPrediction?.probability || 0,
-                timestamp: new Date(),
-              },
-              finalInterpretation: formData.finalInterpretation || formData.dermoscopicFindings,
-            }
-          : {
-              finalInterpretation: formData.finalInterpretation || formData.dermoscopicFindings,
-            },
+        dermoscopeFindings: buildDermoscopeFindings(aiAnalysis, formData),
         diagnosis: {
           provisional: formData.provisional || formData.provisionalDiagnosis,
           differentials: (formData.differentials || formData.differentialDiagnosis)

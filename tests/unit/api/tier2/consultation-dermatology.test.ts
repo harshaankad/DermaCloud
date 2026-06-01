@@ -137,13 +137,17 @@ describe("POST /api/tier2/consultation/dermatology", () => {
   });
 
   it("creates consultation with AI analysis data", async () => {
+    // Shape mirrors what /api/tier2/upload returns as finalResult and what the
+    // dermatology page forwards verbatim: probability is a 0-1 fraction.
     const res = await POST(postRequest("/api/tier2/consultation/dermatology", {
       patientId: "pat1",
       formData: { complaint: "Spots" },
       aiAnalysis: {
-        melanoma: 15,
-        nevus: 80,
-        topPrediction: { condition: "nevus", probability: 0.8 },
+        predictions: [
+          { condition: "nevus", probability: 0.8, confidence: "high" },
+          { condition: "melanoma", probability: 0.15, confidence: "low" },
+        ],
+        topPrediction: { condition: "nevus", probability: 0.8, confidence: "high" },
       },
     }));
 
@@ -152,6 +156,34 @@ describe("POST /api/tier2/consultation/dermatology", () => {
     expect(createCall.dermoscopeFindings.aiResults).toBeDefined();
     expect(createCall.dermoscopeFindings.aiResults.topPrediction).toBe("nevus");
     expect(createCall.dermoscopeFindings.aiResults.confidence).toBe(0.8);
+    expect(createCall.dermoscopeFindings.aiResults.predictions).toEqual([
+      { condition: "nevus", probability: 0.8 },
+      { condition: "melanoma", probability: 0.15 },
+    ]);
+  });
+
+  it("drops predictions whose probability is NaN/null so Mongoose cast never fails", async () => {
+    const res = await POST(postRequest("/api/tier2/consultation/dermatology", {
+      patientId: "pat1",
+      formData: { complaint: "Spots" },
+      aiAnalysis: {
+        predictions: [
+          { condition: "nevus", probability: 0.8 },
+          { condition: "broken", probability: NaN },
+          { condition: "alsoBroken", probability: null },
+          { condition: "stringy", probability: "0.42" },
+        ],
+        topPrediction: { condition: "nevus", probability: 0.8 },
+      },
+    }));
+
+    expect(res.status).toBe(200);
+    const createCall = (ConsultationDermatology.create as any).mock.calls[0][0];
+    const stored = createCall.dermoscopeFindings.aiResults.predictions;
+    for (const p of stored) {
+      expect(Number.isFinite(p.probability)).toBe(true);
+    }
+    expect(stored.map((p: any) => p.condition)).toEqual(["nevus", "stringy"]);
   });
 
   it("creates consultation with follow-up date", async () => {
