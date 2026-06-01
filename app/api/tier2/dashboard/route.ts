@@ -7,6 +7,7 @@ import ConsultationCosmetology from "@/models/ConsultationCosmetology";
 import Appointment from "@/models/Appointment";
 import InventoryItem from "@/models/InventoryItem";
 import Sale from "@/models/Sale";
+import { startOfDayIST, addDaysIST, startOfMonthIST } from "@/lib/dates";
 import mongoose from "mongoose";
 
 
@@ -35,12 +36,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const lite = searchParams.get("lite") === "true";
 
-    // Date helpers
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    // Date helpers — IST-anchored so prod (UTC) and localhost (IST) agree on "today"
+    const today = startOfDayIST();
+    const tomorrow = addDaysIST(today, 1);
+    const firstDayOfMonth = startOfMonthIST();
 
     const clinicObjectId = new mongoose.Types.ObjectId(clinicId);
 

@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request, hasPermission } from "@/lib/auth/verify-request";
 import { z } from "zod";
 import Appointment from "@/models/Appointment";
+import { startOfDayIST, endOfDayIST } from "@/lib/dates";
 import mongoose from "mongoose";
 
 // Validation schema for updating appointment
@@ -144,10 +145,8 @@ export async function PUT(
           // Assign appointment token at check-in (separate sequence per day per clinic
           // for walkIn:false rows). Only assign if not already set.
           if (!appointment.tokenNumber) {
-            const dayStart = new Date(appointment.appointmentDate);
-            dayStart.setHours(0, 0, 0, 0);
-            const dayEnd = new Date(dayStart);
-            dayEnd.setHours(23, 59, 59, 999);
+            const dayStart = startOfDayIST(new Date(appointment.appointmentDate));
+            const dayEnd = endOfDayIST(new Date(appointment.appointmentDate));
             const maxToken = await Appointment.findOne(
               {
                 clinicId: auth.clinicId,
@@ -176,10 +175,7 @@ export async function PUT(
 
     // Handle date update
     if (updateData.appointmentDate) {
-      const appointmentDateObj = new Date(updateData.appointmentDate);
-      appointmentDateObj.setHours(0, 0, 0, 0);
-      updateData.appointmentDate = appointmentDateObj;
-
+      updateData.appointmentDate = startOfDayIST(new Date(updateData.appointmentDate));
     }
 
     // Link consultation if provided

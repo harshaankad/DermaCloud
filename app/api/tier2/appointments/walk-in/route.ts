@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request, hasPermission } from "@/lib/auth/verify-request";
 import { isValidObjectId } from "@/lib/sanitize";
+import { istHHMM, startOfDayIST, endOfDayIST } from "@/lib/dates";
 import Appointment from "@/models/Appointment";
 import Patient from "@/models/Patient";
 import CosmetologyProcedure from "@/models/CosmetologyProcedure";
@@ -117,10 +118,8 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
-    const dayStart = new Date(now);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setHours(23, 59, 59, 999);
+    const dayStart = startOfDayIST(now);
+    const dayEnd = endOfDayIST(now);
 
     // Token: separate time-based sequences per queue. Consultations + follow-ups
     // share one queue; cosmetology procedures have their own. So a clinic running
@@ -144,8 +143,7 @@ export async function POST(request: NextRequest) {
     ).lean() as { tokenNumber?: number } | null;
     const tokenNumber = (maxToken?.tokenNumber || 0) + 1;
 
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mm = String(now.getMinutes()).padStart(2, "0");
+    const appointmentTime = istHHMM(now);
 
     // Map our app-level reason → the model's `type` enum.
     // consultation     → "consultation"
@@ -161,7 +159,7 @@ export async function POST(request: NextRequest) {
       doctorId: auth.doctorId,
       clinicId: auth.clinicId,
       appointmentDate: dayStart,
-      appointmentTime: `${hh}:${mm}`,
+      appointmentTime,
       duration: 30,
       type: apptType,
       reason: "",

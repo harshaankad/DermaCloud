@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request } from "@/lib/auth/verify-request";
 import Appointment from "@/models/Appointment";
+import { startOfDayIST, endOfDayIST } from "@/lib/dates";
 
 // GET /api/tier2/analytics/daily-revenue?date=YYYY-MM-DD
 //
@@ -26,11 +27,10 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const { searchParams } = new URL(request.url);
-    const dateStr = searchParams.get("date") || new Date().toISOString().split("T")[0];
-    const dayStart = new Date(dateStr);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setHours(23, 59, 59, 999);
+    const dateStr = searchParams.get("date");
+    const targetDate = dateStr ? new Date(dateStr) : new Date();
+    const dayStart = startOfDayIST(targetDate);
+    const dayEnd = endOfDayIST(targetDate);
 
     const rows = await Appointment.find({
       clinicId: auth.clinicId,

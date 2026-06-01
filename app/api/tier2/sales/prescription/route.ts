@@ -4,6 +4,7 @@ import { verifyTier2Request } from "@/lib/auth/verify-request";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 import ConsultationCosmetology from "@/models/ConsultationCosmetology";
 import Appointment from "@/models/Appointment";
+import { startOfDayIST, addDaysIST } from "@/lib/dates";
 
 // GET - Fetch consultation prescription for a patient on a given date (defaults to today)
 export async function GET(request: NextRequest) {
@@ -60,10 +61,8 @@ export async function GET(request: NextRequest) {
     let dateFilter: any = undefined;
     if (!latest) {
       const dateParam = searchParams.get("date");
-      const targetDate = dateParam ? new Date(dateParam) : new Date();
-      targetDate.setHours(0, 0, 0, 0);
-      const nextDay = new Date(targetDate);
-      nextDay.setDate(nextDay.getDate() + 1);
+      const targetDate = startOfDayIST(dateParam ? new Date(dateParam) : new Date());
+      const nextDay = addDaysIST(targetDate, 1);
       dateFilter = { $gte: targetDate, $lt: nextDay };
     }
 

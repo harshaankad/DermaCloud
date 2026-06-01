@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request, hasPermission } from "@/lib/auth/verify-request";
 import Appointment from "@/models/Appointment";
 import Clinic from "@/models/Clinic";
+import { startOfDayIST, endOfDayIST } from "@/lib/dates";
 
 // Fallback defaults if no clinic settings found
 const DEFAULTS = {
@@ -96,11 +97,9 @@ export async function GET(request: NextRequest) {
       settings.lunchEnabled
     );
 
-    // Get booked appointments for the date
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Get booked appointments for the date (IST-anchored)
+    const startOfDay = startOfDayIST(new Date(date));
+    const endOfDay = endOfDayIST(new Date(date));
 
     const bookedAppointments = await Appointment.find({
       clinicId: auth.clinicId,

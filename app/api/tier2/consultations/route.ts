@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request } from "@/lib/auth/verify-request";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 import ConsultationCosmetology from "@/models/ConsultationCosmetology";
+import { startOfDayIST, addDaysIST } from "@/lib/dates";
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,17 +40,11 @@ export async function GET(request: NextRequest) {
     const now = new Date();
 
     if (filter === "today") {
-      const startOfDay = new Date(now);
-      startOfDay.setHours(0, 0, 0, 0);
-      dateFilter = { $gte: startOfDay };
+      dateFilter = { $gte: startOfDayIST(now) };
     } else if (filter === "week") {
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - 7);
-      dateFilter = { $gte: startOfWeek };
+      dateFilter = { $gte: addDaysIST(startOfDayIST(now), -7) };
     } else if (filter === "month") {
-      const startOfMonth = new Date(now);
-      startOfMonth.setDate(now.getDate() - 30);
-      dateFilter = { $gte: startOfMonth };
+      dateFilter = { $gte: addDaysIST(startOfDayIST(now), -30) };
     }
 
     // Build query

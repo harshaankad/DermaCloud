@@ -10,6 +10,7 @@ import {
   formatAppointmentDate,
   formatAppointmentTime,
 } from "@/lib/whatsapp/sender";
+import { startOfDayIST, endOfDayIST, addDaysIST } from "@/lib/dates";
 
 // Validation schema for creating appointment
 const createAppointmentSchema = z.object({
@@ -55,10 +56,8 @@ export async function GET(request: NextRequest) {
     const query: any = { clinicId: auth.clinicId };
 
     if (date) {
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      const startOfDay = startOfDayIST(new Date(date));
+      const endOfDay = endOfDayIST(new Date(date));
       query.appointmentDate = { $gte: startOfDay, $lte: endOfDay };
     }
 
@@ -92,11 +91,9 @@ export async function GET(request: NextRequest) {
       dispensed: dispensedSet.has(a._id.toString()),
     }));
 
-    // Get stats for today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Get stats for today (IST)
+    const today = startOfDayIST();
+    const tomorrow = addDaysIST(today, 1);
 
     const todayStats = await Appointment.aggregate([
       {
@@ -193,9 +190,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create appointment
-    const appointmentDateObj = new Date(appointmentDate);
-    appointmentDateObj.setHours(0, 0, 0, 0);
+    // Create appointment — normalize the date to IST midnight so the dashboard's
+    // IST-anchored "today" filter sees scheduled and walk-in records consistently.
+    const appointmentDateObj = startOfDayIST(new Date(appointmentDate));
 
     // Token is intentionally NOT assigned here — it is assigned when the patient
     // is checked in (see PUT handler in [id]/route.ts). Walk-ins get their own
