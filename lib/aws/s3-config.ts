@@ -44,6 +44,10 @@ export const S3_FOLDERS = {
   CLINIC_LOGOS: "clinics/logos",
   CLINIC_SEALS: "clinics/seals",
   DOCTOR_SIGNATURES: "clinics/signatures",
+
+  // Consent forms
+  CONSENT_PDF: "consent/pdf",
+  CONSENT_SIGNATURES: "consent/signatures",
 };
 
 // Allowed file types

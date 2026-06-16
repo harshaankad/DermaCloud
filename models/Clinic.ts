@@ -39,6 +39,7 @@ export interface IClinic extends Document {
   email?: string;
   logo?: string;
   seal?: string;
+  doctorSignature?: string;
   gstin?: string;
 
   // Appointment Settings
@@ -112,6 +113,9 @@ const ClinicSchema = new Schema<IClinic>(
       type: String,
     },
     seal: {
+      type: String,
+    },
+    doctorSignature: {
       type: String,
     },
     gstin: {

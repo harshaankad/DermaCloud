@@ -34,6 +34,12 @@ export type { IOTP } from "./OTP";
 export { default as ShortLink } from "./ShortLink";
 export type { IShortLink } from "./ShortLink";
 
+export { default as ConsentTemplate } from "./ConsentTemplate";
+export type { IConsentTemplate, IConsentField } from "./ConsentTemplate";
+
+export { default as ConsentRecord } from "./ConsentRecord";
+export type { IConsentRecord, IConsentSignature, SignatureMethod } from "./ConsentRecord";
+
 // Frontdesk Add-on Kit Models
 export { default as FrontdeskStaff } from "./FrontdeskStaff";
 export type { IFrontdeskStaff } from "./FrontdeskStaff";

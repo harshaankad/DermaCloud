@@ -234,6 +234,7 @@ export default function FrontdeskSettingsPage() {
               { label: "Patients", href: "/clinic/patients" },
               { label: "Consultations", href: "/clinic/consultations" },
               { label: "Pharmacy", href: "/clinic/pharmacy" },
+              { label: "Consent Forms", href: "/clinic/consent-forms" },
               { label: "Templates", href: "/clinic/templates" },
               { label: "Analytics", href: "/clinic/analytics" },
               { label: "Frontdesk", href: "/clinic/settings/frontdesk", active: true },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -32,6 +32,11 @@ export default function ProfilePage() {
   const [editingGstin, setEditingGstin] = useState(false);
   const [gstinDraft, setGstinDraft] = useState("");
   const [gstinSaving, setGstinSaving] = useState(false);
+
+  // Doctor signature state
+  const [signatureUrl, setSignatureUrl] = useState("");
+  const [signatureUploading, setSignatureUploading] = useState(false);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -66,7 +71,76 @@ export default function ProfilePage() {
         if (data.success) setGstin(data.data.gstin || "");
       })
       .catch(() => {});
+
+    fetch("/api/tier2/clinic/signature", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) setSignatureUrl(data.data.signatureUrl || "");
+      })
+      .catch(() => {});
   }, [router]);
+
+  const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+
+    if (!["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(file.type)) {
+      showToast("error", "Please upload a PNG, JPG or WEBP image");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      showToast("error", "Image must be under 8MB");
+      return;
+    }
+
+    setSignatureUploading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/tier2/clinic/signature", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSignatureUrl(data.data.signatureUrl);
+        showToast("success", "Signature saved");
+      } else {
+        showToast("error", data.message || "Failed to save signature");
+      }
+    } catch {
+      showToast("error", "Failed to save signature");
+    } finally {
+      setSignatureUploading(false);
+    }
+  };
+
+  const handleSignatureRemove = async () => {
+    setSignatureUploading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/tier2/clinic/signature", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSignatureUrl("");
+        showToast("success", "Signature removed");
+      } else {
+        showToast("error", data.message || "Failed to remove signature");
+      }
+    } catch {
+      showToast("error", "Failed to remove signature");
+    } finally {
+      setSignatureUploading(false);
+    }
+  };
 
   const handleSaveGstin = async () => {
     const trimmed = gstinDraft.trim().toUpperCase();
@@ -193,6 +267,7 @@ export default function ProfilePage() {
               { label: "Patients", href: "/clinic/patients" },
               { label: "Consultations", href: "/clinic/consultations" },
               { label: "Pharmacy", href: "/clinic/pharmacy" },
+              { label: "Consent Forms", href: "/clinic/consent-forms" },
               { label: "Templates", href: "/clinic/templates" },
               { label: "Analytics", href: "/clinic/analytics" },
               { label: "Frontdesk", href: "/clinic/settings/frontdesk" },
@@ -383,6 +458,82 @@ export default function ProfilePage() {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Doctor Signature */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden mb-6">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-200">
+              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="font-semibold text-gray-900">Signature</h4>
+              <p className="text-sm text-gray-500">Stamped as the operating doctor on consent forms</p>
+            </div>
+          </div>
+
+          <div className="px-6 py-6">
+            <input
+              ref={signatureInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleSignatureUpload}
+              className="hidden"
+            />
+
+            {signatureUrl ? (
+              <div className="flex flex-col items-center sm:flex-row sm:items-stretch sm:justify-center gap-4">
+                <div className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-center w-full sm:w-72 h-28 shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={signatureUrl} alt="Doctor signature" className="max-h-full max-w-full object-contain" />
+                </div>
+                <div className="flex sm:flex-col gap-2.5 sm:justify-center">
+                  <button
+                    onClick={() => signatureInputRef.current?.click()}
+                    disabled={signatureUploading}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-semibold disabled:opacity-50 sm:w-36"
+                  >
+                    {signatureUploading ? (
+                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                    )}
+                    Replace
+                  </button>
+                  <button
+                    onClick={handleSignatureRemove}
+                    disabled={signatureUploading}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-semibold disabled:opacity-50 sm:w-36"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => signatureInputRef.current?.click()}
+                disabled={signatureUploading}
+                className="w-full flex flex-col items-center justify-center gap-2 py-8 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/40 transition-colors disabled:opacity-50"
+              >
+                {signatureUploading ? (
+                  <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                )}
+                <span className="text-sm font-semibold">Upload signature image</span>
+                <span className="text-xs text-gray-400">PNG, JPG or WEBP, up to 8MB</span>
+              </button>
+            )}
           </div>
         </div>
 
