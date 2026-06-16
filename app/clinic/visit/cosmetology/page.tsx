@@ -957,6 +957,7 @@ function CosmetologyVisitPageInner() {
               { label: "Dashboard", href: "/clinic/dashboard" },
               { label: "Patients", href: "/clinic/patients" },
               { label: "Consultations", href: "/clinic/consultations" },
+              { label: "Consent Forms", href: "/clinic/consent-forms" },
             ].map((item) => (
               <Link
                 key={item.href}

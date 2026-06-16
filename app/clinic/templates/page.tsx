@@ -44,6 +44,7 @@ const NAV_LINKS = [
   { label: "Patients", href: "/clinic/patients" },
   { label: "Consultations", href: "/clinic/consultations" },
   { label: "Pharmacy", href: "/clinic/pharmacy" },
+  { label: "Consent Forms", href: "/clinic/consent-forms" },
   { label: "Templates", href: "/clinic/templates", active: true },
   { label: "Analytics", href: "/clinic/analytics" },
   { label: "Frontdesk", href: "/clinic/settings/frontdesk" },

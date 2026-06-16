@@ -4,3 +4,4 @@ export * from "./upload";
 export * from "./delete";
 export * from "./signed-url";
 export * from "./image-processing";
+export * from "./download";

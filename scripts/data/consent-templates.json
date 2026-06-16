@@ -1,0 +1,822 @@
+[
+  {
+    "key": "consent-for-acne-scar-procedure",
+    "title": "Consent for Acne Scar Procedure",
+    "source": "IADVL Academy — (Special Interest Group) Laser and Aesthetics 2018- 2019",
+    "category": "other",
+    "version": 1,
+    "bodyMarkdown": "I, {{patientName}}, here by authorize Dr. {{doctorName}} or his trained assistant to operate on myself or on {{patientName}}, who is my {{relation}} (relation) for {{procedure}}. Initial ______.\n\nAREA to be treated includes: {{site}}\n\nThe aim of the surgical procedure is to replace an ugly/more apparent scar to a less apparent and aesthetically better scar.\n\nI am aware of the following:\n\n• The complications like pain, swelling, infection, scarring, discoloration of skin, irregularity of contour of skin, allergic reaction to the suture material, delayed wound healing, hypertrophic scar, keloid formation etc. The procedure will cause bleeding, sometimes significant, which should stop within few minutes without any lasting effect when pressure is applied. The bleeding may not reach upper level of the skin and may result in bruises of the skin. The red colour will darken to purple and purple yellow and will disappear in 1-2 weeks. Some amount of pain, swelling and discomfort is expected at the site of operation. For this a course of antibiotics and painkillers will be prescribed to me. In case pain or swelling is severe I need to contact my doctor immediately.\n\n• The potential benefits of the proposed procedure and possible alternate procedures. In addition to surgery, there are other modalities like laser therapy, dermabrasion, microneedling, chemical peels etc. I have been offered the option to discuss these various therapies before opting for surgery.\n\n• This particular procedure may be unsuccessful due to unforeseen circumstances and no guarantee can be made for the successful outcomes of these procedures.\n\n• The need of regularity of treatments, multiple sessions or touch-ups and maintenance treatments in the future.\n\n• The pre- and post- treatment care and follow-ups. I am aware that avoiding movements and taking care of the recipient area is essential for optimal results. During post-operative period, I will avoid any activity which can produce tension at the operated site. I will try to keep the area dry.\n\n• The cost of treatment per sitting and the payment schedule. (I will be responsible for reimbursing the cost of the procedure as many of the procedures may not covered by insurance companies or companies).\n\n• The sensation of the procedure and mandatory use of Local, Block, Topical and /or General anesthesia. (I give consent for the anesthesia.)\n\nI consent to the taking of the photographs during the course of my procedure for the purpose of proper documentation, publications, presentations and post-operative assessment.\n\nFor the women of childbearing age: By signing below I indicate that I am not pregnant. Furthermore, I agree to keep the doctors informed should I become pregnant during the course of the treatment.\n\nI will inform the doctor of all current medications and change in the medications during the course of treatment.\n\nI have duly parted with necessary information about my medical history regarding any bleeding disorders, treatment with blood thinning medications, allergies to local anesthetics or otherwise, history of herpes, prior procedures and any untoward events with them.\n\nI am giving consent that if anything goes wrong during the procedure, I may be given any emergency treatment best suited to me, without asking for my prior permission.\n\nI further state that, I have carefully read and understood all the information provided in this form and with a fully conscious mind, I hereby give my written consent for the said procedure along with its involved risks. The procedure, the side effects and the risks involved have been explained to me in my native language. I hereby release Dr. {{doctorName}} and its designated staff from liability associated with the above procedure.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "procedure",
+        "label": "Procedure",
+        "autofill": "procedure"
+      },
+      {
+        "key": "relation",
+        "label": "Relation to patient"
+      },
+      {
+        "key": "site",
+        "label": "Site / area treated"
+      }
+    ],
+    "sortOrder": 0
+  },
+  {
+    "key": "consent-for-acne-scar-surgery",
+    "title": "Consent for Acne Scar Surgery",
+    "source": "IADVL Academy — (Special Interest Group) Dermatosurgery",
+    "category": "surgery",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED THAT\n• The purpose of this procedure is to reduce some or most of facial acne scars and may require multiple sequential treatments.\n• Prior to treatment, the area to be treated will be anesthetized with a topical anaesthetic (numbing) cream or lidocaine injection. You may be given Diazepam for your comfort prior to treatment.\n• Following treatment, you may experience pain, swelling and redness and bruising.\n• Risks associated with this procedure include, but are not limited to the following:\n• Pain- Stinging or sharp pain may be present after the procedure and throughout the healing process\n• Bruising- This treatment will cause significant bruising of the treated area. The bruising may be present for weeks.\n• Swelling- Swelling will be present after the procedure and is likely to resolve after 1-2 weeks\n• Pigmentary changes- The treated area may heal with altered pigmentation - either darker or lighter skin.\n• Scarring- There is a risk of scarring with this procedure any time during healing process. Nodules may form at needle insertion sites.\n• Bleeding- The procedure will cause bleeding, sometimes significant, which should stop within few minutes without any lasting effect when pressure is applied. The bleeding may not reach upper level of the skin and may result in bruises of the skin. The red colour will darken to purple and purple yellow and will disappear in 1-2 weeks.\n• Scabbing- A scab may be present at some of the surgery sites. The scabbing will disappear during natural healing.\n• Infection- Infection of the wound is always possible. Any significant infection must be brought to our attention as soon as possible. Such signs are excessive pain, swelling, redness or drainage/pus. Any infection could last for 7-10 days and could lead to scarring.\n\n## Post-procedure care\n\n• After getting the procedure done, I will follow the instructions given by the doctor.\n• Clinical results may vary between individuals, sessions and scars. I am fully aware that it is to improve the healing of scars eventually.\n\nI WAS ALSO INFORMED ABOUT\n• The other alternative methods of acne scars as well as their benefits and disadvantages.\n• No guarantee, warranty or assurance has been made to me as to the result that may be obtained.\n• I am also aware that follow up is necessary and multiple sessions are required for optimum healing of scars.\n\nADDITIONALLY\n• I agree that any pictures taken of my treatment site may be used for publication or teaching purpose; however, my name or identity will not be disclosed and complete confidentially will be maintained.\n• By signing below, I acknowledge that I have read about the adverse reactions above and feel that I have been adequately informed of the possible risks of the procedure.\n• I have informed the doctor about any/all drug allergies that I have.\n• Before each treatment, I will inform the doctor if I have taken any new medications since my last visit.\n\n## Post-procedure care\n\n• My questions regarding the procedure have been answered satisfactorily.\n\nConsent\nI authorize Dr. {{doctorName}} and her /his designated staff to perform procedure. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI hereby release Dr. {{doctorName}} and her/his designated staff from any liability associated with above procedure. The payment and fee structure have been informed to me and I agree to abide by the same.",
+    "fields": [
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 1
+  },
+  {
+    "key": "consent-for-autologus-micrografting",
+    "title": "Consent for Autologus Micrografting",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "injectable",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nAutologus Micrografting is an injection treatment whereby the patient’s own micrografts are processed to separate out the cellular suspension that is then injected back into the skin to stimulate new collagen production and to energize the cells into rejuvenating themselves. The same process is also done for the hair to reduce hair loss and improve the hair growth. This treatment is usually used for hair fall treatments, skin rejuvenation and also to stimulate ulcer healing and treat leukoderma. Usually one session is performed in a year however sometimes more treatment sessions may be required. I have been explained about maintenance treatments that may be required after completion of treatment.\n\nContraindications to treatment:\n\n• Allergies to any of the used materials/products\n• Tendency for keloids and hypertrophic scars\n• Infections at donor or recipient sites\n\nI AM ALSO INFORMED THAT\n• Complications and risks of this intervention are rare, but they do exist and include: Numbness, tingling, abnormal scars, insufficient result.\n• There may be some degree of discomfort, stinging, pin prick sensation, at the time or after the procedure and usually subsides in 3-7 days.\n• Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of sagging which varies from person to person.\n• All autologous micrograft treatments are not FDA approved.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / packages. I shall abide by the same\n\nConsent Letter:\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Autologus micrografting. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\n\n## Post-procedure care\n\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Take medical treatment for your aliment as advised by your dermatologist\n• Avoid applying any cosmetics, hair oils etc. on the treatment area for next 72 hrs.\n• Follow up regular wound care for the graft donor area as advised by your dermatologist.\n• Inform immediately if any delay or difficulty in wound healing.\n• The results shall be seen over the period of next 8-16 weeks.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 2
+  },
+  {
+    "key": "consent-for-acne-scar-surgery-04",
+    "title": "Consent for Acne Scar Surgery",
+    "source": "IADVL Academy — (Special Interest Group) Dermatosurgery",
+    "category": "surgery",
+    "version": 1,
+    "bodyMarkdown": "Eyelid being operated – Right upper/ Right lower/ Left upper/ Left lower\n\nI have been informed that\n• The purpose of Blepharoplasty is to remove excess tissue from the upper and lower eyelids. It can improve drooping skin and bagginess. This can improve vision in older patients who have hooding of their upper eyelids and project a more youthful appearance.\n• Blepharoplasty does not remove “crow’s feet or other wrinkles or dark circles under the eyes, and neither lifts sagging eyebrows.\n• It does not address issues affecting the functioning of the eyelid like dropping eyelid from impaired muscle functioning (ptosis) or outward turning of the eyelids (ectropion).\n• This surgery is generally performed under local anaesthesia, which involves giving a few injections near the eyes which will numb the area. The procedure is expected to be painless thereafter.\n• It can be performed on upper, lower or both eyelids.\n• Like any other surgery this surgery also involves certain risks. Some of them are bleeding/bruising, infection, scarring, damage to deeper structures like nerves, asymmetry of the eyes, ectropion, excessive exposure of the eyelid, allergic reaction to stiches material or any topical medicines applied in the eyelid area. Very rarely blindness may occur if there is internal bleeding around the eye.\n\n• Some amount of bruising is expected. However, if severe then a repeat surgery may be required to remove the accumulated blood. The risk of bleeding may increase if I am on any blood thinners or if I am hypertensive.\n• Blepharoplasty does not reverse the aging process so I may require repeat surgery to maintain the results.\n• Smoking, tobacco products, or nicotine products (patch, gum or nasal spray) use increases the risk for significant surgical complications of skin dying, delayed healing and additional scarring.\n• Following is my current status regarding smoking\n• ______ I am a non-smoker and do not use nicotine products. I understand the risk of second-hand smoke exposure causing surgical complications.\n• ______ I am a smoker or use tobacco/ nicotine products. I understand the risk of surgical complications due to smoking or use of nicotine products.\n\n• It is important to refrain from smoking at least 6 weeks before surgery.\n• I acknowledge that no guarantee has been given by anyone as to the results that may be obtained.\n• After surgery, few stitches will be put which may be of self-dissolving type or I may have to visit after 5-7 days for stitch removal.\n• During this time, I am supposed to avoid strenuous physical activity which may increase the chance of bleeding.\n• Post-surgery I may require ice packs to reduce the swelling.\n• Post-surgery I will have to wash my face 2-3 times daily and apply antibiotic ointment over the stitches.\n• I may not be able to go to work/drive for a few days post-surgery.\n• In case of severe pain, swelling, or diminished vision I need to immediately call my doctor.\n• Post-surgery I am supposed to sleep in supine position for at least a week.\n\nAdditionally\n• I agree that any pictures taken of my treatment site may be used for publication or teaching purposes; however, my name or identity will not be disclosed and complete confidentiality will be maintained.\n• By signing below, I acknowledge that I have read the adverse reactions above and I feel that I have been adequately informed of the possible risks of blepharoplasty.\n• I have informed the doctor about any/all drug allergies that I have.\n• Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\n\n## Post-procedure care\n\nConsent\nI hereby release Dr. {{doctorName}}and his/her designated staff from liability associated with the above procedure.\nMy questions regarding the procedure have been answered satisfactorily.\nI authorize Dr. {{doctorName}}and his/her designated staff to perform Blepharoplasty on my ______eyelid.\nThe payment and fee structure have been informed to me and I agree to abide by the same.",
+    "fields": [
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 3
+  },
+  {
+    "key": "consent-for-botulinum-toxin-injections",
+    "title": "Consent for Botulinum Toxin Injections",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "injectable",
+    "version": 1,
+    "bodyMarkdown": "Type of Botulinum Toxin: {{toxinType}}\n\nI HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nBotulinum toxin (Botox® and similar agents like Dysport, Xeomin, Nabota etc.) are neurotoxins produced by the bacterium Clostridium A. Botulinum toxin can relax the muscles on areas of the face and neck which cause wrinkles associated with facial expressions or facial pain. Treatment with botulinum toxin can cause your facial expression lines or wrinkles to be less noticeable or nearly disappear. Areas most frequently treated are a) Glabellar area of frown lines, located between the eyes; b) Crow’s feet (lateral areas of the eyes); c) Forehead wrinkles; d) Radial lip lines (smokers lines) e) Masseter Muscle f) Head and neck muscles\nOther uses of Botulinum toxin are the treatment of bruxism, jaw reduction (to change the squared-off masculine face into a heart-shaped feminine face and to reduce parotid gland hypertrophy.\nMicro Botox is the injection of multiple microdroplets of diluted botulinum toxin A into the dermis for skin rejuvenation. It decreases sweat and sebaceous gland activity, improves skin texture, fine wrinkles and is used for treatment of rosacea.\nBotulinum toxin is diluted to a very controlled solution, and when injected into the muscles with a thin needle, it is almost painless. By carefully choosing specific muscles, your doctor relaxes only the wrinkle-producing muscles, preserving your natural facial expressions.\nThe procedure takes about 15-20 minutes, and the results can last up to 4 months. With repeated treatments, the results may tend to last longer\nIt may be essential to avoid alcoholic beverages at least 24 hours before treatment, avoid anti-inflammatory/blood-thinning medications for 2 weeks before treatment, discontinue topical retinoids 2 days before and 2 days after treatment and have a good breakfast, including food and drink before your procedure.\nI AM ALSO INFORMED THAT\nNo procedure is entirely risk-free. It has been explained to me that there are certain inherent and potential risks and side effects in any invasive procedure and this specific instance such risks include but are not limited to\nPost treatment discomfort, swelling, redness, and bruising, Double vision, a weakened tear duct, Post-treatment bacterial, or fungal infection requiring further treatment, allergic reaction, minor temporary drooping of the eyelid(s), Occasional numbness of the forehead, headache, flu-like symptoms, asymmetrical smile, difficulty in chewing after masseter toxin injections. Most of these side effects are rare and reversible. Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of ageing which varies from person to person.\nAll Botulinum toxin injections may not be FDA approved for all cosmetic indications.\nPre and post procedure photographs will be taken which may be used for academic or scientific purposes.\nThis is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results. There are some other treatments which may help my concerns and those options were adequately discussed with me.\nCOST AND PAYMENT\n• I have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter:\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his associates to perform procedure of Botulinum Toxin Injections. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\nI understand that ideal results, this procedure vary from patients to patients. No guarantee, warranty, or assurance has been made to me as to the results that may be obtained. I am also aware that follow-up treatments may be necessary for desired results.\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Remain upright for 4 hours after injection (you may lie in a reclined position, just do not lie flat)\n• Do NOT receive facial/ laser treatments or microdermabrasion after Botox injections for at least 10 days.\n• Exaggerate facial expressions in injected areas for 2-3 hour after injection.\n• Do not wear a headband or hat if you have had injections between the brows or in the forehead\n• Refrain from aerobic exercise that increases your heart rate significantly (running, swimming, bicycling) for 24 hours following injections. Walking or other low impact forms of exercise are fine\n• Do not massage or manipulate injected areas for 24 hours after injections.  Washing your face and applying make-up is fine.\n• Refrain from using ibuprofen, aspirin, fish oil supplements, or vitamin E for 24 hours following injection\n• If bruising appears, apply ice to the area for 15 minutes every hour to decrease bruising\n• The most common side effect is a headache with Botulinum toxin injections.  If you suffer from chronic headache and have prescription headache medication, you may take it as prescribed by your doctor.\n• Botulinum toxin will gradually take effect over 24-72 hours with an optimum result at 2 weeks.  If this is your first Botulinum toxin injection, we recommend scheduling a follow-up appointment 2 weeks after your injection.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "toxinType",
+        "label": "Type of botulinum toxin"
+      }
+    ],
+    "sortOrder": 4
+  },
+  {
+    "key": "consent-for-chemical-peeling",
+    "title": "Consent for Chemical Peeling",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "peel",
+    "version": 1,
+    "bodyMarkdown": "Type of Chemical Peel: {{peelType}}\n\nI HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nA chemical peel can be used to diminish the appearance of fine lines and wrinkles, improve texture/tone, reduce pore size, increase hydration and moisture retention, give skin a smoother appearance and diminish the appearance of hyper pigmentation. Layers of product are applied based on your unique skin composition and needs. Multiple treatments are required in order to obtain optimal results spaced 2-6 weeks apart. Due to variables such as age, condition of your skin, sun damage, smoking, skin care products, climate, life-style, and general health, you acknowledge that there are no guarantees, warranties or assurances that you will be satisfied with your results.\nSome contraindications for the treatment are Pregnancy, Lactation, Herpes Simplex (cold sores or fever blisters), Extensive sun or tanning, use of topical retinol products in the past 2 weeks, disturbed skin barrier and an allergy to aspirin.\n\nMost patients require a number of treatments over several months with gradual results occurring over this time. The total number of treatments and clinical results may vary between individuals.\n\nI AM ALSO INFORMED THAT\n• There may be some degree of discomfort, stinging, pin prick sensation, warmth, burning or itching at the time or after the procedure. It may cause my skin to appear pink and flaky like moderate sunburn and it may take a week or more before the skin returns to its normal appearance. However, some patients react differently.\n• Short-term effects may include Mild to moderate discomfort or pain, slight redness or swelling, sun sensitivity, skin sensitivity. These conditions usually self-resolve\n• Rarely pigment changes, scarring, allergic reaction and secondary infection may happen.\n• Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of sagging which varies from person to person.\n• All peeling agents may not be FDA approved for cosmetic indications.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n• There are some other treatments which may help my concerns and those options were adequately discussed with me. I understand that for ideal results, this procedure can be combined with Microneedling, PRP, Laser, etc.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter :\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Chemical Peeling. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\nI understand that for ideal results, this procedure can be combined with microneedling, PRP, laser etc. No guarantee, warranty, or assurance has been made to me as to the results that may be obtained. I am also aware that follow-up treatments may be necessary for desired results.\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Avoid the Sun for one week and use sunscreen regularly\n• Avoid scratching the skin as it is very sensitive\n• Use hydrating moisturizer as advised by doctor.\n• Drink plenty of water\n• Avoid hot shower baths, hot tubs and saunas for 48 hrs\n• Avoid strenuous exercise for 48 hrs\n• Avoid Ice packs so as to ensure very good results\n• Use your skin care products and make up as advised by the doctor\n• Waxing , tweezing and depilation can be done after 72 hrs",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "peelType",
+        "label": "Type of chemical peel"
+      }
+    ],
+    "sortOrder": 5
+  },
+  {
+    "key": "consent-for-cryolipolysis",
+    "title": "Consent for Cryolipolysis",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nCryolipolysis is a non-invasive procedure that is intended to change the appearance of the treatment area by delivering controlled cooling at the surface of the skin to break down fat cells that are just beneath the skin. I understand the general purpose of the treatment is:\n• To improve my physical appearance.\n• To redefine the body contour through the reduction of centimetres.\nResults of the treatment will be directly proportional to the ability of my tissues to remove the treated fat and renew the collagen, an effect that may be diminished in very damaged or aged skin, in which case it is possible that the results may not be as expected. This procedure is not a treatment for obesity or a weight-loss solution and does not replace traditional methods such as diet, exercise or liposuction.\nI understand that medicine is not an exact science and that absolute and definitive perfection cannot be guaranteed. Patients with small fat deposits will respond better than those who are overweight, and hence, more than one treatment session in the same area is typically required to achieve optimal outcomes. It is recommended to wait a minimum of 6 weeks to repeat the treatment on the same area, although the adipose tissue reduction can last up to three months. Up to 3 areas can be treated on the same day.\nI AM ALSO INFORMED THAT\nWhile cryolipolysis is a generally safe procedure, one may experience the following during or post the procedure.\n• During the session or immediately afterwards – A pulling or pinching sensation, itching, stinging, tingling or mild pain are commonly encountered and are reversible. Paraesthesia and/ or temporary sensitivity, redness or pain maybe encountered. Thermal injuries, nausea, dizziness or vasovagal symptoms are unusual.\n• After the session (24 hours onward) – a feeling of stiffness, itching or pinching maybe encountered and mild inflammation in the treated area. Bruising may occur post the procedure and may persist for a week or two. Temporary localised pain and /or redness in the area may occur.\n• The rare effects, may include enlargement of the treated area, intensification of pre-existing hernias, and rare nerve disorders (motor derangements due to damage to the marginal mandibular nerve, hypoglossal nerve) and/or dry mouth due to damage to the submaxillary salivary gland. These however are extremely rare.\n• Some patients may experience a delayed onset of the aforementioned mentioned symptoms and other unknown adverse events may also occur.\n• Medical conditions such as cryoglobulinemia or paroxysmal cold haemoglobinuria ( these are the diseases where you may experience severe joint pains, skin rash etc. after exposure to cold) periodontal disease (local precaution in the double chin area), cold urticaria or raynaud’s disease, Impaired peripheral circulation, neuropathic disorders such as postherpetic neuralgia or diabetic neuropathy and infected wounds and / or fragile skin (dermatitis, psoriasis etc.) in the treatment area are contraindications for treatment and I am not suffering from any of the aforementioned conditions\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter:\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Cryolipolysis. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI state that I do not have collagen disease; I am not taking, and have not taken during the last 12 months, any medication that may alter my state of immunity; I am not pregnant; I do not take anticoagulants; I do not have any tumours, in remission or otherwise; there are no metal implants or prostheses in the treatment areas; I do not have a pacemaker or any other electronic devices in my body; I do not suffer from epilepsy, heart disease, kidney or liver conditions; and the general state of my health is satisfactory.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\nI understand that for ideal results, this procedure can be combined with other options. No guarantee, warranty, or assurance has been made to me as to the results that may be obtained. I am also aware that follow-up treatments may be necessary for desired results.\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Avoid scratching the skin as it is very sensitive\n• Drink plenty of water\n• Avoid hot shower baths, hot tubs and saunas for 48 hrs\n• Avoid strenuous exercise for 48 hrs\n• Avoid Ice packs so as to ensure very good results\n• Use your skin care products and make up as advised by the doctor",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 6
+  },
+  {
+    "key": "consent-for-cyst-removal",
+    "title": "Consent for Cyst Removal",
+    "source": "IADVL Academy — (Special Interest Group) Dermatosurgery",
+    "category": "surgery",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED THAT\n• The purpose of this procedure is the removal of epidermoid (sebaceous) cyst. The doctor has explained to me the anticipated benefits of the procedure, the risks, the alternatives, the risks associated with the alternatives.\n• I understand that prior to treatment, the area to be treated will be anesthetized with a topical anaesthetic (numbing) cream or lidocaine injection. I may be given diazepam for my comfort prior to treatment.\n• I understand that the doctor may attempt removal of cyst through a small incision. If the cyst is scarred, it may require the standard removal technique through a larger incision. I understand that my doctor will attempt to remove the entire wall of the cyst so that it does not recur.\n• I understand that the practice of medicine is not exact science and that no guarantee can be made regarding the outcome of my planned procedure. Therefore, no guarantee, warranty has been made to me as to the result that may be obtained.\n• My doctor has explained to me that this procedure is generally safe but that certain risks accompany any surgical procedure.Risks associated with cyst removal include;\n• Bleeding and bruising in the surrounding tissues\n• Pain associated with the surgery or the healing process.\n• Excessive scarring at the surgery site.\n• Allergic reaction to the anaesthetic medicine or the surgical instruments.\n• Local infection in the surrounding tissue.\n• Damage to the structure below the skin such as nerves or blood vessels.\n• Extremely rare, unusual reactions including possible death following any surgical procedure.\n• Keloidal changes may occur during healing\n• Cyst may reccur\n• There may be delayed wound healing/ excess granutaion tissue formation at the wound site\n• I understand that there are alternatives to this procedure such as simple incision and drainage, placement of iodine crystals into cyst, electrosurgical or laser destruction or freezing (cryosurgery) of the cyst. The advantages /disadvantages have been explained to me. I understand I can refuse the surgical removal procedure.\n• I understand that the unforeseen conditions may alter the planned procedure (such as switching to the standard removal technique using a large incision), if necessary, or to administer additional anaesthetics or other medications, if I should need them for the completion of my procedure.\n\n## Post-procedure care\n\n• After getting the procedure done, I will follow the instructions given by doctor\n• Clinical results may vary between individuals, sessions and scars. I am fully aware that it is to improve the healing of scars eventually.\n\nConsent\n\n• I have read this form and other information forms provided to me by the doctor and understood the information contained within this form.\n• I have had my questions answered to my satisfaction. I accept the risks and complications of the procedure and authorize Dr. {{doctorName}} and her /his designated staff, the doctor deems appropriate to perform procedure.\n• Further my signature below indicates my consent to the treatment described and my agreement to comply with the requirements placed on me by this consent form.\n• I also authorize administration of sedation and/ or anaesthesia as may be deemed advisable or necessary for my comfort, wellbeing and safety.\n• I agree that any pictures taken of my treatment site may be used for publication or teaching purpose; however, my name or identity will not be disclosed and complete confidentially will be maintained\n• I hereby release Dr. {{doctorName}} and her/his designated staff from liability associated with above procedure",
+    "fields": [
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 7
+  },
+  {
+    "key": "consent-for-dermal-fillers-skin-boosters",
+    "title": "Consent for Dermal Fillers/skin Boosters",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "injectable",
+    "version": 1,
+    "bodyMarkdown": "Type of Filler to be used: {{fillerType}}\n\nName of the Product: {{product}} Batch No:\n\nI HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nDermal fillers/Skin Boosters are injectable gels which are injected under topical or local anaesthesia to reduce the signs of ageing or improving contours of face and body parts. The fillers are being used for these indications for more than a decade.\nDifferent varieties of products are used for correction of facial lines, wrinkles and folds, lip enhancement and shaping facial contours. Fillers are also used to restore the elasticity of skin and reduce irregularities on the skin’s surface. The correct products and indications suitable for me have been explained to me.\n\nThe effect of the treatment with this product______ can last for months/years and repeat treatments are necessary for sustaining long term results. The duration may be variable depending on the product used, area treated, skin type, and the metabolic variations of every patient. Follow up treatment will be mandatory to sustain the desired results in future.\nI AM ALSO INFORMED THAT\n\n## Post-procedure care\n\n• Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of sagging which varies from person to person.\n• All dermal fillers are not USFDA approved.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same.\n\nConsent Letter:\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Dermal Fillers/Skin Boosters. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\n\n## Post-procedure care\n\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Do not massage or manipulate injected areas for 24 hours after injections.  Washing your face and applying make-up is fine.\n• Do not receive facial/ laser treatments or microdermabrasion after Filler injections for at least 10 days.\n• Do not wear a headband or hat if you have had injections between the brows or in the forehead\n• Refrain from aerobic exercise that increases your heart rate significantly (running, swimming, bicycling) for 24 hours following injections. Walking or other low impact forms of exercise are fine\n• Refrain from using ibuprofen, aspirin, fish oil supplements, or vitamin E for 24 hours following injection\n• If bruising appears, apply ice to the area for 15 minutes every hour to decrease bruising\n• Dermal results shall show optimum result at 2 weeks.  We recommend scheduling a follow-up appointment 2 weeks after your injection.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "fillerType",
+        "label": "Type of filler"
+      },
+      {
+        "key": "product",
+        "label": "Product name"
+      }
+    ],
+    "sortOrder": 8
+  },
+  {
+    "key": "consent-for-dermaroller",
+    "title": "Consent for Dermaroller",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "facial",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\n• The purpose of this procedure is to reduce acne scars, improve skin texture and reduce fine lines and wrinkles to some extent which will require multiple sessions.\n• The procedure will be performed by my doctor or trained staff.\n• The procedure has been explained to me in detail as follows\n• To start with, skin will be cleansed with cleansing solutions.\n• A numbing cream will then be applied on the area to be treated so as to anaesthetise the skin.\n• After 45 minutes to one hour the numbing cream will be cleaned off.\n• Skin will be cleaned with sterile/antibacterial solution.\n• Then the procedure will be performed with a sterile dermaroller with multiple needles which will be rolled in specific directions for a definite number of times over my skin area to be treated.\n• Thereafter a corrective product in the form of serum or gel will be applied over the treated area\n\nI AM ALSO INFORMED THAT\n• There will be tiny bleeding points at the site of needle pricks\n• This procedure may cause redness and swelling of my face which may last for 48 hours.\n• There might be crusts which may form after the procedure lasting for 48 to 72 hours.\n• There might be pain or burning sensation after the procedure .\n• Though this is a safe office procedure, there is a risk of infection and post inflammatory hyperpigmentation if proper care is not taken as per doctor’s advice.\n• The results may vary in each individual so no guarantee, warranty or assurance has been made to me regarding the outcome of the procedure.\n• There might be activation of herpes or cold sore if I have not revealed previous history to the doctor.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• The results may be seen only after 4 to 6 weeks after this session.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter\n\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Dermaroller. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners corcorticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\nI understand that for ideal results, this procedure can be combined with other options. No guarantee, warranty, or assurance has been made to me as to the results that may be obtained. I am also aware that follow-up treatments may be necessary for desired results.\nMy questions regarding the procedure have been answered satisfactorily.\nI hereby release Dr. {{doctorName}} and her/his designated staff from any liability and side effects associated with above procedure. The payment and fee structure have been informed to me and I agree to abide by the same.\n\n## Post-procedure care\n\n• Avoid sun exposure for 72 hours and use a sunscreen prescribed by my doctor while going out thereafter.\n• No topical creams, soaps, scrubs or cosmetics are to be applied on the treated area for the period advised by the doctor.\n• Excessive sweating should be avoided for the next 48 hrs. Avoid too much of exercise, sudden change in room temperature, hot water bathing can help in this regard.\n• Do not opt for any parlour treatments for next 2 weeks or thereafter without consulting the doctor.\n• A good diet, adequate water intake and adequate sleep will ensure better healing and good response.\n• Attend the next session on the date , as advised by the treating doctor, in order to get the desired result",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 9
+  },
+  {
+    "key": "consent-for-fractional-carbon-dioxide-laser",
+    "title": "Consent for Fractional Carbon Dioxide Laser",
+    "source": "IADVL Academy — (Special Interest Group) Laser and Aesthetics 2018- 2019",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "I, {{patientName}}, here by authorize Dr. {{doctorName}} or his trained assistant to operate on myself or on {{patientName}}, who is my {{relation}} (relation) for {{procedure}}. Initial ______.\n\nTreatment Area: {{site}} Indications: {{indication}}\nMachine Used: {{machine}}\n\nFractional CO2 laser is an ablative fractional laser in which micro beams of light injure small fractions of the skin leaving behind areas of untreated skin which helps in quick recovery and improvement in texture of skin and scarring. Multiple sessions are required based on the indications and severity of the problem. The improvement may not be immediate, and the skin usually keeps improving till 3 months to 1 year after a session. Fractional CO2 laser is used in an effort to improve acne scars, traumatic scars, burn scars, surgical scars, photo ageing and improvement in skin texture, wrinkles and fine lines.\n\nI am aware of the following:\n• The adverse events like stinging or burning sensation, redness resembling a sunburn (The redness will typically subside in 1 to 6 weeks but could last longer), swelling (subsides in 1 to 2 weeks), skin darkening in the treated areas and will usually fade within 1 to 6 months (rare), skin lightening (It usually re-pigment in 1 to 6 months, but in rare cases could be permanent), blisters or scabs, infection, acneiform eruptions, scarring and even risks or complications associated with this treatment that are not yet reported in the literature.\n\n• The potential benefits of the proposed procedure and possible alternate procedures like other laser treatments, intense pulsed light therapy, dermabrasion, chemical peels, tissue filler products, botulinum toxin (Botox and others), topical bleaching agents, topical retinoid therapy, surgical acne scar treatment etc.\n\n• No guarantee, warranty, or assurance has been made to me as to the results that may be obtained and that for maximum and optimum results, several treatment sessions may be required spaced at varying intervals.\n\n• I understand that variable results are seen due to the patients’ lifestyle, medical profile, and age, the extent of wrinkling and/or scarring, smoking, sun damage, nutritional make-up, and genetic factors.\n\n• The need of regularity of treatments, multiple sessions or touch-ups and maintenance treatments in the future.\n\n• The need of proper pre- and post- treatment care. (The instructions given b should be strictly adhered to).\n\n• The cost of treatment per sitting and the payment schedule. (I will be responsible for reimbursing the cost of the procedure as many of the procedures may not covered by insurance companies or companies).\n\n• The sensation of the procedure and on occasion, use of topical, block, local or general anesthesia. (I give consent for the anesthesia.)\n\nI consent to the taking of the photographs during the course of my procedure for the purpose of proper documentation, publications, presentations and post-operative assessment. I give consent for that.\n\nFor the women of childbearing age: By signing below I indicate that I am not pregnant. Furthermore, I agree to keep the doctors informed should I become pregnant during the course of the treatment.\n\nI will inform the doctor of all current medications and change in the medications during the course of treatment.\n\nMy medical history regarding medications like anti-coagulants, active skin infection, compromised immune system, impaired healing (e.g. keloid scar formers), pregnancy, and pacemaker.\n\nI am giving consent that if anything goes wrong during the procedure, I may be given any emergency treatment best suited to me, without asking for my prior permission.\n\nI further state that, I have carefully read and understood all the information provided in this form and with a fully conscious mind, I hereby give my written consent for the said procedure along with its involved risks.\nThe procedure, the side effects and the risks involved have been explained to me in my native language. I hereby release Dr. {{doctorName}} and its designated staff from liability associated with the above procedure.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "procedure",
+        "label": "Procedure",
+        "autofill": "procedure"
+      },
+      {
+        "key": "relation",
+        "label": "Relation to patient"
+      },
+      {
+        "key": "site",
+        "label": "Site / area treated"
+      },
+      {
+        "key": "indication",
+        "label": "Indication"
+      },
+      {
+        "key": "machine",
+        "label": "Machine used"
+      }
+    ],
+    "sortOrder": 10
+  },
+  {
+    "key": "consent-for-high-frequency-ultrasound",
+    "title": "Consent for High Frequency Ultrasound",
+    "source": "IADVL Academy — (Special Interest Group) Laser and Aesthetics 2018- 2019",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "I, {{patientName}}, here by authorize Dr. {{doctorName}} or his trained assistant to operate on myself or on {{patientName}}, who is my {{relation}} (relation) for {{procedure}}. Initial ______.\n\nThe purpose of this procedure is to tighten sagging skin in the areas indicated above. The procedure requires more than one treatment and may produce some reduction in the appearance of sagging skin and/or wrinkles.\n\nThe total number of treatments and clinical results may vary between individuals.\n\nMost patients require a number of treatments over several months with gradual results occurring over this time. On occasion there are patients that do not respond to treatments and so the outcome cannot be guaranteed.\n\nI was also informed about the other alternative methods as well as their benefits and disadvantages. I understand that for ideal results, this procedure can be combined with radiofrequency, surgical options, etc.\n\nI am aware of the following:\n\n• The complications Short-term effects may include reddening, mild swelling, mild burning and temporary bruising. These conditions usually resolve within 1-3 months. Rarely temporary numbness of the treated skin may be seen after treatment and will resolve with time (generally days to weeks). Infection: Although infection following treatment is unusual; bacterial, fungal and viral infections can occur. Should any type of skin infection occur, additional treatments might be necessary.\n\n• The potential benefits of the proposed procedure and possible alternate procedures.\n\n• This particular procedure may be unsuccessful due to unforeseen circumstances and no guarantee can be made for the successful outcomes of these procedures.\n\n• The need of regularity of treatments, multiple sessions or touch-ups and maintenance treatments in the future.\n\n• The need of proper pre- and post- treatment care. (The instructions given by the doctor should be strictly adhered to. Improper care of the area can increase the chance of scarring, skin textural changes, or pigment changes).\n\n• The cost of treatment per sitting and the payment schedule. (I will be responsible for reimbursing the cost of the procedure as many of the procedures may not covered by insurance companies or companies).\n\n• The sensation of the procedure and option of using anaesthesia. (If I or the doctor elects a form of anaesthesia, I give consent for the same.)\n\nI consent to the taking of the photographs during the course of my procedure for the purpose of proper documentation, publications, presentations and post-operative assessment. I give consent for that.\n\nFor the women of childbearing age: By signing below I indicate that I am not pregnant. Furthermore, I agree to keep the doctors informed should I become pregnant during the course of the treatment.\n\nI will inform the doctor of all current medications and change in the medications during the course of treatment.\n\nI am giving consent that if anything goes wrong during the procedure, I may be given any emergency treatment best suited to me, without asking for my prior permission.\n\nI further state that, I have carefully read and understood all the information provided in this form and with a fully conscious mind, I hereby give my written consent for the said procedure along with its involved risks. The procedure, the side effects and the risks involved have been explained to me in my native language.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "procedure",
+        "label": "Procedure",
+        "autofill": "procedure"
+      },
+      {
+        "key": "relation",
+        "label": "Relation to patient"
+      }
+    ],
+    "sortOrder": 11
+  },
+  {
+    "key": "consent-for-hi-intensity-focused-ultrasound-hifu",
+    "title": "Consent for Hi Intensity Focused Ultrasound (HIFU)",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "INDICATION FOR PRP: {{indication}}\n\nI HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nHigh-Intensity Focused Ultrasound (HIFU) is a cosmetic treatment for skin tightening. It is a noninvasive and painless replacement for face lifts.\nIt uses ultrasound energy to encourage the production of collagen, which results in firmer skin.\nThe purpose of this procedure is to tighten sagging skin in the area.\nThe procedure requires more than one treatment and may produce some reduction in the appearance of sagging skin and/or wrinkles.\n\nThe total number of treatments and clinical results may vary between individuals.\nMost patients require a number of treatments over several months with gradual results occurring over this time.\n\nI AM ALSO INFORMED THAT\n• Short-term effects may include reddening, mild swelling, mild burning and temporary bruising. These conditions usually resolve within 1-3 months.\n• Rarely temporary numbness of the treated skin may be seen after treatment and will resolve with time (generally days to weeks).\n• Infection: Although infection following treatment is unusual; bacterial, fungal and viral infections can occur. Should any type of skin infection occur, additional treatments might be necessary\n• Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of sagging which varies from person to person.\n• The procedure is not FDA approved for cosmetic indications.\n• Topical, local or general anesthesia is required in few patients. I am ready to take the appropriate form of anesthesia.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n• There are some other treatments which may help my concerns and those options were adequately discussed with me.\n\nCOST AND PAYMENT\n• I have been informed about the fees and the number of sessions / package. I shall abide by the same.\n\nConsent Letter :\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Hi Intensity Focused Ultrasound (HIFU). Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\nI understand that for ideal results, this procedure can be combined with radiofrequency, surgical options, etc. No guarantee, warranty, or assurance has been made to me as to the results that may be obtained. I am also aware that follow-up treatments may be necessary for desired results.\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Avoid the Sun for one week and use sunscreen regularly\n• Avoid scratching the skin as it is very sensitive\n• Drink plenty of water\n• Avoid hot shower baths, hot tubs and saunas for 48 hrs\n• Avoid strenuous exercise for 48 hrs\n• Avoid Ice packs so as to ensure very good results\n• Use your skin care products and make up as advised by the doctor\n• Waxing , tweezing and depilation can be done after 72 hrs",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "indication",
+        "label": "Indication"
+      }
+    ],
+    "sortOrder": 12
+  },
+  {
+    "key": "consent-for-intralesional-corticosteroid-injection-in-keloid",
+    "title": "Consent for Intralesional Corticosteroid Injection In Keloids",
+    "source": "IADVL Academy — (Special Interest Group) Dermatosurgery",
+    "category": "injectable",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED THAT\n• The purpose of this procedure is to reduce the hardness and soften the keloid. Multiple sessions are required for it.\n• In this procedure, my keloid will be targeted and intralesional steroid will be given, that is likely to cause mild pain during injection.\n• After getting the procedure done, I will follow the instructions given by doctor and I will also be required to take some other medications prescribed by the doctor.\n• Clinical results may vary between individuals and sessions.\n• I am fully aware that it will require multiple sessions to reduce my keloid.\n\nI WAS ALSO INFORMED ABOUT\n• The other alternative methods for dealing with keloids like cryotherapy, 5-fluorouracil and their benefits and disadvantages.\n• I understand that for ideal results it can be combined with cryotherapy and 5-Fluorouracil injections.\n• No guarantee, warranty or assurance has been made to me as to the result that may be obtained.\n• I am also aware that follow up is necessary and multiple sessions are required for desired results.\n\nI ALSO UNDERSTAND THAT\n• Short term side effects may include pain during injection, allergy, bruising.\n• After the procedure, hyper or hypo pigmentation can occur at the injection site.\n• There may be necrosis, atrophy or telangiectasia.\n• In case of pain or any secondary infection, I may need to take analgesics or antibiotics respectively.\n\nADDITIONALLY\n• I agree that any pictures taken of my treatment site may be used for publication or teaching purpose; however, my name or identity will not be disclosed and complete confidentially will be maintained.\n• By signing below, I acknowledge that I have read the adverse reactions above and feel that I have been adequately informed of the possible risks.\n• I have informed the doctor about any/all drug allergies that I have.\n• Before each treatment, I will inform the doctor if I have taken any new medications since my last visit.\n\n## Post-procedure care\n\nConsent\nI authorize Dr. {{doctorName}} and her /his designated staff to perform procedure. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nMy questions regarding the procedure have been answered satisfactorily.\nI hereby release Dr. {{doctorName}} and her/his designated staff from any liability associated with above procedure. The payment and fee structure have been informed to me and I agree to abide by the same.",
+    "fields": [
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 13
+  },
+  {
+    "key": "consent-for-injection-lipolysis",
+    "title": "Consent for Injection Lipolysis",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nInjection lipolysis is a non-invasive procedure that is intended to change the appearance of the treatment area by injecting a solution (deoxycholic acid and/ or phosphatidyl choline) in the given area to improve fullness/fat in the area.\nThe treatment is indicated for improvement in the appearance of moderate to severe fullness associated with submental fat, also called “double chin,” in adults. Injections are given in to the fat under the chin as well as other areas of superficial fat for fat removal. Multiple treatments are usually required and will be given at least 1 month apart.\n\nI understand that medicine is not an exact science and that absolute and definitive perfection cannot be guaranteed. Patients with small fat deposits will respond better than those who are overweight, and hence, more than one treatment session in the same area is typically required to achieve optimal outcomes.\nI AM ALSO INFORMED THAT\nWhile injection lipolysis is a generally safe procedure, one may experience the following during or post the procedure\n• Common potential side effects like swelling, bruising, pain, numbness, redness and areas of hardness in the treatment area. Injections can also cause tingling, nodules, itching, skin tightness and headache. These side effects typically resolve by themselves without treatment.\n• Less common potential side effects like nerve injury – Injection lipolysis can rarely result in causing nerve injury in the area of the jaw resulting in an uneven smile or facial muscle weakness. Typically as per data, these injuries resolve without treatment. Temporary difficulty in swallowing (due to neck swelling), superficial skin erosions and small patches of hair loss in the beard area may rarely occur.\n• There is a possibility of an unsatisfactory result. The procedure may also result in more noticeable platysma bands ( these are usually seen as vertical bands across the neck when you say “Eee”), unacceptable visible deformities or asymmetry in the treatment area.\n• Some patients may experience a delayed onset of the aforementioned mentioned symptoms and other unknown adverse events may also occur.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter:\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Injection Lipolysis. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have explained the medical team about all of my medical conditions, including any infection in the treatment area; any previous or planned surgery on the face, neck or chin; previous cosmetic treatments on the face, neck or chin. I do not have any trouble in swallowing, any bleeding problems I am not pregnant or lactating, and not taking blood thinners.\nMy questions regarding the procedure have been answered satisfactorily.\nI hereby release Dr. {{doctorName}} and her/his designated staff from any liability associated with above procedure. The payment and fee structure have been informed to me and I agree to abide by the same.\n\n## Post-procedure care\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Do not massage or manipulate injected areas for 24 hours after injections.  Washing your face and applying make-up is fine.\n• Do not receive facial/ laser treatments or microdermabrasion after injection lipolysis for at least 10 days.\n• Refrain from aerobic exercise that increases your heart rate significantly (running, swimming, bicycling) for 24 hours following injections. Walking or other low impact forms of exercise are fine\n• Refrain from using ibuprofen, aspirin, fish oil supplements, or vitamin E for 24 hours following injection\n• If bruising appears, apply ice to the area for 15 minutes every hour to decrease bruising",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 14
+  },
+  {
+    "key": "consent-for-laser-hair-reduction",
+    "title": "Consent for Laser Hair Reduction",
+    "source": "IADVL Academy — (Special Interest Group) Laser and Aesthetics 2018- 2019",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "I, {{patientName}}, here by authorize Dr. {{doctorName}} or his trained assistant to operate on myself or on {{patientName}}, who is my {{relation}} (relation) for {{procedure}}. Initial ______.\n\nTreatment Area: {{site}} Indications: {{indication}}\nMachine Used: {{machine}}\n\nLaser hair reduction involves using a noninvasive laser device for long term reduction of facial or body hair. This procedure requires more than one treatment session. Even after multiple sittings, 100% reduction [hair free skin] is not possible. The hair will reduce treatment in numbers and thickness. Maintenance treatments may be required after completion of treatment.\n\nThe total number of treatment sessions may vary among individuals. Exact number of sessions cannot be predicted. Patients with darker skin may require a greater number of treatment sessions and may be more prone to adverse effects.\n\nHair shafts may be expelled out during the 2-3 weeks following treatment and may mimic the appearance of regrowing hair. These may be left to fall out, or they may simply be shaved. If a patient develops growth in areas in distant regions other than the region treated, it could be due to underlying detectable or undetectable hormonal problem and if those areas are also to be covered by treatment, patient will have to bear the cost of treatment.\n\nI am aware of the following:\n• The adverse events like stinging or burning sensation, redness resembling a sunburn (The redness will typically subside in 1 to 6 weeks but could last longer), swelling (subsides in 1 to 2 weeks), skin darkening in the treated areas and will usually fade within 1 to 6 months (rare), skin lightening (It usually re-pigment in 1 to 6 months, but in rare cases could be permanent), blisters or scabs, infection, acneiform eruptions, scarring, allergic reactions and even risks or complications associated with this treatment that are not yet reported in the literature. Increased hair growth in or around the treated area is a very rare consequence of Laser Hair Removal (Reason not known). However, these hairs can also be reduced with same laser.\n\n• The potential benefits of the proposed procedure and possible alternate procedures like other laser treatments, intense pulsed light therapy, electrolysis, shaving, waxing and plucking and taking no treatment at all.\n\n• No guarantee, warranty, or assurance has been made to me as to the results that may be obtained and that for maximum and optimum results, several treatment sessions may be required spaced at varying intervals.\n\n• I understand that variable results are seen due to the patients’ lifestyle, medical profile, hormonal status (I give consent for hormone work-up), age, and genetic factors.\n\n• The need of regularity of treatments, multiple sessions or touch-ups and maintenance treatments in the future.\n\n• The need of proper pre- and post- treatment care. (The instructions given should be strictly adhered to).\n\n• The cost of treatment per sitting and the payment schedule. (I will be responsible for reimbursing the cost of the procedure as many of the procedures may not covered by insurance companies or companies).\n\n• The sensation of the procedure and on occasion, use of topical, block, local or general anesthesia. (I give consent for the anesthesia.)\n\nI consent to the taking of the photographs during the course of my procedure for the purpose of proper documentation, publications, presentations and post-operative assessment. I give consent for that.\n\nFor the women of childbearing age: By signing below I indicate that I am not pregnant. Furthermore, I agree to keep the doctors informed should I become pregnant during the course of the treatment.\n\nI will inform the doctor of all current medications and change in the medications during the course of treatment.\n\nMy medical history regarding active skin infection, impaired healing (e.g. keloid scar formers), and pregnancy.\n\nI am giving consent that if anything goes wrong during the procedure, I may be given any emergency treatment best suited to me, without asking for my prior permission.\n\nI further state that, I have carefully read and understood all the information provided in this form and with a fully conscious mind, I hereby give my written consent for the said procedure along with its involved risks.\nThe procedure, the side effects and the risks involved have been explained to me in my native language. I hereby release Dr. {{doctorName}} and its designated staff from liability associated with the above procedure.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "procedure",
+        "label": "Procedure",
+        "autofill": "procedure"
+      },
+      {
+        "key": "relation",
+        "label": "Relation to patient"
+      },
+      {
+        "key": "site",
+        "label": "Site / area treated"
+      },
+      {
+        "key": "indication",
+        "label": "Indication"
+      },
+      {
+        "key": "machine",
+        "label": "Machine used"
+      }
+    ],
+    "sortOrder": 15
+  },
+  {
+    "key": "consent-for-microblading",
+    "title": "Consent for Microblading",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "facial",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nMicroblading is a treatment for improving the appearance of eyebrows. It is usually performed under topical or local anaesthesia. Specific coloured pigments are used along with a special microblading instrument while performing microblading treatment. Multiple strokes with micoblading instrument are given over the treatment area so as to enhance the shape and colour of eyebrows. Sometimes more than one treatment is required in order to obtain optimal results spaced 2-6 weeks apart. Due to variables such as age, condition of your skin, sun damage, smoking, skin care products, climate, life-style, and general health, you acknowledge that there are no guarantees, warranties or assurances that you will be satisfied with your results.\nSome contraindications for the treatment are Pregnancy, Lactation, Herpes Simplex (cold sores or fever blisters), Extensive sun or tanning, use of topical retinol products in the past 2 weeks, disturbed skin barrier. The total number of treatments and clinical results may vary between individuals. .\n\nI AM ALSO INFORMED THAT\n• There is a possibility of pain or discomfort even after the topical anesthetic has been used. Anesthetics work better on some people than others.\n\n## Post-procedure care\n\n• Uneven Pigmentation: This can result from poor healing, infection, bleeding or many other causes. Your follow up appointment will likely correct any uneven appearance.\n• Asymmetry: Every effort will be made to avoid asymmetry but our faces are not symmetrical so adjustments may be needed during the follow up session to correct any unevenness.\n• Excessive Swelling or Bruising: Some people bruise and swell more than others. Ice packs may help and the bruising and swelling typically disappears with 1-5 days. Some people don’t bruise or swell at all.\n• MRI: Because pigments used in permanent cosmetic procedures contain inert oxides, a low level magnet may be required if you need to be scanned by an MRI machine. You must inform your technician of any tattoos or permanent cosmetics.\n• Allergic Reaction: There is a possibility of an allergic reaction to the pigments or other materials used.\n• Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of sagging which varies from person to person.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter:\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Microblading. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\n\n## Post-procedure care\n\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\nDo not to get the brows wet during the healing process (5 - 7 days).\nUse a thick layer of Vaseline to protect the brows from water during the healing time. When applying Vaseline, the following procedure is done each morning and night or before a shower or workout for the full five days: Apply the product, leave it on for five to ten minutes (or while in shower), then with a tissue or dry cotton wipe gently across each brow once to get off the excess, then dab each brow till it is dry, after a couple minutes dab again to ensure that nothing is left on the brow.\nStarting on day three when scab starts to appear, do not wipe - only dab till dry, you must be gentle, do not pull off the scabs prematurely. Your brows should remain dry all day and all night. Following this procedure will ensure the formation of thin scabs thus more color retention.\nKeep out of the sun for seven days. Then after seven days wear sunscreen to aid in the longevity of your tattoo.\nAs instructed apply the ointment with freshly washed hands or a Q-tip. Never touch the procedure area without washing your hands immediately before. It is very important to keep the brows covered with ointment while in shower or during a strenuous workout to prevent moisture from penetrating.\nDo not use any makeup on the brows for at least 5 days. •\nAfter the procedure is completely healed, you make go back to your regular cleansing and makeup routine.\nAvoid scrubbing the area.\nUse sun block after the procedure area is healed to protect from sun fading.\n\n## Post-procedure care",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 16
+  },
+  {
+    "key": "consent-for-microdermabrasion",
+    "title": "Consent for Microdermabrasion",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "facial",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nA microdermabrasion treatment can be used to diminish the appearance of fine lines and wrinkles, improve texture/tone, reduce pore size and give skin a smoother appearance. Microdermabrasion machine is moved over the concerned treatment area with application of a vacuum with or without microcrystalline powder. Microcrystalline powder used is usually of inert substances which are highly safe, non-allergenic and effective. Multiple treatments are performed in order to obtain optimal results spaced 2-6 weeks apart. Due to variables such as age, condition of your skin, sun damage, smoking, skin care products, climate, life-style, and general health, you acknowledge that there are no guarantees, warranties or assurances that you will be satisfied with your results.\nSome contraindications for the treatment are Pregnancy, Lactation, Herpes Simplex (cold sores or fever blisters), use of topical retinol products in the past 2 weeks, disturbed skin barrier and an allergy to aspirin.\n\nMost patients require a number of treatments over several months with gradual results occurring over this time. The total number of treatments and clinical results may vary between individuals.\n\nI AM ALSO INFORMED THAT\n• There may be some degree of discomfort, stinging, pin prick sensation, itching at the time or after the procedure. It may cause my skin to appear pink like moderate sunburn and it may take a few hours before the skin returns to its normal appearance. However, some patients react differently.\n• Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of sagging which varies from person to person.\n• All microdermabrasion machines may not be FDA approved for cosmetic indications.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n• There are some other treatments which may help my concerns and those options were adequately discussed with me. I understand that for ideal results, this procedure can be combined with other treatments.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter:\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of microdermabrasion. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\nI understand that for ideal results, this procedure can be combined with chemical peeling, microneedling, PRP, laser etc. No guarantee, warranty, or assurance has been made to me as to the results that may be obtained. I am also aware that follow-up treatments may be necessary for desired results.\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Avoid the Sun for one week and use sunscreen regularly\n• Avoid scratching the skin as it is very sensitive\n• Drink plenty of water\n• Use plenty of hydrating moisturizers as advised by doctors so as to improve results.\n• Avoid hot shower baths, hot tubs and saunas for 48 hrs\n• Use your skin care products and make up as advised by the doctor\n• Waxing , tweezing and depilation can be done after 72 hrs",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 17
+  },
+  {
+    "key": "consent-for-autologus-micrografting-19",
+    "title": "Consent for Autologus Micrografting",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-2021",
+    "category": "injectable",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nAutologus Micrografting is an injection treatment whereby the patient’s own micrografts are processed to separate out the cellular suspension that is then injected back into the skin to stimulate new collagen production and to energize the cells into rejuvenating themselves. The same process is also done for the hair to reduce hair loss and improve the hair growth. This treatment is usually used for hair fall treatments, skin rejuvenation and also to stimulate ulcer healing and treat leukoderma. Usually one session is performed in a year however sometimes more treatment sessions may be required. I have been explained about maintenance treatments that may be required after completion of treatment.\n\nContraindications to treatment:\n\n• Allergies to any of the used materials/products\n• General surgical contraindications.\n\nI AM ALSO INFORMED THAT\n• Complications and risks of this intervention are rare, but they do exist and include: Numbness, tingling, abnormal scars, insufficient result, etc\n• There may be some degree of discomfort, stinging, pin prick sensation, at the time or after the procedure and usually subsides in 3-7 days.\n• Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of sagging which varies from person to person.\n• All autologous micrograft treatments are not FDA approved.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n\nCOST AND PAYMENT\n• I have been informed about the cost of each session.\n• I am going to pay per session / for the package which includes______ number of sessions.\n• In case additional sessions are needed I will have to pay separately.\n• I know that in spite of paying, there could be a situation where session would be postponed depending on the condition of the skin and doctor’s decision will be final in that regard.\n\nConsent Letter:\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Autologus micrografting. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\n\n## Post-procedure care\n\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Take medical treatment for your aliment as advised by your dermatologist\n• Avoid applying any cosmetics, hair oils etc. on the treatment area for next 72 hrs.\n• Follow up regular wound care for the graft donor area as advised by your dermatologist.\n• Inform immediately if any delay or difficulty in wound healing.\n• The results shall be seen over the period of next 8-16 weeks.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 18
+  },
+  {
+    "key": "consent-for-microneedle-rf",
+    "title": "Consent for Microneedle RF",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "facial",
+    "version": 1,
+    "bodyMarkdown": "Name of Machine: {{machine}}\nArea of Treatment: {{site}}\n\nI HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\n• Microneedle radiofrequency involves insertion of fine electrodes mechanically into the skin followed by the discharge of small amount of radio frequency energy at the desired depth. This leads to stimulation of new collagen production and restructuring of old collagen bundles in the skin.\n• The area of treatment is cleansed with cleansing soltutions.\n• A numbing cream is applied for 45min to one hour to anaesthetise the skin.\n• The anaesthetic cream is then removed from the skin and is cleaned with an antibacterial /sterile solution.\n• In case the treatment area is face, eyes are covered with gauze.\n• Parameters are set on the machine depending on the indication and area to be treated.\n• Handpiece is then held in contact with the skin and single or multiple passes are done on the treatment area.\n• Any minor bleeding or oozing is wiped off once done.\n• A serum /gel containing required ingredients or antibiotic cream is applied to the area.\n\nI AM ALSO INFORMED THAT\n• There may be some degree of discomfort, stinging, pin prick sensation, warmth, burning or itching at the time or after the procedure. It may cause my skin to appear pink and flaky and it may take a few days to weeks before the skin returns to its normal appearance. However, some patients react differently.\n• Short-term effects may include mild to moderate discomfort or pain, slight redness or swelling, sun sensitivity, skin sensitivity. These conditions usually self-resolve\n• Rarely acneiform eruptions, pigment changes, blistering, scarring, allergic reaction and secondary infection may happen.\n• Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of sagging which varies from person to person.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n• There are some other treatments which may help my concerns and those options were adequately discussed with me. I understand that for ideal results, this procedure can be combined with PRP, Laser, Botox etc.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter :\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Microneedle RF. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\n\n## Post-procedure care\n\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Avoid the Sun for one week and use sunscreen regularly\n• Avoid scratching the skin as it is very sensitive\n• Drink plenty of water\n• Avoid hot shower baths, hot tubs and saunas for 48 hrs\n• Avoid strenuous exercise for 48 hrs\n• Avoid Ice packs so as to ensure very good results\n• Use your skin care products and make up as advised by the doctor\n• Waxing , tweezing and depilation can be done after 72 hrs",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "machine",
+        "label": "Machine used"
+      },
+      {
+        "key": "site",
+        "label": "Site / area treated"
+      }
+    ],
+    "sortOrder": 19
+  },
+  {
+    "key": "consent-for-micro-needling-radiofrequency",
+    "title": "Consent for Micro-needling Radiofrequency",
+    "source": "IADVL Academy — (Special Interest Group) Laser and Aesthetics 2018- 2019",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "I, {{patientName}}, here by authorize Dr. {{doctorName}} or his trained assistant to operate on myself or on {{patientName}}, who is my {{relation}} (relation) for {{procedure}}. Initial ______.\n\nTreatment Area: {{site}} Indications: {{indication}}\nMachine Used: {{machine}}\n\nMicroneedle radiofrequency involves insertion of fine electrodes mechanically into the skin followed by the discharge of small amount of radio frequency energy at the desired depth. This leads to stimulation of new collagen production and restructuring of old collagen bundles in the skin.\nStrict sun protection is advised for a few days after the procedure to avoid any adverse effects of the treatment.\nIndicated for reduction of acne scars, other scars, photo ageing, stretch marks, skin laxity, improvement of skin texture, wrinkles and fine lines.\n\nI am aware of the following:\n• The adverse events like stinging or burning sensation, redness resembling a sunburn (The redness will typically subside in 1 to 6 weeks but could last longer), swelling (subsides in 1 to 2 weeks), skin darkening in the treated areas and will usually fade within 1 to 6 months (rare), skin lightening (It usually re-pigment in 1 to 6 months, but in rare cases could be permanent), blisters or scabs, infection, acneiform eruptions, scarring and even risks or complications associated with this treatment that are not yet reported in the literature.\n\n• The potential benefits of the proposed procedure and possible alternate procedures like medical treatment, fractional lasers, chemical peels, dermabrasion, micro needling and botulinum toxin and fillers.\n\n• No guarantee, warranty, or assurance has been made to me as to the results that may be obtained and that for maximum and optimum results, several treatment sessions may be required spaced at varying intervals. Skin may continue to improve till 3 months – 6 months after a treatment. Even after multiple sessions, the complete eradication of the skin problem may not happen, and maintenance sessions may be required for maintaining the improvement.\n\n• I understand that variable results are seen due to the patients’ lifestyle, medical profile, age, and genetic factors.\n\n• The need of regularity of treatments, multiple sessions or touch-ups and maintenance treatments in the future.\n\n• The need of proper pre- and post- treatment care. (The instructions given should be strictly adhered to).\n\n• The cost of treatment per sitting and the payment schedule. (I will be responsible for reimbursing the cost of the procedure as many of the procedures may not covered by insurance companies or companies).\n\n• The sensation of the procedure and on occasion, use of topical, block, local or general anesthesia. (I give consent for the anesthesia.)\n\nI consent to the taking of the photographs during the course of my procedure for the purpose of proper documentation, publications, presentations and post-operative assessment. I give consent for that.\n\nFor the women of childbearing age: By signing below I indicate that I am not pregnant. Furthermore, I agree to keep the doctors informed should I become pregnant during the course of the treatment.\n\nI will inform the doctor of all current medications and change in the medications during the course of treatment.\n\nMy medical history regarding active skin infection, impaired healing (e.g. keloid scar formers), and pregnancy.\n\nI am giving consent that if anything goes wrong during the procedure, I may be given any emergency treatment including alternate treatments best suited to me, without asking for my prior permission.\n\nI further state that, I have carefully read and understood all the information provided in this form and with a fully conscious mind, I hereby give my written consent for the said procedure along with its involved risks.\nThe procedure, the side effects and the risks involved have been explained to me in my native language. I hereby release Dr. {{doctorName}} and its designated staff from liability associated with the above procedure.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "procedure",
+        "label": "Procedure",
+        "autofill": "procedure"
+      },
+      {
+        "key": "relation",
+        "label": "Relation to patient"
+      },
+      {
+        "key": "site",
+        "label": "Site / area treated"
+      },
+      {
+        "key": "indication",
+        "label": "Indication"
+      },
+      {
+        "key": "machine",
+        "label": "Machine used"
+      }
+    ],
+    "sortOrder": 20
+  },
+  {
+    "key": "consent-for-mole-removal-surgery",
+    "title": "Consent for Mole Removal Surgery",
+    "source": "IADVL Academy — (Special Interest Group) Dermatosurgery",
+    "category": "surgery",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED THAT\n• About the potential benefits of the procedure of mole removal and biopsy. However, I understand there is no certainty that I will achieve these benefits\n• No guarantee, warranty or assurance has been made to me regarding the outcome of the procedure.\n• The reasonable alternative(s) to the procedure, as well as the risks of alternatives have been explained to me by the doctor. The alternatives include, but are not limited to leaving the mole or tissue in place, which may or may not be cancer.\n• The doctor has explained to me that there are risks and possible undesirable consequences associated with this process including, but not limited to blood loss, infection, heart complications, blood clots, loss of or loss of use of body parts, other neurological injury, recurrence, scarring, reaction to the local anesthetic if used and/ or death.\n• In the event any of the inherent complications mentioned above, may occur, my doctor and his team will take appropriate and reasonable steps to help manage the clinical situation and be available to me and to my family to address our concerns and questions.\n• Any of the above risks or complications may require further surgical interventions during or after the procedure, which I expressly authorize. In the event of any of the inherent complications mentioned above, occurring, my doctor and his team will take appropriate and reasonable steps to help manage the clinical situation and be available to me and to my family to address our concerns and questions.\n• I understand that if I need blood or blood products, these carry a risk of contracting HIV/AIDS, hepatitis or other diseases.\n• I have been explained that clinical results may vary between individuals, sessions and scars. I am aware that it is to improve the healing of the scars eventually.\n\nADDITIONALLY\n• I, {{patientName}} hereby authorize Dr. {{doctorName}}and any associate or assistant the doctor deems appropriate, to perform mole removal with biopsy.\n• I also authorize the administration of sedative and /or anesthesia as may be deemed advisable or necessary for my comfort, wellbeing and safety.\n• In permitting my doctor to perform the procedure, I understand that unforeseen conditions may be revealed that may necessitate change or extension of the original procedure or different procedure(s) than those already explained to me. I therefore authorize the doctor and his team, perform such procedure(s) as necessary and desirable in the exercise of his/her professional judgment.\n• In the event any of the inherent complications mentioned above, may occur, my doctor and his team will take appropriate and reasonable steps to help manage the clinical situation and be available to me and to my family to address our concerns and questions.\n• I authorize the doctor/hospital to utilize or dispose the removed tissues, parts of organs resulting from the procedure authorized above.\n• I consent to my photographing/video graphing of the procedure that may be performed, provided my identity is not revealed by the pictures or the descriptive texts accompanying them.\n• I consent to the admittance of students or authorized equipment representatives to the procedure room for purpose of advancing medical education or obtaining important product information.\n\n## Post-procedure care\n\nBy signing below, I certify that I have had an opportunity to ask the doctor all my questions concerning anticipated benefits, material risks, alternative therapies, and all of my questions have been answered to my satisfaction.\nI hereby release Dr. {{doctorName}} and his/her designated staff from liability associated with the above procedure. I authorize Dr. {{doctorName}} and his /her designated staff to perform procedure.\n\nConsent\n\nI authorize Dr. {{doctorName}} and her /his designated staff to perform procedure. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI hereby release Dr. {{doctorName}} and her/his designated staff from any liability associated with above procedure. The payment and fee structure have been informed to me and I agree to abide by the same.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 21
+  },
+  {
+    "key": "consent-for-nail-surgery",
+    "title": "Consent for Nail Surgery",
+    "source": "IADVL Academy — (Special Interest Group) Dermatosurgery",
+    "category": "surgery",
+    "version": 1,
+    "bodyMarkdown": "Nail being operated:\n\nI have been informed that\n• The purpose of this procedure is to relieve my painful nail and to prevent/ reduce its recurrence in the future.\n• In this procedure, my painful broad nail will be partially avulsed and a chemical will be applied at the base (lateral nail matrix) so that the future nail will come out less broad and will not impinge on to the lateral nail fold and cause its swelling and pain.\n• The procedure is done under local anesthesia where my doctor will first administer a local anesthetic solution at the base of my digit (on both the sides) so that the digit being operated will become anesthetized.\n• After getting the procedure done, I will need to wear open-toed shoes to accommodate the bulky dressing over the operated area. I will also be required to take oral medication prescribed by my doctor, other than getting the dressing changed regularly.\n• I have been asked to avoid prolonged standing/ walking or cycling for a period of at least 2 days post-procedure. This will reduce post-operative swelling in the treated digit.\n• I have also been asked to try to keep the operated limb in an elevated position for the first two days, as far as possible.\n• Clinical results may vary between individuals. Most patients do not require further surgical treatments in the affected nail with gradual regrowth of nail over few months. On occasion, there are patients that do not respond to treatments and so the outcome cannot be guaranteed.\n\nI was also informed about\n• The other alternative methods of dealing with ingrown nail including conservative wait and watch; as well as their benefits and disadvantages.\n• I understand that for ideal results, this procedure can be combined with radiofrequency, surgical options, etc.\n• No guarantee, warranty, or assurance has been made to me as to the results that may beobtained.\n• I am also aware that follow-up treatments may be necessary for desired results.\n\nI also understand that\n• Short-term side effects may include pain and swelling of digit, or temporary numbness. These conditions usually resolve within 2-4 days after treatment.\n• In the event of throbbing pain, pulsating pain, or if my digit starts becoming discolored, I need to loosen my dressing completely and report back to my doctor immediately.\n• In case I develop pain later during the course of my dressings, or I develop a pus discharge then I will need to report to my doctor for the need for better antibiotics.\n• My digit is likely to completely heal by 1-2 weeks, the stage at which I can stop wearing any dressing. I have also been told that in occasional patients, mild watery discharge may continue for more than two weeks, and they may need to wear a dressing for more than 2 weeks.\n• Following is my current status regarding smoking\n• ______ I am a non-smoker and do not use nicotine products. I understand the risk of second-hand smoke exposure causing surgical complications.\n• ______ I am a smoker or use tobacco/ nicotine products. I understand the risk of surgical complications due to smoking or use of nicotine products.\n\nAdditionally\n• I agree that any pictures taken of my treatment site may be used for publication or teaching purposes; however my name or identity will not be disclosed and complete confidentiality will be maintained.\n• By signing below, I acknowledge that I have read the adverse reactions above and I feel that I have been adequately informed of the possible risks of Ingrown Nail Surgery.\n• I have informed the doctor about any/all drug allergies that I have.\n• Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\n\n## Post-procedure care\n\nConsent\n\nI authorize Dr. {{doctorName}} and her /his designated staff to perform procedure. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nMy questions regarding the same have been adequately answered.\nI hereby release Dr. {{doctorName}} and her/his designated staff from any liability associated with above procedure. The payment and fee structure have been informed to me and I agree to abide by the same.",
+    "fields": [
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 22
+  },
+  {
+    "key": "consent-for-non-contact-radiofrequency-lipolysis",
+    "title": "Consent for Non-contact Radiofrequency Lipolysis",
+    "source": "IADVL Academy — (Special Interest Group) Laser and Aesthetics 2018- 2019",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "I, {{patientName}}, here by authorize Dr. {{doctorName}} or his trained assistant to operate on myself or on {{patientName}}, who is my {{relation}} (relation) for {{procedure}}. Initial ______.\n\nTreatment Area: {{site}} Indications: {{indication}}\nMachine Used: {{machine}}\n\nNon Contact RF lipolysis involves the use of radiofrequency energy of certain wavelengths to heat up the fat cells under the skin on specific areas. This leads to death of theses adipocytes (Fat cells) and absorption of the adipocytes by the body. The procedure requires more than one treatment and may produce some reduction in the bulges and cellulite. The total number of treatments and clinical results may vary between individuals.\nIntended benefits are localized fat reduction, improvement of cellulite.\n\nI am aware of the following:\n• The adverse events like stinging or burning sensation, redness, swelling, blisters or scabs, infection, scarring, and even risks or complications associated with this treatment that are not yet reported in the literature.\n\n• The potential benefits of the proposed procedure and possible alternate procedures like liposuction, HIFU, Radiofrequency tightening.\n\n• No guarantee, warranty, or assurance has been made to me as to the results that may be obtained and that for maximum and optimum results, several treatment sessions may be required spaced at varying intervals.\n\n• I understand that variable results are seen due to the patients’ lifestyle, medical profile, hormonal status, age, and genetic factors.\n\n• The need of regularity of treatments, multiple sessions or touch-ups and maintenance treatments in the future.\n\n• The need of proper pre- and post- treatment care. (The instructions given should be strictly adhered to).\n\n• The cost of treatment per sitting and the payment schedule. (I will be responsible for reimbursing the cost of the procedure as many of the procedures may not covered by insurance companies or companies).\n\n• The sensation of the procedure and on occasion, use of topical, block, local or general anesthesia. (I give consent for the anesthesia.)\n\nI consent to the taking of the photographs during the course of my procedure for the purpose of proper documentation, publications, presentations and post-operative assessment. I give consent for that.\n\nFor the women of childbearing age: By signing below I indicate that I am not pregnant. Furthermore, I agree to keep the doctors informed should I become pregnant during the course of the treatment.\n\nI will inform the doctor of all current medications and change in the medications during the course of treatment.\n\nMy medical history regarding active skin infection, impaired healing (e.g. keloid scar formers), and pregnancy.\n\nI am giving consent that if anything goes wrong during the procedure, I may be given any emergency treatment best suited to me, without asking for my prior permission.\n\nI further state that, I have carefully read and understood all the information provided in this form and with a fully conscious mind, I hereby give my written consent for the said procedure along with its involved risks. The procedure, the side effects and the risks involved have been explained to me in my native language. I hereby release Dr. {{doctorName}} and its designated staff from liability associated with the above procedure.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "procedure",
+        "label": "Procedure",
+        "autofill": "procedure"
+      },
+      {
+        "key": "relation",
+        "label": "Relation to patient"
+      },
+      {
+        "key": "site",
+        "label": "Site / area treated"
+      },
+      {
+        "key": "indication",
+        "label": "Indication"
+      },
+      {
+        "key": "machine",
+        "label": "Machine used"
+      }
+    ],
+    "sortOrder": 23
+  },
+  {
+    "key": "consent-for-pigmented-lesions-laser",
+    "title": "Consent for Pigmented Lesions Laser",
+    "source": "IADVL Academy — (Special Interest Group) Laser and Aesthetics 2018- 2019",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "I, {{patientName}}, here by authorize Dr. {{doctorName}} or his trained assistant to operate on myself or on {{patientName}}, who is my {{relation}} (relation) for {{procedure}}. Initial ______.\n\nTreatment Area: {{site}} Indications: {{indication}}\nMachine Used: {{machine}}\n\nThe purpose of this procedure is to reduce and improve ______in the area indicated above. The procedure requires more than one treatment and the total number of treatments and clinical results may vary between individuals.\n\nI am aware of the following:\n\n• The adverse events like stinging or burning sensation, redness, swelling (subsides in 1 to 2 weeks), skin darkening in the treated areas and will usually fade within 1 to 6 months (rare), skin lightening (It usually re-pigment in 1 to 6 months, but in rare cases could be permanent), blisters or scabs, infection, acneiform eruptions, scarring, allergic reactions and even risks or complications associated with this treatment that are not yet reported in the literature.\n\n• The potential benefits of the proposed procedure and possible alternate procedures like other laser treatments, intense pulsed light therapy, chemical peels and Medical management has been discussed.\n\n• No guarantee, warranty, or assurance has been made to me as to the results that may be obtained and that for maximum and optimum results, several treatment sessions may be required spaced at varying intervals. Some of the pigmented lesions are sensitive to sunlight and there are chances of recurrence of the lesions even after complete clearance.\n\n• I understand that variable results are seen due to the patients’ lifestyle, medical profile, sun exposure, age, and genetic factors.\n\n• The need of regularity of treatments, multiple sessions or touch-ups and maintenance treatments in the future.\n\n• The need of proper pre- and post- treatment care. (The instructions given should be strictly adhered to).\n\n• The cost of treatment per sitting and the payment schedule. (I will be responsible for reimbursing the cost of the procedure as many of the procedures may not covered by insurance companies or companies).\n\n• The sensation of the procedure and on occasion, use of topical, block, local or general anesthesia. (I give consent for the anesthesia.)\n\nI consent to the taking of the photographs during the course of my procedure for the purpose of proper documentation, publications, presentations and post-operative assessment. I give consent for that.\n\nFor the women of childbearing age: By signing below I indicate that I am not pregnant. Furthermore, I agree to keep the doctors informed should I become pregnant during the course of the treatment.\n\nI will inform the doctor of all current medications and change in the medications during the course of treatment.\n\nMy medical history regarding active skin infection, impaired healing (e.g. keloid scar formers), and pregnancy.\n\nI am giving consent that if anything goes wrong during the procedure, I may be given any emergency treatment best suited to me, without asking for my prior permission.\n\nI further state that, I have carefully read and understood all the information provided in this form and with a fully conscious mind, I hereby give my written consent for the said procedure along with its involved risks.\n\nThe procedure, the side effects and the risks involved have been explained to me in my native language. I hereby release Dr. {{doctorName}} and its designated staff from liability associated with the above procedure.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "procedure",
+        "label": "Procedure",
+        "autofill": "procedure"
+      },
+      {
+        "key": "relation",
+        "label": "Relation to patient"
+      },
+      {
+        "key": "site",
+        "label": "Site / area treated"
+      },
+      {
+        "key": "indication",
+        "label": "Indication"
+      },
+      {
+        "key": "machine",
+        "label": "Machine used"
+      }
+    ],
+    "sortOrder": 24
+  },
+  {
+    "key": "consent-for-autologous-platelet-rich-plasma-prp",
+    "title": "Consent for Autologous Platelet Rich Plasma (PRP)",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "injectable",
+    "version": 1,
+    "bodyMarkdown": "INDICATION FOR PRP: {{indication}}\n\nI HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nPlatelet Rich Plasma (PRP) is an injection treatment whereby the patient’s own blood is centrifuged to separate out the platelet portion that is then injected back into the specific sites for the given indication above. It releases growth factors to stimulate new collagen production and to energize the cells into rejuvenating themselves. The same process is also done for the hair to reduce hair loss and improve the hair growth. It also helps in wound healing and improvement of scars.\nThere are different methods for the preparation of PRP. The doctor has discussed with me regarding the pros and cons of the different methods and the available commercial kits.\nThe total number of treatment sessions may vary among individuals. Exact number of sessions cannot be predicted. A minimum number of 3 to 6 sittings maybe required before I can appreciate any visible change. I have been explained about maintenance treatments that may be required after completion of treatment.\nNo guarantee, warranty, or assurance has been made to me as to the results that may be obtained. On rare occasion there may be a patient who does not respond to treatment\nI was also informed about the other alternative methods as well as their benefits and disadvantages. I understand that for ideal results, this procedure can be combined with microneedling, lasers and chemical peels, etc.\nI AM ALSO INFORMED THAT\n• Some side effects and complications may be experienced like pain, headache, stinging, mild to moderate swelling which may subside in 3 to 7 days, redness and heat, nausea, vomiting, dizziness and transient increase in sugar levels.\n• Variable results are seen due to the patients’ lifestyle, medical profile, and age, the extent of wrinkling, extent of hair loss, smoking, sun damage, nutritional make-up, and genetic factors. The results depend on the platelet levels and the level of growth factors in these platelets, which vary from person to person.\n• The procedure is not FDA approved for cosmetic indications and approved for wound regeneration.\n• Topical, local or general anesthesia is required in few patients. I am ready to take the appropriate form of anesthesia.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• The results may be seen only after 4 to 6 weeks after this session.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter :\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Platelet Rich Plasma. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nMy questions regarding the procedure have been answered satisfactorily.\nI hereby release Dr. {{doctorName}} and her/his designated staff from any liability associated with above procedure. The payment and fee structure have been informed to me and I agree to abide by the same.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Wear the sterile cap for at least 3 hours after post procedure\n• Do not wet the site of injection for at least 24 hours after the procedure\n• Wash the scalp with a mild gentle shampoo\n• Wash the face with a gentle alcohol free cleanser\n• Follow the medical advice suggested by the treating doctor\n• Avoid sun-exposure and heat after procedure for 24hrs\n• Do not opt for any parlour treatments for next 2 weeks or thereafter without consulting the doctor.\n• A good diet, adequate water intake and adequate sleep will ensure better healing and good response\n• Attend the next session on the date , as advised by the treating doctor, in order to get the desired result",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "indication",
+        "label": "Indication"
+      }
+    ],
+    "sortOrder": 25
+  },
+  {
+    "key": "consent-for-radiofrequency-tightening",
+    "title": "Consent for Radiofrequency Tightening",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "Areas to be Treated:\nI HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nLaser/Radiofrequency skin tightening involves the use of light energy of certain wavelengths to stimulate new collagen formation in the skin\nRadiofrequency systems are used to deliver few passes over the intended area of treatment so as to produce skin tightening, lifting and to reduce sagging. Some other intended benefits are improvement of skin texture and brightness.\nThe procedure requires more than one treatment and may produce some reduction in the appearance of sagging skin and/or wrinkles.\nThe total number of treatments and clinical results may vary between individuals.\nMost patients require a number of treatments over several months with gradual results occurring over this time. On occasion there are patients that do not respond to treatments and so the outcome cannot be guaranteed. Follow up treatments may be necessary for desired results to be maintained.\nI have been explained the implications of not undergoing this procedure and the alternative methods of treatment like HIFU, fractional ablative and nonablative lasers, botulinum toxin, fillers, dermabrasion and chemical peels.\n\nI AM ALSO INFORMED THAT\n• There may be some degree of discomfort, stinging, pin prick sensation, warmth, burning at the time or after the procedure. It may cause my skin to appear pink. However, some patients react differently.\n• Short-term effects may include Mild to moderate discomfort or pain, slight redness or swelling, sun sensitivity, skin sensitivity. These conditions usually self-resolve\n• Other potential risks and complications from the procedure are risk of scarring, pinpoint bleeding, secondary infections and pigmentary disturbances\n• Variable results are seen due to the patients’ lifestyle, medical profile, age and the extent of severity of sagging which varies from person to person.\n• Pre and post procedure photographs will be taken which may be used for academic or scientific purposes.\n• This is not a complete treatment for my ailment and other forms of treatments may be needed for optimum results.\n• There are some other treatments which may help my concerns and those options were adequately discussed with me. I understand that for ideal results, this procedure can be combined with botox, fillers, microneedling, PRP, laser, etc.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter:\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of RF tightening. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\n\n## Post-procedure care\n\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Avoid the Sun for one week and use sunscreen regularly\n• Avoid scratching the skin as it is very sensitive\n• Drink plenty of water\n• Avoid hot shower baths, hot tubs and saunas for 48 hrs\n• Avoid strenuous exercise for 48 hrs\n• Avoid Ice packs so as to ensure very good results\n• Use your skin care products and make up as advised by the doctor\n• Waxing , tweezing and depilation can be done after 72 hrs",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 26
+  },
+  {
+    "key": "consent-for-scar-revision-surgery",
+    "title": "Consent for Scar Revision Surgery",
+    "source": "IADVL Academy — (Special Interest Group) Dermatosurgery",
+    "category": "surgery",
+    "version": 1,
+    "bodyMarkdown": "Site and Brief description of scar: {{site}}\n\nI HAVE BEEN INFORMED THAT\n• It is impossible to completely remove the scar.\n• The aim of the surgical procedure is to replace an ugly/more apparent scar to a less apparent and aesthetically better scar.\n• There are many different techniques of scar revision surgery. The type of surgery may depend on the type of scar, site of scar and surgeons expertize. In addition to surgery there are other modalities like laser therapy, dermabrasion, Microneedling, chemical peels etc. I have been offered the option to discuss these various therapies before opting for surgery.\n• This procedure is performed under local anesthesia. A few injections will be given at the site of surgery to make the area numb. There after the procedure is expected to be painless.\n• The operated site will be secured with help of sutures (stiches) in one or multiple layers and a small bandage will be put to cover the wound.\n• Any surgery can have potential complications. They include pain, swelling, bleeding, infection, scarring, discoloration of skin, irregularity of contour of skin, allergic reaction to the suture material, delayed wound healing, hypertrophic scar, keloid formation etc. These complications do not occur in all patients and can be minimized to some extent with surgical expertise. Some amount of pain, swelling and discomfort is expected at the site of operation. For this a course of antibiotics and painkillers will be prescribed to me. In case pain or swelling is severe I need to contact my doctor immediately.\n• Very rarely serious cardiac, pulmonary or neurological complications can occur.\n• During post-operative period, I will avoid any activity which can produce tension at the operated site\n• I will try to keep the area dry\n• I will be called after 5-7 days after surgery for stich removal.\n• In the initial stages the scar is red and elevated above the skin. In due course of time the scar becomes more or less skin coloured and also tends to flatten with time. This process may take up to a year.\n• Clinical results may vary between individuals.\n• No guarantee, warranty, or assurance has been made to me as to the results that may be obtained.\n• I am also aware that follow-up treatments may be necessary for desired results.\n• Smoking, tobacco products, or nicotine products (patch, gum, or nasal spray) are at a great risk for significant surgical complications of skin dying, delayed healing, and additional scarring. Individuals exposed to second-hand smoke are also at potential risk for similar complications attributable to nicotine exposure.\n• Following is my current status regarding smoking\n• ______ I am a non-smoker and do not use nicotine products. I understand the risk of second-hand smoke exposure causing surgical complications.\n• ______ I am a smoker or use tobacco/ nicotine products. I understand the risk of surgical complications due to smoking or use of nicotine products.\n\nAdditionally\n• I agree that any pictures taken of my treatment site may be used for publication or teaching purposes; however, my name or identity will not be disclosed and complete confidentiality will be maintained.\n• By signing below, I acknowledge that I have read the adverse reactions above and I feel that I have been adequately informed of the possible risks of scar revision\n• I have informed the doctor about any/all drug allergies that I have.\n• Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\n\n## Post-procedure care\n\n• I consent to the disposal of any tissue, medical devices, or body parts which may be removed.\n\nConsent\nI authorize Dr. {{doctorName}} and her /his designated staff to perform procedure. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nMy questions regarding the same have been adequately answered.\nI hereby release Dr. {{doctorName}} and her/his designated staff from any liability associated with above procedure. The payment and fee structure have been informed to me and I agree to abide by the same.",
+    "fields": [
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "site",
+        "label": "Site / area treated"
+      }
+    ],
+    "sortOrder": 27
+  },
+  {
+    "key": "consent-for-dermal-threads",
+    "title": "Consent for Dermal Threads",
+    "source": "IADVL Academy — (Special Interest Group) Aesthetics 2020-21",
+    "category": "injectable",
+    "version": 1,
+    "bodyMarkdown": "Type of Threads: {{threadType}}\nNumber of Threads used: Left {{threadsLeft}} Right {{threadsRight}}\nSize: {{size}}\nBatch No: {{batchNo}}\n\nI HAVE BEEN INFORMED IN THE LANGUAGE I BEST UNDERSTAND THAT\nThe dermal thread insertion or lifting procedure is a minimally invasive procedure performed under local anesthesia. The material of the threads is polydioxanone, poly L-lactic acid or polycaprolactone, which are absorbable over 6, 18 and 24 months respectively, and are biologically inert. Threads or sutures are inserted under the skin in the subcutaneous plane either directly with the thread attached to a needle or after making an entry point for a blunt\ncannula that delivers the thread. Threads are of different sizes and the doctor decides the size of the thread to be used according the indication and area to be treated. The number of threads used also varies from patient-to-patient, the indication, the age and skin firmness of the patient and the area being treated. The treating doctor is the best judge of this. Lifting sutures are different from those used to rejuvenate the skin and the doctor decides which types to use.\nFew threads may be inserted without any numbing of the skin. If the patient’s threshold of pain is less, a topical numbing cream may be applied. Lifting threads may need injectable topical anesthesia at the point of entry of the thread, along the tract or tumescent anesthesia, depending upon the doctor’s comfort. Threads initiate collagen production and increase the elasticity and firmness of the skin of the treated area. It takes up to 3 weeks for the results to show.\nI AM ALSO INFORMED THAT\nAlternate forms of treatment to lifting threads include a face lift surgery which is almost permanent. Rejuvenation using threads can be substituted with LASERS, radiofrequency devices, botulinum toxin, fillers, skin boosters or chemical peels. Each procedure is associated with inherent risks. Combination aesthetic treatments work best. These alternatives may be discussed with the treating doctor and an informed decision taken.\nPossible risks, Side effects and Complications:\n• Discomfort and pain during and after the procedure is common.\n• Swelling, redness and bruising may be present post-procedure for a week.\n• Bleeding may occur during the procedure and a hematoma or blood clot may form, which may need drainage or take up to 2 weeks to resolve depending on its size. Hematoma formation is a rare complication.\n• Allergic reactions are rare as the dermal threads used are of inert material. Allergic reaction may occur to the topical or injectable anesthesia.\n• Asymmetry is a possible complication.\n• Damage to deeper structures is rare but a possible complication. Nerve injury is a potential complication. It may be temporary or permanent. This depends upon the area of the body being treated.\n• Suboptimal results which warrant additional threads may occur.\n• Thread visibility, extrusion or breakage may occur.\n\nCOST AND PAYMENT\nI have been informed about the fees and the number of sessions / package. I shall abide by the same\n\nConsent Letter :\nI, {{patientName}} authorize Dr. {{doctorName}} and her /his designated staff to perform procedure of Thread Lifting. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nI have informed the doctor about my medical history regarding herpes, allergy, acne, keloids, diabetes, and autoimmune disease, treatment with anticoagulants, NSAIDS, blood thinners or corticosteroids etc. I am not pregnant or breast-feeding. In spite of this, I am aware that I may develop any allergy at any point. I give my consent to the doctor to take the necessary measures to treat my allergic reaction, if any develops. Before each treatment, I will inform the doctor if I have taken any new medications since my last treatment.\nI have been informed about the other alternative methods as well as their benefits and disadvantages.\n\n## Post-procedure care\n\nI agree that any pictures taken of my treatment site may be used for publication or teaching purposes; however, my name or identity will not be disclosed, and complete confidentiality will be maintained.\nMy questions regarding the procedure have been answered satisfactorily.\n\n## Post-procedure care\n\n## Post-procedure care\n\n• Do not use make up for the next 48 hours\n• Do not massage or put excessive pressure on the treated area for the next week\n• Do not exercise the area for the next week\n• Use adequate UV protective sunscreen as advised by the doctor.\n• Avoid any NSAIDs for pain; acetaminophen is the drug of choice for pain\n• Use a vitamin K cream as advised if there is a bruise\n• Take prescription medicines if any like antibiotics as advised\n• Report SOS to the doctor in case of any untoward reactions noticed/any extrusion of thread/numbness felt",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "threadType",
+        "label": "Type of threads"
+      },
+      {
+        "key": "threadsLeft",
+        "label": "Number of threads (left)"
+      },
+      {
+        "key": "threadsRight",
+        "label": "Number of threads (right)"
+      },
+      {
+        "key": "size",
+        "label": "Size"
+      },
+      {
+        "key": "batchNo",
+        "label": "Batch number"
+      }
+    ],
+    "sortOrder": 28
+  },
+  {
+    "key": "consent-for-laser-for-vascular-lesions",
+    "title": "Consent for Laser For Vascular Lesions",
+    "source": "IADVL Academy — (Special Interest Group) Laser and Aesthetics 2018- 2019",
+    "category": "laser",
+    "version": 1,
+    "bodyMarkdown": "I, {{patientName}}, here by authorize Dr. {{doctorName}} or his trained assistant to operate on myself or on {{patientName}}, who is my {{relation}} (relation) for {{procedure}}. Initial ______.\n\nTreatment Area: {{site}} Indications: {{indication}}\nMachine Used: {{machine}}\n\nThis procedure involves using lasers of certain wavelengths to treat abnormal blood vessels by coagulating the aberrant vessels with laser energy.Indicated for treating abnormal blood vessels that are seen in conditions such as port wine stain birthmarks, strawberry hemangiomas, telangiectasia (broken capillaries of spider veins), leg veins and rosacea.\n\nI am aware of the following:\n• The adverse events like pain, purpura, swelling, redness, bruising, blistering, crusting/scab formation, infection, and unforeseen complications which can last up to many months, years or permanently. There is a risk of scarring, textural and/or color changes in the skin, which can be permanent.\n\n• The potential benefits of the proposed procedure and possible alternate procedures like alternate lasers, cautery, surgical excision, z-plasty, dermabrasion and sclerotherapy has been explained to me.\n\n• No guarantee, warranty, or assurance has been made to me as to the results that may be obtained and that for maximum and optimum results, several treatment sessions may be required spaced at varying intervals. Some lesions cannot be removed completely and there is no way one can predict the final outcome and number of sittings.\n\n• I understand that variable results are seen due to the patients’ lifestyle, medical profile, age, and genetic factors.\n\n• The need of regularity of treatments, multiple sessions or touch-ups and maintenance treatments in the future.\n\n• The need of proper pre- and post- treatment care. (The instructions given should be strictly adhered to).\n\n• The cost of treatment per sitting and the payment schedule. (I will be responsible for reimbursing the cost of the procedure as many of the procedures may not covered by insurance companies or companies).\n\n• The sensation of the procedure and on occasion, use of topical, block, local or general anesthesia. (I give consent for the anesthesia.)\n\nI consent to the taking of the photographs during the course of my procedure for the purpose of proper documentation, publications, presentations and post-operative assessment. I give consent for the same.\n\nFor the women of childbearing age: By signing below I indicate that I am not pregnant. Furthermore, I agree to keep the doctors informed should I become pregnant during the course of the treatment.\n\nI will inform the doctor of all current medications and change in the medications during the course of treatment.\n\nMy medical history regarding active skin infection, impaired healing (e.g. keloid scar formers), and pregnancy.\n\nI am giving consent that if anything goes wrong during the procedure, I may be given any emergency treatment including alternate treatments best suited to me, without asking for my prior permission.\n\nI further state that, I have carefully read and understood all the information provided in this form and with a fully conscious mind, I hereby give my written consent for the said procedure along with its involved risks.\nThe procedure, the side effects and the risks involved have been explained to me in my native language. I hereby release Dr. {{doctorName}} and its designated staff from liability associated with the above procedure.",
+    "fields": [
+      {
+        "key": "patientName",
+        "label": "Patient name",
+        "autofill": "patientName"
+      },
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      },
+      {
+        "key": "procedure",
+        "label": "Procedure",
+        "autofill": "procedure"
+      },
+      {
+        "key": "relation",
+        "label": "Relation to patient"
+      },
+      {
+        "key": "site",
+        "label": "Site / area treated"
+      },
+      {
+        "key": "indication",
+        "label": "Indication"
+      },
+      {
+        "key": "machine",
+        "label": "Machine used"
+      }
+    ],
+    "sortOrder": 29
+  },
+  {
+    "key": "consent-for-vitiligo-surgery",
+    "title": "Consent for Vitiligo Surgery",
+    "source": "IADVL Academy — (Special Interest Group) Dermatosurgery",
+    "category": "surgery",
+    "version": 1,
+    "bodyMarkdown": "I HAVE BEEN INFORMED THAT\n• Vitiligo is a disease with a chronic, recurrent course.\n• I am aware that surgery is only a cosmetic procedure and other concomitant medical treatments may be essential. Surgery will not alter the course of the disease or prevent any recurrence.\n• I am aware that the practice of medicine and surgery is not an exact science, and I acknowledge that no guarantees have been made to me as to the results of the operation or procedure.\n• My disease/ white patches has/have not been increasing in size or number for the last______months. I have no tendency for keloids.\n• I am aware that the exact course of the disease cannot be predicted and, though the disease is stable at present, flare-ups and recurrences may occur at any time, in any part of the body.\n• I have been explained the procedure of the operation as follows:\n• The procedure will be done under topical/local anesthesia.\n• The donor area is from back/thigh/gluteal area/inner arm.\n• The donor graft will be taken by punch/suction blister/grafting knife/dermatome.\n• Recipient area will be abraded by dermabrader and then the graft applied, covered by dressing.\n• I am aware that avoiding movements and taking care of the recipient area is essential for optimal results.\n• I am aware that I may experience some pain postoperatively and may need to take analgesics.\n• Donor area will need dressing; the donor area may take 2-3 weeks to heal.\n• I am aware that for optimal cosmetic results, it may take six months to one year. I may need to take medical treatment and phototherapy during this period.\n• I am also aware that the grafted area may not match in texture and appearance with the surrounding skin. A perfect match with the surrounding normal skin may not always be possible.\n• I consent to be photographed/videographed before, during, and after the treatment; that these photographs/videos shall be the property of the above doctors and may be published in scientific journals and/or shown for scientific reasons.\n• I agree to keep the doctors informed of any change of address so that they can notify me of any late findings, and I agree to cooperate with the above doctors in my care after surgery until completely discharged.\n• I am not known to be allergic to anything except: (mention if any______.)\n• I have read the above consent. I fully understand the contents of the consent and authorize and request the above doctors to perform this surgical procedure on me. The consent form has been signed by me when i was not under the influence of any drugs.\n\nConsent\n\nI authorize Dr. {{doctorName}} and her /his designated staff to perform procedure. Further, my signature below indicates my consent for the treatment described and my agreement to comply with the requirements placed on me by this consent form.\nMy questions regarding the same have been adequately answered.\nI hereby release Dr. {{doctorName}} and her/his designated staff from any liability associated with above procedure. The payment and fee structure have been informed to me and I agree to abide by the same.",
+    "fields": [
+      {
+        "key": "doctorName",
+        "label": "Doctor name",
+        "autofill": "doctorName"
+      }
+    ],
+    "sortOrder": 30
+  }
+]
