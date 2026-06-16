@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PatientPicker, { PickedPatient } from "@/components/PatientPicker";
 import SignaturePad, { SignaturePadHandle } from "@/components/SignaturePad";
+import { substituteConsentTokens, resolveAutofill, procedureFromTitle } from "@/lib/consent-tokens";
+
+interface ConsentField {
+  key: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  autofill?: "patientName" | "doctorName" | "procedure";
+}
 
 interface TemplateMeta {
   key: string;
@@ -15,7 +24,7 @@ interface TemplateMeta {
 
 interface TemplateFull extends TemplateMeta {
   bodyMarkdown: string;
-  fields: { key: string; label: string; placeholder?: string; required?: boolean }[];
+  fields: ConsentField[];
 }
 
 const CATEGORY_STYLE: Record<string, { label: string; cls: string }> = {
@@ -104,6 +113,7 @@ export default function NewConsentPage() {
   const [loadingTemplate, setLoadingTemplate] = useState(false);
 
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [doctorName, setDoctorName] = useState("");
   const [isMinor, setIsMinor] = useState(false);
   const [guardianName, setGuardianName] = useState("");
   const [guardianRelation, setGuardianRelation] = useState("");
@@ -129,6 +139,12 @@ export default function NewConsentPage() {
       router.push("/login");
       return;
     }
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "{}");
+      if (u?.name) setDoctorName(u.name);
+    } catch {
+      /* ignore */
+    }
     fetch("/api/tier2/consent/templates", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((data) => {
@@ -136,6 +152,24 @@ export default function NewConsentPage() {
       })
       .catch(() => showToast("error", "Failed to load forms"));
   }, [router]);
+
+  // Keep autofill fields (patient/doctor/procedure) in sync with known data.
+  useEffect(() => {
+    if (!template) return;
+    setFieldValues((prev) => {
+      const next = { ...prev };
+      for (const f of template.fields) {
+        if (!f.autofill) continue;
+        const v = resolveAutofill(f.autofill, {
+          patientName: patient?.name,
+          doctorName,
+          procedure: procedureFromTitle(template.title),
+        });
+        if (v != null) next[f.key] = v;
+      }
+      return next;
+    });
+  }, [template, patient, doctorName]);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -152,6 +186,17 @@ export default function NewConsentPage() {
     if (!q) return templates;
     return templates.filter((t) => t.title.toLowerCase().includes(q));
   }, [templates, templateQuery]);
+
+  // Values fed into the consent body tokens (relation falls back to guardian relation).
+  const bodyValues = useMemo(
+    () => ({ ...fieldValues, relation: fieldValues.relation || guardianRelation }),
+    [fieldValues, guardianRelation]
+  );
+
+  const previewBody = useMemo(
+    () => (template ? substituteConsentTokens(template.bodyMarkdown, bodyValues, { blank: "______" }) : ""),
+    [template, bodyValues]
+  );
 
   const loadTemplate = async (key: string) => {
     setSelectedKey(key);
@@ -357,16 +402,23 @@ export default function NewConsentPage() {
             {/* Fill-in fields */}
             {template.fields.length > 0 && (
               <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <StepHeader n={3} title="Details" hint="Fill any procedure-specific blanks (optional)" />
+                <StepHeader n={3} title="Details" hint="Pre-filled where known — complete the rest" />
                 <div className="grid sm:grid-cols-2 gap-4">
                   {template.fields.map((f) => (
                     <div key={f.key}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
+                      <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
+                        {f.label}
+                        {f.autofill && (
+                          <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 bg-teal-50 text-teal-600 rounded">
+                            auto
+                          </span>
+                        )}
+                      </label>
                       <input
                         type="text"
                         value={fieldValues[f.key] || ""}
                         onChange={(e) => setFieldValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                        placeholder={f.placeholder || ""}
+                        placeholder={f.placeholder || (f.autofill ? "" : "Fill in")}
                         className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 focus:bg-white outline-none"
                       />
                     </div>
@@ -389,7 +441,7 @@ export default function NewConsentPage() {
                 </div>
               </div>
               <div className="relative">
-                <div className="max-h-80 overflow-y-auto px-5 py-4 space-y-0.5">{renderBody(template.bodyMarkdown)}</div>
+                <div className="max-h-80 overflow-y-auto px-5 py-4 space-y-0.5">{renderBody(previewBody)}</div>
                 <div className="pointer-events-none absolute bottom-0 inset-x-0 h-8 bg-gradient-to-t from-white to-transparent" />
               </div>
             </section>

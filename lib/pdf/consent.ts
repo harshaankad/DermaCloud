@@ -41,7 +41,6 @@ export interface ConsentPdfOptions {
     address?: string;
   };
   dateStr: string;
-  fields: ConsentPdfField[];
   bodyMarkdown: string;
   isMinor: boolean;
   guardianName?: string;
@@ -208,9 +207,6 @@ export async function buildConsentPdf(opts: ConsentPdfOptions): Promise<Buffer> 
     { label: "Date", value: opts.dateStr },
   ];
   if (p.address) detailRows.push({ label: "Address", value: p.address });
-  for (const f of opts.fields) {
-    if (f.value && f.value.trim()) detailRows.push(f);
-  }
   infoTable(doc, detailRows);
 
   // ── Consent body ──

@@ -8,7 +8,8 @@ import {
   getObjectBuffer,
   MAX_IMAGE_SIZE,
 } from "@/lib/aws";
-import { buildConsentPdf, ConsentPdfField } from "@/lib/pdf/consent";
+import { buildConsentPdf } from "@/lib/pdf/consent";
+import { substituteConsentTokens, resolveAutofill, procedureFromTitle } from "@/lib/consent-tokens";
 import ConsentRecord from "@/models/ConsentRecord";
 import ConsentTemplate from "@/models/ConsentTemplate";
 import Patient from "@/models/Patient";
@@ -164,21 +165,30 @@ export async function POST(request: NextRequest) {
     const doctorSigKey = doctorSigUrl ? keyFromUrl(doctorSigUrl) : null;
     if (doctorSigKey) doctorSigBuffer = await getObjectBuffer(doctorSigKey);
 
-    // Resolve template fields → labelled values for the PDF.
+    const doctorRawName = (doctor as any)?.name || "";
+    const procedure = procedureFromTitle((template as any).title);
+
+    // Collect the doctor's entered field values, then override the autofill fields
+    // (patient/doctor/procedure) with server-trusted data so they can't be spoofed.
     const fieldValues: Record<string, string> = {};
-    const pdfFields: ConsentPdfField[] = [];
     for (const f of (template as any).fields || []) {
       const raw = body.fieldValues?.[f.key];
       const val = typeof raw === "string" ? stripHtml(raw).trim() : "";
-      if (val) {
-        fieldValues[f.key] = val;
-        pdfFields.push({ label: f.label, value: val });
-      }
+      const auto = resolveAutofill(f.autofill, {
+        patientName: (patient as any).name,
+        doctorName: doctorRawName,
+        procedure,
+      });
+      const resolved = auto != null ? auto : val;
+      if (resolved) fieldValues[f.key] = resolved;
     }
+    // Relation token falls back to the guardian relation when signing for a minor.
+    const bodyValues = { ...fieldValues, relation: fieldValues.relation || guardianRelation };
+    const substitutedBody = substituteConsentTokens((template as any).bodyMarkdown, bodyValues, { blank: "______" });
 
     const now = new Date();
     const dateStr = new Intl.DateTimeFormat("en-IN", DATE_FMT).format(now);
-    const doctorName = (doctor as any)?.name ? `Dr. ${(doctor as any).name}` : undefined;
+    const doctorName = doctorRawName ? `Dr. ${doctorRawName}` : undefined;
     const recordId = crypto.randomUUID();
 
     // Build the PDF.
@@ -195,8 +205,7 @@ export async function POST(request: NextRequest) {
         address: (patient as any).address,
       },
       dateStr,
-      fields: pdfFields,
-      bodyMarkdown: (template as any).bodyMarkdown,
+      bodyMarkdown: substitutedBody,
       isMinor,
       guardianName,
       guardianRelation,

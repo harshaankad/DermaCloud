@@ -14,6 +14,8 @@ export interface IConsentField {
   label: string;
   placeholder?: string;
   required?: boolean;
+  // When set, the UI pre-fills this field from known data (editable by the doctor).
+  autofill?: "patientName" | "doctorName" | "procedure";
 }
 
 export interface IConsentTemplate extends Document {
@@ -36,6 +38,7 @@ const ConsentFieldSchema = new Schema<IConsentField>(
     label: { type: String, required: true },
     placeholder: String,
     required: { type: Boolean, default: false },
+    autofill: { type: String, enum: ["patientName", "doctorName", "procedure"] },
   },
   { _id: false }
 );

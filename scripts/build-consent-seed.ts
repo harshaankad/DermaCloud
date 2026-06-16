@@ -25,17 +25,60 @@ interface SeedTemplate {
   category?: string;
   version: number;
   bodyMarkdown: string;
-  fields: { key: string; label: string; required?: boolean }[];
+  fields: { key: string; label: string; autofill?: string }[];
   sortOrder: number;
 }
 
 const SRC_DIR = process.argv[2] || path.join(os.homedir(), "Desktop", "Consent Forms");
 const OUT_FILE = path.join(process.cwd(), "scripts", "data", "consent-templates.json");
 
-// Common, optional blanks shown for every form. Doctor fills what is relevant.
-const COMMON_FIELDS = [
-  { key: "diagnosis", label: "Diagnosis", required: false },
-  { key: "siteTreated", label: "Site / area to be treated", required: false },
+// Token metadata: label shown in the form, and whether it pre-fills from known data.
+const TOKEN_META: Record<string, { label: string; autofill?: string }> = {
+  patientName: { label: "Patient name", autofill: "patientName" },
+  doctorName: { label: "Doctor name", autofill: "doctorName" },
+  procedure: { label: "Procedure", autofill: "procedure" },
+  relation: { label: "Relation to patient" },
+  site: { label: "Site / area treated" },
+  indication: { label: "Indication" },
+  machine: { label: "Machine used" },
+  product: { label: "Product name" },
+  fillerType: { label: "Type of filler" },
+  threadType: { label: "Type of threads" },
+  threadsLeft: { label: "Number of threads (left)" },
+  threadsRight: { label: "Number of threads (right)" },
+  peelType: { label: "Type of chemical peel" },
+  toxinType: { label: "Type of botulinum toxin" },
+  batchNo: { label: "Batch number" },
+  size: { label: "Size" },
+};
+// Order pre-filled (autofill) fields first, then the rest by appearance.
+const FIELD_ORDER = ["patientName", "doctorName", "procedure", "relation"];
+
+// Matches any run of fill-in blank characters (underscores / dashes / dots / ellipses).
+const B = "(?:_{3,}|-{4,}|\\.{4,}|…+)";
+
+// Ordered rules: each maps a labelled blank in the body to a {{token}}. Order matters —
+// doctor/patient blanks are resolved before the generic fallback.
+const TOKEN_RULES: { re: RegExp; to: string }[] = [
+  { re: new RegExp(`\\bDr\\.?\\s*${B}`, "gi"), to: "Dr. {{doctorName}}" },
+  { re: new RegExp(`${B}\\s*\\(relation\\)`, "gi"), to: "{{relation}} (relation)" },
+  { re: new RegExp(`operate on myself or on\\s*${B}`, "gi"), to: "operate on myself or on {{patientName}}" },
+  { re: new RegExp(`\\bI,?\\s*${B}`, "g"), to: "I, {{patientName}}" },
+  { re: new RegExp(`Name of (?:the )?PROCEDURE\\s*:?\\s*${B}`, "gi"), to: "Name of the Procedure: {{procedure}}" },
+  { re: new RegExp(`\\bfor\\s*${B}\\s*\\.\\s*Initial`, "gi"), to: "for {{procedure}}. Initial" },
+  { re: new RegExp(`Initial\\s*${B}`, "gi"), to: "Initial ______" },
+  { re: new RegExp(`Site and Brief description of scar\\s*${B}(?:\\s*${B})?`, "gi"), to: "Site and Brief description of scar: {{site}}" },
+  { re: new RegExp(`(AREA to be treated includes|Treatment Area|Area of Treatment)\\s*:?\\s*${B}`, "gi"), to: "$1: {{site}}" },
+  { re: new RegExp(`Number of Threads used:\\s*Left\\s*${B}\\s*Right\\s*${B}`, "gi"), to: "Number of Threads used: Left {{threadsLeft}} Right {{threadsRight}}" },
+  { re: new RegExp(`(Indications?|INDICATION FOR PRP|INDICATION)\\s*:?\\s*${B}`, "gi"), to: "$1: {{indication}}" },
+  { re: new RegExp(`(Machine Used|Name of Machine)\\s*:?\\s*${B}`, "gi"), to: "$1: {{machine}}" },
+  { re: new RegExp(`(Name of (?:the )?Product)\\s*:?\\s*${B}`, "gi"), to: "$1: {{product}}" },
+  { re: new RegExp(`(Type of Filler(?: to be used)?)\\s*:?\\s*${B}`, "gi"), to: "$1: {{fillerType}}" },
+  { re: new RegExp(`TYPE OF THREADS\\s*:?\\s*${B}`, "gi"), to: "Type of Threads: {{threadType}}" },
+  { re: new RegExp(`TYPE OF CHEMICAL PEEL\\s*:?\\s*${B}`, "gi"), to: "Type of Chemical Peel: {{peelType}}" },
+  { re: new RegExp(`TYPE OF BOTULINUM TOXIN\\s*:?\\s*${B}`, "gi"), to: "Type of Botulinum Toxin: {{toxinType}}" },
+  { re: new RegExp(`Batch (?:number|No)\\.?\\s*:?\\s*${B}`, "gi"), to: "Batch No: {{batchNo}}" },
+  { re: new RegExp(`Size\\s*:?\\s*${B}`, "gi"), to: "Size: {{size}}" },
 ];
 
 function slug(s: string): string {
@@ -155,10 +198,6 @@ function parseForm(raw: string): { title: string; source: string; body: string }
   // heading (handles stray "Name:", "Date: Time: Place:", translator lines, etc.).
   let inSignatureZone = false;
 
-  // A short label followed by a long fill-in blank that runs to end of line,
-  // e.g. "INDICATION FOR PRP ____" or "AREA to be treated includes: ____".
-  const isFieldBlankLine = (s: string) => /^.{0,45}[_….]{6,}\s*$/.test(s);
-
   for (let i = startIdx; i < lines.length; i++) {
     const line = lines[i].replace(/\t/g, " ").replace(/\s+$/g, "");
     const trimmed = line.trim();
@@ -177,7 +216,6 @@ function parseForm(raw: string): { title: string; source: string; body: string }
     }
     if (/please acknowledge the source/i.test(trimmed)) continue;
     if (isSeparatorLine(trimmed)) continue;
-    if (isFieldBlankLine(trimmed)) continue;
 
     if (isSignatureLine(trimmed)) {
       inSignatureZone = true;
@@ -195,39 +233,15 @@ function parseForm(raw: string): { title: string; source: string; body: string }
     out.push(trimmed);
   }
 
-  // Strip inline fill-in blanks entirely (runs of _ … . or ----). A line that is
-  // just a label trailing into a blank (a fill-in prompt) is dropped; blanks that
-  // sit inside a sentence or lead a clause are removed and spacing collapsed.
-  const BLANK_RUN = /[_…]{3,}|-{4,}|\.{4,}/g;
-  const TRAILING_BLANK = /[\s]*([_…]{3,}|-{4,}|\.{4,})[\s_….\-]*$/;
-
-  const cleanedLines: string[] = [];
-  for (const original of out) {
-    if (original.startsWith("## ")) {
-      cleanedLines.push(original);
-      continue;
-    }
-    if (!original.trim()) {
-      cleanedLines.push("");
-      continue;
-    }
-
-    // Drop fill-in prompt lines: "<label> ____" that don't end a real sentence.
-    if (TRAILING_BLANK.test(original)) {
-      const before = original.replace(TRAILING_BLANK, "").trim();
-      if (!/[.!?]$/.test(before)) continue;
-    }
-
-    const cleaned = original
-      .replace(/^([_…]{3,}|-{4,}|\.{4,})\s*/, "") // leading checkbox-style blank
-      .replace(BLANK_RUN, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-
-    if (cleaned) cleanedLines.push(cleaned);
-  }
-
-  const body = cleanedLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  // Convert fill-in blanks into {{tokens}} via the labelled rules. Any blank the
+  // rules don't recognise becomes a plain underline (checkbox / initials / free note).
+  let body = out.join("\n");
+  for (const rule of TOKEN_RULES) body = body.replace(rule.re, rule.to);
+  body = body
+    .replace(new RegExp(B, "g"), "______") // unrecognised blanks → handwritten underline
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
   return { title, source, body };
 }
@@ -263,6 +277,20 @@ function main() {
     }
     usedKeys.add(key);
 
+    // Collect the {{tokens}} actually present in this form → its field list.
+    const present = new Set<string>();
+    for (const m of body.matchAll(/\{\{(\w+)\}\}/g)) present.add(m[1]);
+    const fields = [...present]
+      .sort((a, b) => {
+        const ia = FIELD_ORDER.indexOf(a);
+        const ib = FIELD_ORDER.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      })
+      .map((tok) => {
+        const meta = TOKEN_META[tok] || { label: tok };
+        return { key: tok, label: meta.label, ...(meta.autofill ? { autofill: meta.autofill } : {}) };
+      });
+
     templates.push({
       key,
       title,
@@ -270,11 +298,11 @@ function main() {
       category: inferCategory(title),
       version: 1,
       bodyMarkdown: body,
-      fields: COMMON_FIELDS,
+      fields,
       sortOrder: idx,
     });
 
-    console.log(`✓ ${file}  →  ${title}  (${body.length} chars)`);
+    console.log(`✓ ${title}  —  fields: [${fields.map((f) => f.key).join(", ")}]`);
   });
 
   fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
