@@ -56,52 +56,57 @@ function hLine(doc: PDFKit.PDFDocument, x1: number, x2: number, y: number, color
   doc.save().moveTo(x1, y).lineTo(x2, y).strokeColor(color).lineWidth(lw).stroke().restore();
 }
 
-// Branded header: logo (if present) + clinic name + doctor credentials, painted
-// into the reserved top strip, with a divider just above the body.
+// Branded header: logo (top-left) + centered clinic name & doctor credentials,
+// painted into the reserved top strip, with a divider just above the body. The
+// clinic and doctor names use a bold serif to match the printed letterhead.
 function stampHeader(doc: PDFKit.PDFDocument) {
-  const top = 28;
-  let textX = ML;
+  const top = 26;
   if (fs.existsSync(LOGO_PATH)) {
-    try {
-      doc.image(LOGO_PATH, ML, top, { fit: [74, 74] });
-      textX = ML + 86;
-    } catch { /* unreadable logo — fall back to text-only header */ }
+    try { doc.image(LOGO_PATH, ML, top + 2, { fit: [74, 74] }); }
+    catch { /* unreadable logo — fall back to text-only header */ }
   }
-  const headerW = ML + CW - textX;
-  doc.fillColor(BRAND_ORANGE).font("Helvetica-Bold").fontSize(20)
-     .text(BRANDING.clinicName, textX, top, { width: headerW, lineBreak: false });
-  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(13)
-     .text(BRANDING.doctorName, textX, top + 27, { width: headerW, lineBreak: false });
-  doc.fillColor(BLACK).font("Helvetica").fontSize(6.5)
-     .text(BRANDING.qualifications, textX, top + 44, { width: headerW, lineBreak: false });
-  doc.fillColor(BLACK).font("Helvetica").fontSize(10)
-     .text(BRANDING.title, textX, top + 53, { width: headerW, lineBreak: false });
+  // Centered across the full content width; the logo sits to the left of it.
+  doc.fillColor(BRAND_ORANGE).font("Times-Bold").fontSize(25)
+     .text(BRANDING.clinicName, ML, top, { width: CW, align: "center", lineBreak: false });
+  doc.fillColor(BLACK).font("Times-Bold").fontSize(15)
+     .text(BRANDING.doctorName, ML, top + 33, { width: CW, align: "center", lineBreak: false });
+  doc.fillColor(BLACK).font("Helvetica").fontSize(7)
+     .text(BRANDING.qualifications, ML, top + 52, { width: CW, align: "center", lineBreak: false });
+  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(10.5)
+     .text(BRANDING.title, ML, top + 62, { width: CW, align: "center", lineBreak: false });
   doc.fillColor(BLACK).font("Helvetica").fontSize(9)
-     .text(BRANDING.regNo, textX, top + 67, { width: headerW, lineBreak: false });
-  hLine(doc, ML, ML + CW, MT - 12, BORDER, 0.8);
+     .text(BRANDING.regNo, ML, top + 77, { width: CW, align: "center", lineBreak: false });
+  hLine(doc, ML, ML + CW, MT - 10, BORDER, 0.8);
 }
 
 // Footer band: facilities line + sign-off (and optional QR), painted into the
-// reserved bottom strip. Compact font keeps it inside the 50pt margin.
+// reserved bottom strip. The bottom margin is temporarily set to 0 so pdfkit
+// does not spill the footer onto a new page when it draws below the margin.
 function stampFooter(doc: PDFKit.PDFDocument) {
-  const hasQr = fs.existsSync(QR_PATH);
-  const qrW   = hasQr ? 38 : 0;
-  const textW = CW - qrW - (hasQr ? 8 : 0);
-  const topY  = PH - MB + 2;
-  hLine(doc, ML, ML + CW, topY, BORDER, 0.6);
+  const savedBottom = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+  try {
+    const hasQr = fs.existsSync(QR_PATH);
+    const qrW   = hasQr ? 38 : 0;
+    const textW = CW - qrW - (hasQr ? 8 : 0);
+    const topY  = PH - MB + 2;
+    hLine(doc, ML, ML + CW, topY, BORDER, 0.6);
 
-  doc.fillColor("#555555").font("Helvetica").fontSize(6.3)
-     .text(BRANDING.facilities, ML, topY + 5, { width: textW, align: "left", lineGap: 1 });
+    doc.fillColor("#555555").font("Helvetica").fontSize(6.3)
+       .text(BRANDING.facilities, ML, topY + 5, { width: textW, align: "left", lineGap: 1 });
 
-  const bottomY = PH - 16;
-  doc.fillColor(BLACK).font("Helvetica").fontSize(8)
-     .text(BRANDING.footerLeft, ML, bottomY, { lineBreak: false });
-  doc.fillColor(BLACK).font("Helvetica").fontSize(8)
-     .text(BRANDING.footerRight, ML, bottomY, { width: textW, align: "right", lineBreak: false });
+    const bottomY = PH - 18;
+    doc.fillColor(BLACK).font("Helvetica").fontSize(8)
+       .text(BRANDING.footerLeft, ML, bottomY, { width: textW, align: "left", lineBreak: false });
+    doc.fillColor(BLACK).font("Helvetica").fontSize(8)
+       .text(BRANDING.footerRight, ML, bottomY, { width: textW, align: "right", lineBreak: false });
 
-  if (hasQr) {
-    try { doc.image(QR_PATH, ML + CW - qrW, topY + 4, { fit: [qrW, qrW] }); }
-    catch { /* unreadable QR — skip it */ }
+    if (hasQr) {
+      try { doc.image(QR_PATH, ML + CW - qrW, topY + 4, { fit: [qrW, qrW] }); }
+      catch { /* unreadable QR — skip it */ }
+    }
+  } finally {
+    doc.page.margins.bottom = savedBottom;
   }
 }
 
