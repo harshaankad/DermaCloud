@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import PDFDocument from "pdfkit";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { connectDB } from "@/lib/db/connection";
+import { applyClinicBranding } from "@/lib/pdf/clinicBranding";
 import ConsultationDermatology from "@/models/ConsultationDermatology";
 import "@/models/Clinic";
 import "@/models/User";
@@ -662,6 +663,11 @@ export async function POST(request: NextRequest) {
 
       try {
         buildPdf(doc, consultation, fieldSet, language, fieldLabels && typeof fieldLabels === "object" ? fieldLabels : {});
+
+        // Digital letterhead for clinics without pre-printed stationery.
+        // Gated strictly by clinic ID — no other clinic is affected.
+        const clinicId = String((consultation as any).clinicId?._id ?? (consultation as any).clinicId ?? "");
+        applyClinicBranding(doc, clinicId);
       } catch (e) {
         reject(e);
       }
