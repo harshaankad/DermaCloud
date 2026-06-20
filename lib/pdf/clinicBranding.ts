@@ -65,7 +65,13 @@ function stampHeader(doc: PDFKit.PDFDocument) {
     try { doc.image(LOGO_PATH, ML, top + 2, { fit: [74, 74] }); }
     catch { /* unreadable logo — fall back to text-only header */ }
   }
-  // Centered across the full content width; the logo sits to the left of it.
+  // Google review QR at the top-right, balancing the logo on the left.
+  if (fs.existsSync(QR_PATH)) {
+    const qrSize = 58;
+    try { doc.image(QR_PATH, ML + CW - qrSize, top + 6, { fit: [qrSize, qrSize] }); }
+    catch { /* unreadable QR — skip it */ }
+  }
+  // Centered across the full content width; the logo and QR flank it.
   doc.fillColor(BRAND_ORANGE).font("Times-Bold").fontSize(25)
      .text(BRANDING.clinicName, ML, top, { width: CW, align: "center", lineBreak: false });
   doc.fillColor(BLACK).font("Times-Bold").fontSize(15)
@@ -79,32 +85,24 @@ function stampHeader(doc: PDFKit.PDFDocument) {
   hLine(doc, ML, ML + CW, MT - 10, BORDER, 0.8);
 }
 
-// Footer band: facilities line + sign-off (and optional QR), painted into the
-// reserved bottom strip. The bottom margin is temporarily set to 0 so pdfkit
-// does not spill the footer onto a new page when it draws below the margin.
+// Footer band: facilities line + sign-off, painted into the reserved bottom
+// strip. The bottom margin is temporarily set to 0 so pdfkit does not spill the
+// footer onto a new page when it draws below the margin.
 function stampFooter(doc: PDFKit.PDFDocument) {
   const savedBottom = doc.page.margins.bottom;
   doc.page.margins.bottom = 0;
   try {
-    const hasQr = fs.existsSync(QR_PATH);
-    const qrW   = hasQr ? 38 : 0;
-    const textW = CW - qrW - (hasQr ? 8 : 0);
-    const topY  = PH - MB + 2;
+    const topY = PH - MB + 2;
     hLine(doc, ML, ML + CW, topY, BORDER, 0.6);
 
     doc.fillColor("#555555").font("Helvetica").fontSize(6.3)
-       .text(BRANDING.facilities, ML, topY + 5, { width: textW, align: "left", lineGap: 1 });
+       .text(BRANDING.facilities, ML, topY + 5, { width: CW, align: "left", lineGap: 1 });
 
     const bottomY = PH - 18;
     doc.fillColor(BLACK).font("Helvetica").fontSize(8)
-       .text(BRANDING.footerLeft, ML, bottomY, { width: textW, align: "left", lineBreak: false });
+       .text(BRANDING.footerLeft, ML, bottomY, { width: CW, align: "left", lineBreak: false });
     doc.fillColor(BLACK).font("Helvetica").fontSize(8)
-       .text(BRANDING.footerRight, ML, bottomY, { width: textW, align: "right", lineBreak: false });
-
-    if (hasQr) {
-      try { doc.image(QR_PATH, ML + CW - qrW, topY + 4, { fit: [qrW, qrW] }); }
-      catch { /* unreadable QR — skip it */ }
-    }
+       .text(BRANDING.footerRight, ML, bottomY, { width: CW, align: "right", lineBreak: false });
   } finally {
     doc.page.margins.bottom = savedBottom;
   }
