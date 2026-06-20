@@ -60,28 +60,42 @@ function hLine(doc: PDFKit.PDFDocument, x1: number, x2: number, y: number, color
 // painted into the reserved top strip, with a divider just above the body. The
 // clinic and doctor names use a bold serif to match the printed letterhead.
 function stampHeader(doc: PDFKit.PDFDocument) {
-  const top = 26;
+  const top = 27;
+  const logoSize = 70;
+  const qrSize   = 54;
+  // Centre the credentials in the gap *between* the logo and QR so neither is
+  // crowded — the masthead reads as one balanced, premium block.
+  const textLeft  = ML + logoSize + 20;
+  const textRight = ML + CW - qrSize - 20;
+  const textW     = textRight - textLeft;
+
   if (fs.existsSync(LOGO_PATH)) {
-    try { doc.image(LOGO_PATH, ML, top + 2, { fit: [74, 74] }); }
+    try { doc.image(LOGO_PATH, ML, top + 5, { fit: [logoSize, logoSize] }); }
     catch { /* unreadable logo — fall back to text-only header */ }
   }
   // Google review QR at the top-right, balancing the logo on the left.
   if (fs.existsSync(QR_PATH)) {
-    const qrSize = 58;
-    try { doc.image(QR_PATH, ML + CW - qrSize, top + 6, { fit: [qrSize, qrSize] }); }
+    try { doc.image(QR_PATH, ML + CW - qrSize, top + 9, { fit: [qrSize, qrSize] }); }
     catch { /* unreadable QR — skip it */ }
   }
-  // Centered across the full content width; the logo and QR flank it.
-  doc.fillColor(BRAND_ORANGE).font("Times-Bold").fontSize(25)
-     .text(BRANDING.clinicName, ML, top, { width: CW, align: "center", lineBreak: false });
-  doc.fillColor(BLACK).font("Times-Bold").fontSize(15)
-     .text(BRANDING.doctorName, ML, top + 33, { width: CW, align: "center", lineBreak: false });
-  doc.fillColor(BLACK).font("Helvetica").fontSize(7)
-     .text(BRANDING.qualifications, ML, top + 52, { width: CW, align: "center", lineBreak: false });
-  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(10.5)
-     .text(BRANDING.title, ML, top + 62, { width: CW, align: "center", lineBreak: false });
-  doc.fillColor(BLACK).font("Helvetica").fontSize(9)
-     .text(BRANDING.regNo, ML, top + 77, { width: CW, align: "center", lineBreak: false });
+
+  // Shrink the clinic name just enough to sit cleanly inside the gap.
+  let nameSize = 23;
+  doc.font("Times-Bold").fontSize(nameSize);
+  while (doc.widthOfString(BRANDING.clinicName, { characterSpacing: 0.4 }) > textW && nameSize > 16) {
+    nameSize -= 0.5;
+    doc.fontSize(nameSize);
+  }
+  doc.fillColor(BRAND_ORANGE).font("Times-Bold").fontSize(nameSize)
+     .text(BRANDING.clinicName, textLeft, top + 3, { width: textW, align: "center", lineBreak: false, characterSpacing: 0.4 });
+  doc.fillColor(BLACK).font("Times-Bold").fontSize(14)
+     .text(BRANDING.doctorName, textLeft, top + 31, { width: textW, align: "center", lineBreak: false });
+  doc.fillColor("#444444").font("Helvetica").fontSize(6.8)
+     .text(BRANDING.qualifications, textLeft, top + 49, { width: textW, align: "center", lineBreak: false, characterSpacing: 0.3 });
+  doc.fillColor(BLACK).font("Helvetica").fontSize(9.5)
+     .text(BRANDING.title, textLeft, top + 59, { width: textW, align: "center", lineBreak: false });
+  doc.fillColor("#444444").font("Helvetica").fontSize(8.5)
+     .text(BRANDING.regNo, textLeft, top + 72, { width: textW, align: "center", lineBreak: false });
   hLine(doc, ML, ML + CW, MT - 10, BORDER, 0.8);
 }
 
