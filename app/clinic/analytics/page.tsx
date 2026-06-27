@@ -148,6 +148,12 @@ function SkeletonPage() {
   );
 }
 
+// First day of the current month as YYYY-MM-DD (local).
+function firstOfMonthStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
@@ -157,9 +163,12 @@ export default function AnalyticsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData]             = useState<AnalyticsData | null>(null);
   const [range, setRange]           = useState<7 | 30 | 90 | 180>(30);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [hoveredDay, setHoveredDay] = useState<TrendDay | null>(null);
   const [showPricingInfo, setShowPricingInfo] = useState(false);
+  const [exportFrom, setExportFrom] = useState(firstOfMonthStr());
+  const [exportTo, setExportTo] = useState(new Date().toISOString().split("T")[0]);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const fetchAnalytics = useCallback(async (r: number, isRefresh = false) => {
     const token = localStorage.getItem("token");
@@ -172,7 +181,6 @@ export default function AnalyticsPage() {
       const json = await res.json();
       if (json.success) {
         setData(json.data as AnalyticsData);
-        setLastUpdated(new Date());
       }
     } catch (err) {
       console.error("[Analytics] fetch error:", err);
@@ -204,6 +212,39 @@ export default function AnalyticsPage() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     router.push("/login");
+  };
+
+  // Download the revenue report (consultations, follow-ups, procedures) as Excel
+  // for the accountant. Range is capped at one month.
+  const handleExportRevenue = async () => {
+    setExportError(null);
+    if (!exportFrom || !exportTo) { setExportError("Pick a date range"); return; }
+    if (exportFrom > exportTo) { setExportError("'From' must be on or before 'To'"); return; }
+    const diffDays = Math.round((new Date(exportTo).getTime() - new Date(exportFrom).getTime()) / 86400000);
+    if (diffDays > 30) { setExportError("Range cannot exceed one month"); return; }
+    const token = localStorage.getItem("token");
+    if (!token) { router.push("/login"); return; }
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/tier2/analytics/export?from=${exportFrom}&to=${exportTo}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setExportError(json?.message || "Export failed");
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `Revenue_${exportFrom}_to_${exportTo}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      setExportError("Export failed");
+    } finally {
+      setExporting(false);
+    }
   };
 
   // ── Derived values ─────────────────────────────────────────────────────────
@@ -285,12 +326,6 @@ export default function AnalyticsPage() {
                 <h2 className="text-2xl font-bold text-gray-900">Practice Analytics</h2>
                 <p className="text-sm text-gray-500 mt-0.5">
                   Dr. {user?.name}
-                  {lastUpdated && (
-                    <span className="text-gray-400 ml-2">
-                      · Updated {lastUpdated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                      <span className="ml-1 text-[11px]">(cached 10 min)</span>
-                    </span>
-                  )}
                 </p>
               </div>
 
@@ -334,6 +369,63 @@ export default function AnalyticsPage() {
                   </svg>
                 </button>
               </div>
+            </div>
+
+            {/* ── Revenue report (Excel) for accountant ── */}
+            <div className="bg-white rounded-xl shadow-lg p-5 mb-6">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                {/* Title + description */}
+                <div className="flex items-start gap-3.5">
+                  <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">Revenue Report</h3>
+                    <p className="text-sm text-gray-500 mt-0.5 max-w-sm">
+                      Export consultations, follow-ups &amp; procedures to Excel for your accountant. Up to one month per download.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-end gap-3 flex-shrink-0">
+                  <div className="flex flex-col">
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">From</label>
+                    <input
+                      type="date"
+                      value={exportFrom}
+                      max={exportTo}
+                      onChange={(e) => setExportFrom(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-white"
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">To</label>
+                    <input
+                      type="date"
+                      value={exportTo}
+                      min={exportFrom}
+                      onChange={(e) => setExportTo(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-white"
+                    />
+                  </div>
+                  <button
+                    onClick={handleExportRevenue}
+                    disabled={exporting}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-60 transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-600/20"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    {exporting ? "Preparing…" : "Download Excel"}
+                  </button>
+                </div>
+              </div>
+              {exportError && (
+                <p className="text-sm text-red-600 mt-3 font-medium">{exportError}</p>
+              )}
             </div>
 
             {/* ── Block 1: Quick Stats ── */}

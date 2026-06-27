@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { istDateKey } from "../lib/dates";
 
 export interface IAppointment extends Document {
   appointmentId: string;
@@ -35,6 +36,20 @@ export interface IAppointment extends Document {
   completedAt?: Date;
   cancelledAt?: Date;
   cancellationReason?: string;
+  // CA-grade invoice number for walk-in entries. Two independent series:
+  //   PROC-YYYYMMDD-0001 → cosmetology procedures
+  //   CON-YYYYMMDD-0001  → consultations & follow-ups
+  invoiceNumber?: string;
+  // Soft delete — voided entries are hidden from the daily page, excluded from
+  // revenue totals and the CA Excel export, but retained in the DB for audit.
+  voided?: boolean;
+  voidedAt?: Date;
+  voidedBy?: {
+    id: mongoose.Types.ObjectId;
+    name: string;
+    role: "doctor" | "frontdesk";
+  };
+  voidReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -141,6 +156,15 @@ const AppointmentSchema = new Schema<IAppointment>(
     completedAt: Date,
     cancelledAt: Date,
     cancellationReason: String,
+    invoiceNumber: { type: String, trim: true },
+    voided: { type: Boolean, default: false },
+    voidedAt: Date,
+    voidedBy: {
+      id: { type: Schema.Types.ObjectId },
+      name: String,
+      role: { type: String, enum: ["doctor", "frontdesk"] },
+    },
+    voidReason: { type: String, trim: true },
   },
   {
     timestamps: true,
@@ -154,6 +178,31 @@ AppointmentSchema.pre("save", async function (next) {
     const random = Math.random().toString(36).substring(2, 5).toUpperCase();
     this.appointmentId = `APT-${timestamp}${random}`;
   }
+
+  // Walk-in entries get a sequential, date-based invoice number for the CA
+  // register. Two independent series: PROC- for cosmetology procedures, CON-
+  // for consultations & follow-ups. This is BEST-EFFORT and fully isolated —
+  // any failure here must never block the booking from being saved; the
+  // backfill script fills any gaps later (scripts/backfill-appointment-invoices.ts).
+  if (this.walkIn && !this.invoiceNumber && !this.voided) {
+    try {
+      const isProc = this.type === "cosmetology" && !!this.procedureName;
+      const prefix = isProc ? "PROC" : "CON";
+      const dateStr = istDateKey(this.appointmentDate || new Date());
+      const last = (await mongoose.models.Appointment
+        .findOne(
+          { clinicId: this.clinicId, invoiceNumber: { $regex: `^${prefix}-${dateStr}-` } },
+          { invoiceNumber: 1 }
+        )
+        .sort({ invoiceNumber: -1 })
+        .lean()) as { invoiceNumber?: string } | null;
+      const lastSeq = last?.invoiceNumber ? parseInt(last.invoiceNumber.split("-")[2], 10) : 0;
+      this.invoiceNumber = `${prefix}-${dateStr}-${String(lastSeq + 1).padStart(4, "0")}`;
+    } catch {
+      // Swallow — the booking must still save; invoiceNumber stays unset for backfill.
+    }
+  }
+
   next();
 });
 
@@ -167,6 +216,10 @@ AppointmentSchema.index({ appointmentDate: 1, clinicId: 1 });
 AppointmentSchema.index({ clinicId: 1, appointmentDate: 1, tokenNumber: 1 });
 // Compound unique — appointmentIds are unique per clinic, not globally
 AppointmentSchema.index({ clinicId: 1, appointmentId: 1 }, { unique: true, sparse: true });
+// Invoice-number lookups for the CA register. Intentionally NOT unique: a unique
+// index could make a rare generation race throw at save() and lose a booking,
+// which we must never do. Backfill keeps the series gap-free.
+AppointmentSchema.index({ clinicId: 1, invoiceNumber: 1 }, { sparse: true });
 
 const Appointment: Model<IAppointment> =
   mongoose.models.Appointment ||
