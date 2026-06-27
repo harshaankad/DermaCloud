@@ -9,6 +9,19 @@ function fromIST(date: Date): Date {
   return new Date(date.getTime() - IST_OFFSET_MS);
 }
 
+/** "YYYYMMDD" in IST for the given instant (defaults to now). Used for date-based invoice numbers. */
+export function istDateKey(date: Date = new Date()): string {
+  const ist = toIST(date);
+  return `${ist.getUTCFullYear()}${String(ist.getUTCMonth() + 1).padStart(2, "0")}${String(ist.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** "DD-MMM-YYYY" in IST for the given instant — human-readable invoice/report dates. */
+export function istDateLabel(date: Date = new Date()): string {
+  const ist = toIST(date);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${String(ist.getUTCDate()).padStart(2, "0")}-${months[ist.getUTCMonth()]}-${ist.getUTCFullYear()}`;
+}
+
 /** "HH:MM" in IST for the given instant (defaults to now). */
 export function istHHMM(date: Date = new Date()): string {
   const ist = toIST(date);

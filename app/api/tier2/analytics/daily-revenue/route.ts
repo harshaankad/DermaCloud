@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/connection";
 import { verifyTier2Request } from "@/lib/auth/verify-request";
 import Appointment from "@/models/Appointment";
-import { startOfDayIST, endOfDayIST } from "@/lib/dates";
+import Clinic from "@/models/Clinic";
+import { startOfDayIST, endOfDayIST, istDateKey } from "@/lib/dates";
 
 // GET /api/tier2/analytics/daily-revenue?date=YYYY-MM-DD
 //
@@ -37,16 +38,63 @@ export async function GET(request: NextRequest) {
       walkIn: true,
       appointmentDate: { $gte: dayStart, $lte: dayEnd },
       status: { $nin: ["cancelled"] },
+      voided: { $ne: true },
     })
       .populate("patientId", "name patientId phone")
       .sort({ tokenNumber: 1 })
       .lean();
 
+    // Lazy-assign invoice numbers to any walk-in entries that don't have one yet
+    // (e.g. created before invoicing existed). All rows here fall on one IST day,
+    // so there's a single dateKey and two series (CON / PROC). Best-effort: a
+    // failure here must never break the read.
+    const missing = (rows as any[]).filter((r) => !r.invoiceNumber);
+    if (missing.length) {
+      try {
+        const dateKey = istDateKey(dayStart);
+        for (const series of ["CON", "PROC"] as const) {
+          const seriesRows = missing.filter(
+            (r) => (r.type === "cosmetology" && r.procedureName ? "PROC" : "CON") === series
+          );
+          if (!seriesRows.length) continue;
+          const last = (await Appointment.findOne(
+            { clinicId: auth.clinicId, invoiceNumber: { $regex: `^${series}-${dateKey}-` } },
+            { invoiceNumber: 1 }
+          )
+            .sort({ invoiceNumber: -1 })
+            .lean()) as { invoiceNumber?: string } | null;
+          let seq = last?.invoiceNumber ? parseInt(last.invoiceNumber.split("-")[2], 10) : 0;
+          seriesRows.sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() ||
+              (a.tokenNumber || 0) - (b.tokenNumber || 0)
+          );
+          const ops = seriesRows.map((r) => {
+            seq += 1;
+            const num = `${series}-${dateKey}-${String(seq).padStart(4, "0")}`;
+            r.invoiceNumber = num; // reflect in the response immediately
+            return { updateOne: { filter: { _id: r._id }, update: { $set: { invoiceNumber: num } } } };
+          });
+          if (ops.length) await Appointment.bulkWrite(ops, { ordered: false });
+        }
+      } catch (e) {
+        console.error("Lazy invoice-number assignment failed:", e);
+      }
+    }
+
+    // Clinic identity for the printed invoice (name + GSTIN), fetched once.
+    const clinic = (await Clinic.findById(auth.clinicId, { clinicName: 1, gstin: 1 }).lean()) as
+      | { clinicName?: string; gstin?: string }
+      | null;
+    const clinicInfo = { name: clinic?.clinicName || "", gstin: clinic?.gstin || "" };
+
     type Row = {
       _id: string;
+      invoiceNumber?: string;
       tokenNumber?: number;
       patientName: string;
       patientId?: string;
+      patientPhone?: string;
       appointmentTime?: string;
       status?: string;
       paymentMode?: string;
@@ -68,9 +116,11 @@ export async function GET(request: NextRequest) {
       const patientPid = r.patientId?.patientId;
       const base: Row = {
         _id: r._id.toString(),
+        invoiceNumber: r.invoiceNumber,
         tokenNumber: r.tokenNumber,
         patientName,
         patientId: patientPid,
+        patientPhone: r.patientId?.phone,
         appointmentTime: r.appointmentTime,
         status: r.status,
         paymentMode: r.paymentMode,
@@ -133,6 +183,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         date: dateStr,
+        clinic: clinicInfo,
         consultations: {
           count: consultations.length,
           total: consultationsTotal,

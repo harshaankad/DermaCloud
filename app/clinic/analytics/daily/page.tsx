@@ -3,12 +3,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { printAppointmentInvoice } from "@/lib/printInvoice";
 
 interface Row {
   _id: string;
+  invoiceNumber?: string;
   tokenNumber?: number;
   patientName: string;
   patientId?: string;
+  patientPhone?: string;
   appointmentTime?: string;
   status?: string;
   paymentMode?: string;
@@ -33,6 +36,7 @@ interface ProcedureGroup {
 
 interface DailyRevenue {
   date: string;
+  clinic?: { name?: string; gstin?: string };
   consultations: { count: number; total: number; items: Row[] };
   followUps: { count: number; total: number; items: Row[] };
   procedures: { count: number; total: number; groups: ProcedureGroup[] };
@@ -59,6 +63,14 @@ export default function DailyRevenuePage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DailyRevenue | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [notice, setNotice] = useState<{ kind: "error" | "success"; text: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const flash = (kind: "error" | "success", text: string) => {
+    setNotice({ kind, text });
+    setTimeout(() => setNotice(null), 4000);
+  };
 
   useEffect(() => {
     try {
@@ -92,6 +104,83 @@ export default function DailyRevenuePage() {
   }, [date, router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Print a plain, sales-style B&W invoice for an entry (client-side, like the
+  // pharmacy bill). All data is already loaded on the page.
+  const printInvoice = (opts: {
+    row: Row;
+    serviceLabel: string;
+    isProcedure: boolean;
+    basePrice?: number;
+    gstRate?: number;
+    gstAmount?: number;
+    totalAmount: number;
+  }) => {
+    printAppointmentInvoice({
+      clinicName: data?.clinic?.name || user?.clinicName,
+      clinicGstin: data?.clinic?.gstin,
+      invoiceNumber: opts.row.invoiceNumber,
+      invoiceDate: date,
+      patientName: opts.row.patientName,
+      patientPhone: opts.row.patientPhone,
+      patientCode: opts.row.patientId,
+      paymentMode: opts.row.paymentMode,
+      serviceLabel: opts.serviceLabel,
+      isProcedure: opts.isProcedure,
+      basePrice: opts.basePrice,
+      gstRate: opts.gstRate,
+      gstAmount: opts.gstAmount,
+      totalAmount: opts.totalAmount,
+    });
+  };
+
+  // Open the confirmation modal for an entry.
+  const requestDelete = (id: string, label: string) => {
+    setDeleteTarget({ id, label });
+  };
+
+  // Soft-delete (void) the entry confirmed in the modal, then refresh.
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
+    const token = localStorage.getItem("token");
+    if (!token) { router.push("/auth/login"); return; }
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/tier2/analytics/daily-revenue/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) { flash("error", json.message || "Failed to remove entry"); return; }
+      flash("success", "Entry removed");
+      setDeleteTarget(null);
+      fetchData();
+    } catch {
+      flash("error", "Failed to remove entry");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const invoiceBtn = (onClick: () => void) => (
+    <button
+      onClick={onClick}
+      className="px-2.5 py-1 text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100"
+    >
+      Invoice
+    </button>
+  );
+
+  const deleteBtn = (id: string, label: string) => (
+    <button
+      onClick={() => requestDelete(id, label)}
+      title="Remove from revenue"
+      className="px-2.5 py-1 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+    >
+      Delete
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50">
@@ -180,6 +269,16 @@ export default function DailyRevenuePage() {
           </div>
         </div>
 
+        {notice && (
+          <div className={`rounded-xl px-4 py-3 text-sm font-medium border ${
+            notice.kind === "error"
+              ? "bg-red-50 text-red-700 border-red-200"
+              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+          }`}>
+            {notice.text}
+          </div>
+        )}
+
         {loading ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center text-gray-400">
             Loading daily revenue…
@@ -227,30 +326,39 @@ export default function DailyRevenuePage() {
               ) : (
                 <Table>
                   <colgroup>
+                    <col style={{ width: "165px" }} />
+                    <col style={{ width: "70px" }} />
                     <col style={{ width: "80px" }} />
-                    <col style={{ width: "90px" }} />
                     <col />
-                    <col style={{ width: "140px" }} />
-                    <col style={{ width: "110px" }} />
                     <col style={{ width: "120px" }} />
+                    <col style={{ width: "100px" }} />
+                    <col style={{ width: "110px" }} />
+                    <col style={{ width: "90px" }} />
+                    <col style={{ width: "80px" }} />
                   </colgroup>
                   <THead cols={[
+                    { label: "Invoice No", align: "left" },
                     { label: "Token", align: "left" },
                     { label: "Time", align: "left" },
                     { label: "Patient", align: "left" },
                     { label: "Status", align: "left" },
                     { label: "Payment", align: "left" },
                     { label: "Fee", align: "right" },
+                    { label: "Invoice", align: "center" },
+                    { label: "Delete", align: "center" },
                   ]} />
                   <tbody>
                     {data.consultations.items.map((r) => (
                       <tr key={r._id} className="border-t border-gray-100">
+                        <Td className="font-mono text-[11px] text-gray-500 whitespace-nowrap">{r.invoiceNumber || "—"}</Td>
                         <Td>{r.tokenNumber ?? "—"}</Td>
                         <Td>{r.appointmentTime || "—"}</Td>
                         <Td className="font-medium text-gray-900">{r.patientName}</Td>
                         <Td><StatusPill s={r.status} /></Td>
                         <Td><PaymentPill mode={r.paymentMode} /></Td>
                         <Td align="right" className="font-semibold text-gray-900">{inr(r.fee)}</Td>
+                        <Td align="center">{invoiceBtn(() => printInvoice({ row: r, serviceLabel: "Consultation", isProcedure: false, totalAmount: r.fee }))}</Td>
+                        <Td align="center">{deleteBtn(r._id, `Consultation — ${r.patientName}`)}</Td>
                       </tr>
                     ))}
                   </tbody>
@@ -270,30 +378,39 @@ export default function DailyRevenuePage() {
               ) : (
                 <Table>
                   <colgroup>
+                    <col style={{ width: "165px" }} />
+                    <col style={{ width: "70px" }} />
                     <col style={{ width: "80px" }} />
-                    <col style={{ width: "90px" }} />
                     <col />
-                    <col style={{ width: "140px" }} />
-                    <col style={{ width: "110px" }} />
                     <col style={{ width: "120px" }} />
+                    <col style={{ width: "100px" }} />
+                    <col style={{ width: "110px" }} />
+                    <col style={{ width: "90px" }} />
+                    <col style={{ width: "80px" }} />
                   </colgroup>
                   <THead cols={[
+                    { label: "Invoice No", align: "left" },
                     { label: "Token", align: "left" },
                     { label: "Time", align: "left" },
                     { label: "Patient", align: "left" },
                     { label: "Status", align: "left" },
                     { label: "Payment", align: "left" },
                     { label: "Fee", align: "right" },
+                    { label: "Invoice", align: "center" },
+                    { label: "Delete", align: "center" },
                   ]} />
                   <tbody>
                     {data.followUps.items.map((r) => (
                       <tr key={r._id} className="border-t border-gray-100">
+                        <Td className="font-mono text-[11px] text-gray-500 whitespace-nowrap">{r.invoiceNumber || "—"}</Td>
                         <Td>{r.tokenNumber ?? "—"}</Td>
                         <Td>{r.appointmentTime || "—"}</Td>
                         <Td className="font-medium text-gray-900">{r.patientName}</Td>
                         <Td><StatusPill s={r.status} /></Td>
                         <Td><PaymentPill mode={r.paymentMode} /></Td>
                         <Td align="right" className="font-semibold text-gray-900">{inr(r.fee)}</Td>
+                        <Td align="center">{invoiceBtn(() => printInvoice({ row: r, serviceLabel: "Follow-up Consultation", isProcedure: false, totalAmount: r.fee }))}</Td>
+                        <Td align="center">{deleteBtn(r._id, `Follow-up — ${r.patientName}`)}</Td>
                       </tr>
                     ))}
                   </tbody>
@@ -325,15 +442,19 @@ export default function DailyRevenuePage() {
                       </div>
                       <Table>
                         <colgroup>
+                          <col style={{ width: "165px" }} />
+                          <col style={{ width: "70px" }} />
                           <col style={{ width: "80px" }} />
-                          <col style={{ width: "90px" }} />
                           <col />
+                          <col style={{ width: "100px" }} />
+                          <col style={{ width: "100px" }} />
+                          <col style={{ width: "70px" }} />
                           <col style={{ width: "110px" }} />
-                          <col style={{ width: "120px" }} />
+                          <col style={{ width: "90px" }} />
                           <col style={{ width: "80px" }} />
-                          <col style={{ width: "120px" }} />
                         </colgroup>
                         <THead cols={[
+                          { label: "Invoice No", align: "left" },
                           { label: "Token", align: "left" },
                           { label: "Time", align: "left" },
                           { label: "Patient", align: "left" },
@@ -341,10 +462,13 @@ export default function DailyRevenuePage() {
                           { label: "Base", align: "right" },
                           { label: "GST", align: "right" },
                           { label: "Total", align: "right" },
+                          { label: "Invoice", align: "center" },
+                          { label: "Delete", align: "center" },
                         ]} />
                         <tbody>
                           {g.instances.map((r) => (
                             <tr key={r._id} className="border-t border-gray-100">
+                              <Td className="font-mono text-[11px] text-gray-500 whitespace-nowrap">{r.invoiceNumber || "—"}</Td>
                               <Td>{r.tokenNumber ?? "—"}</Td>
                               <Td>{r.appointmentTime || "—"}</Td>
                               <Td className="font-medium text-gray-900">{r.patientName}</Td>
@@ -352,6 +476,8 @@ export default function DailyRevenuePage() {
                               <Td align="right" className="text-gray-600">{inr(r.basePrice)}</Td>
                               <Td align="right" className="text-gray-600">{r.gstRate}%</Td>
                               <Td align="right" className="font-semibold text-pink-700">{inr(r.totalAmount)}</Td>
+                              <Td align="center">{invoiceBtn(() => printInvoice({ row: r, serviceLabel: g.procedureName, isProcedure: true, basePrice: r.basePrice, gstRate: r.gstRate, gstAmount: r.gstAmount, totalAmount: r.totalAmount }))}</Td>
+                              <Td align="center">{deleteBtn(r._id, `${g.procedureName} — ${r.patientName}`)}</Td>
                             </tr>
                           ))}
                         </tbody>
@@ -364,6 +490,52 @@ export default function DailyRevenuePage() {
           </>
         )}
       </main>
+
+      {/* ── Delete confirmation modal ── */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-gray-900">Remove this entry?</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    <span className="font-semibold text-gray-900">{deleteTarget.label}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 disabled:opacity-60"
+              >
+                {deleting ? "Removing…" : "Remove entry"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -414,7 +586,7 @@ function SectionCard({
 function Table({ children }: { children: React.ReactNode }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm table-fixed">{children}</table>
+      <table className="w-full text-sm">{children}</table>
     </div>
   );
 }
@@ -428,7 +600,7 @@ function THead({ cols }: { cols: Col[] }) {
         {cols.map((c) => {
           const alignCls = c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left";
           return (
-            <th key={c.label} className={`px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider ${alignCls}`}>
+            <th key={c.label} className={`px-4 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider ${alignCls}`}>
               {c.label}
             </th>
           );
@@ -440,7 +612,7 @@ function THead({ cols }: { cols: Col[] }) {
 
 function Td({ children, className = "", align }: { children: React.ReactNode; className?: string; align?: "left" | "right" | "center" }) {
   const alignCls = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
-  return <td className={`px-3 py-2.5 text-sm text-gray-700 ${alignCls} ${className}`}>{children}</td>;
+  return <td className={`px-4 py-2.5 text-sm text-gray-700 ${alignCls} ${className}`}>{children}</td>;
 }
 
 function StatusPill({ s }: { s?: string }) {
